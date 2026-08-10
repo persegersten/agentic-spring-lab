@@ -1,10 +1,12 @@
-# Agentic Spring Lab
+Wreckage
 
-A laboratory Spring Boot application used for agentic development experiments.
+Web-based turn-based multiplayer vehicle combat game.
 
-Planned architecture:
+Current scope:
+- Create game
+- Add players
+- Read game state
 
-- REST API
-- Application service
-- Domain model
-- Repository layer
+No combat.
+No movement.
+No authentication.
