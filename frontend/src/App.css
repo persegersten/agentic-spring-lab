@@ -1,0 +1,60 @@
+.game-page {
+  width: min(42rem, calc(100% - 2rem));
+  margin: 4rem auto;
+}
+
+button {
+  border: 0;
+  border-radius: 0.35rem;
+  padding: 0.7rem 1rem;
+  background: #202020;
+  color: white;
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+.game {
+  margin-top: 2rem;
+  padding: 1rem;
+  border: 1px solid #ddd;
+  border-radius: 0.35rem;
+}
+
+.game h2 {
+  overflow-wrap: anywhere;
+}
+
+.game ul {
+  padding-left: 1.25rem;
+}
+
+.game form {
+  display: flex;
+  align-items: end;
+  gap: 0.5rem;
+  margin-top: 1.5rem;
+}
+
+.game label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+.game input {
+  min-width: 0;
+  padding: 0.65rem;
+  border: 1px solid #aaa;
+  border-radius: 0.35rem;
+  font: inherit;
+}
+
+.error {
+  color: #b42318;
+}
