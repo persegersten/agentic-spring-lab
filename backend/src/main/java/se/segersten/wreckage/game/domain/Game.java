@@ -4,12 +4,15 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.HashMap;
+import java.util.Map;
 
 public class Game {
 
     private final UUID id;
     private final List<Player> players;
     private final Board board;
+    private final Map<Player, Vehicle> vehicles = new HashMap<>();
 
     public Game(UUID id, Board board) {
         this(id, new ArrayList<>(), board);
