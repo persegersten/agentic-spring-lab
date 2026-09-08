@@ -115,10 +115,13 @@ store, data-fetching framework, or board renderer.
 
 ## Database and migrations
 
-PostgreSQL is the only supported database. Flyway owns schema creation and runs
-before Hibernate validates the mappings. Hibernate is configured with
-`ddl-auto=validate`; it must not silently create or alter the production
-schema. Schema changes therefore require a new Flyway migration.
+PostgreSQL is the default database. For local development, the `in-memory`
+Spring profile selects an H2 database in PostgreSQL compatibility mode; its
+data is discarded when the backend process exits. Flyway owns schema creation
+for both databases and runs before Hibernate validates the mappings. Hibernate
+is configured with `ddl-auto=validate`; it must not silently create or alter
+the schema. Schema changes therefore require a new Flyway migration that works
+with both supported database modes.
 
 ## Testing boundaries
 
