@@ -107,7 +107,7 @@ SOUTH
 WEST
 ```
 
-Orientation determines the direction in which a vehicle moves when executing `FORWARD`.
+Orientation determines the direction in which a vehicle moves when executing `FORWARD` or `REVERSE`.
 
 ---
 
@@ -119,6 +119,7 @@ The currently supported orders are:
 
 ```text
 FORWARD
+REVERSE
 TURN_LEFT
 TURN_RIGHT
 ```
@@ -129,7 +130,9 @@ Players cannot directly specify their resulting position or orientation.
 
 ---
 
-## 6. Forward
+## 6. Forward and Reverse
+
+### Forward
 
 `FORWARD` attempts to move a vehicle exactly one grid position in its current orientation.
 
@@ -153,6 +156,21 @@ Intended position: (3, 3)
 ```
 
 Executing `FORWARD` does not change the vehicle's orientation.
+
+### Reverse
+
+`REVERSE` attempts to move a vehicle exactly one grid position opposite its current orientation.
+
+The movement vectors are:
+
+| Orientation | Change       |
+| ----------- | ------------ |
+| NORTH       | `(x, y + 1)` |
+| EAST        | `(x - 1, y)` |
+| SOUTH       | `(x, y - 1)` |
+| WEST        | `(x + 1, y)` |
+
+Executing `REVERSE` does not change the vehicle's orientation.
 
 ---
 
@@ -184,7 +202,7 @@ Turning does not change the vehicle's position.
 
 A vehicle cannot move outside the board.
 
-If a `FORWARD` order would result in a position outside the board, the movement is blocked.
+If a `FORWARD` or `REVERSE` order would result in a position outside the board, the movement is blocked.
 
 The vehicle remains at its original position and retains its original orientation.
 
@@ -413,7 +431,6 @@ The following rules are intentionally **not part of the movement engine yet**:
 * damage
 * vehicle destruction
 * vehicle segment destruction
-* reverse movement
 * acceleration
 * movement distances greater than one grid position
 * terrain
