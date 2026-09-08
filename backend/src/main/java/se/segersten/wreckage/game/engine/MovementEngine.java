@@ -54,6 +54,7 @@ public class MovementEngine {
 
         switch (order) {
             case FORWARD -> position = position.move(orientation);
+            case REVERSE -> position = position.move(orientation.reverse());
             case TURN_LEFT -> orientation = orientation.turnLeft();
             case TURN_RIGHT -> orientation = orientation.turnRight();
         }
