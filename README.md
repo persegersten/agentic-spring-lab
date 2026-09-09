@@ -13,16 +13,25 @@ No authentication.
 
 ## Run the backend
 
-PostgreSQL is used by default. To start the backend without an external
-database, activate the `in-memory` Spring profile:
+The startup script requires a database profile. To run with PostgreSQL, first
+start the database and then the backend:
 
 ```bash
-cd backend
-./mvnw spring-boot:run -Dspring-boot.run.profiles=in-memory
+docker compose up -d postgres
+./start-server.sh postgres
 ```
 
-This profile uses an H2 database that is discarded when the backend process
-exits.
+The PostgreSQL connection can be configured with the `DB_URL`, `DB_USERNAME`,
+and `DB_PASSWORD` environment variables. To run without an external database,
+use the `in-memory` profile:
+
+```bash
+./start-server.sh in-memory
+```
+
+The `in-memory` profile uses an H2 database that is discarded when the backend
+process exits. Calling the script without either `postgres` or `in-memory`
+results in an error.
 
 Acceptance tests live in `acceptance-tests/` and exercise the running system over
 HTTP. See `acceptance-tests/README.md` for how to run them.
