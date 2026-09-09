@@ -1,0 +1,6 @@
+ALTER TABLE game
+    ADD COLUMN status VARCHAR(20) NOT NULL DEFAULT 'RUNNING';
+
+ALTER TABLE game
+    ADD CONSTRAINT chk_game_status
+        CHECK (status IN ('RUNNING', 'FINISHED'));

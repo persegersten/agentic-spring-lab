@@ -21,6 +21,14 @@ test('Given no game exists, when I create one and add Alice and Bob, then the ga
     savedGame.players.map((player) => player.name),
     ['Alice', 'Bob'],
   )
+
+  // And the game is listed as running
+  const runningGames = await request('/games/running', {}, 200)
+  assert.equal(runningGames.some((runningGame) => runningGame.id === game.id), true)
+
+  // And no game is finished
+  const finishedGames = await request('/games/finished', {}, 200)
+  assert.deepEqual(finishedGames, [])
 })
 
 async function addPlayer(gameId, name) {

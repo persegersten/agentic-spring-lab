@@ -1,5 +1,6 @@
 package se.segersten.wreckage.game.api;
 
+import java.util.List;
 import java.util.UUID;
 
 import org.springframework.http.HttpStatus;
@@ -13,6 +14,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.ArraySchema;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -88,6 +90,30 @@ public class GameController {
             @Parameter(description = "Game identifier", required = true)
             @PathVariable UUID gameId) {
         return GameResponse.from(gameService.getGame(gameId));
+    }
+
+    @GetMapping("/running")
+    @Operation(summary = "Get all running games")
+    @ApiResponse(
+            responseCode = "200",
+            description = "Running games",
+            content = @Content(array = @ArraySchema(schema = @Schema(implementation = GameResponse.class))))
+    public List<GameResponse> getRunningGames() {
+        return gameService.getRunningGames().stream()
+                .map(GameResponse::from)
+                .toList();
+    }
+
+    @GetMapping("/finished")
+    @Operation(summary = "Get all finished games")
+    @ApiResponse(
+            responseCode = "200",
+            description = "Finished games",
+            content = @Content(array = @ArraySchema(schema = @Schema(implementation = GameResponse.class))))
+    public List<GameResponse> getFinishedGames() {
+        return gameService.getFinishedGames().stream()
+                .map(GameResponse::from)
+                .toList();
     }
 
     public record AddPlayerRequest(String name) {

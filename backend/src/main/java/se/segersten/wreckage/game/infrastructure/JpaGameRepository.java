@@ -1,5 +1,6 @@
 package se.segersten.wreckage.game.infrastructure;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -7,6 +8,7 @@ import org.springframework.stereotype.Repository;
 
 import se.segersten.wreckage.game.domain.Game;
 import se.segersten.wreckage.game.domain.GameRepository;
+import se.segersten.wreckage.game.domain.GameStatus;
 
 @Repository
 public class JpaGameRepository implements GameRepository {
@@ -29,5 +31,12 @@ public class JpaGameRepository implements GameRepository {
     @Override
     public Optional<Game> findById(UUID id) {
         return repository.findByDomainId(id).map(GameEntity::toDomain);
+    }
+
+    @Override
+    public List<Game> findAllByStatus(GameStatus status) {
+        return repository.findAllByStatus(status).stream()
+                .map(GameEntity::toDomain)
+                .toList();
     }
 }
