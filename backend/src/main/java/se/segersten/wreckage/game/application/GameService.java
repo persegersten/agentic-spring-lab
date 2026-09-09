@@ -1,5 +1,6 @@
 package se.segersten.wreckage.game.application;
 
+import java.util.List;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
@@ -8,6 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 import se.segersten.wreckage.game.domain.Board;
 import se.segersten.wreckage.game.domain.Game;
 import se.segersten.wreckage.game.domain.GameRepository;
+import se.segersten.wreckage.game.domain.GameStatus;
 import se.segersten.wreckage.game.domain.Player;
 
 @Service
@@ -38,6 +40,16 @@ public class GameService {
     @Transactional(readOnly = true)
     public Game getGame(UUID gameId) {
         return findGame(gameId);
+    }
+
+    @Transactional(readOnly = true)
+    public List<Game> getRunningGames() {
+        return gameRepository.findAllByStatus(GameStatus.RUNNING);
+    }
+
+    @Transactional(readOnly = true)
+    public List<Game> getFinishedGames() {
+        return gameRepository.findAllByStatus(GameStatus.FINISHED);
     }
 
     private Game findGame(UUID gameId) {

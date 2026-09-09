@@ -78,6 +78,30 @@ class GameApiIntegrationTest {
     }
 
     @Test
+    void getRunningGames() throws Exception {
+        String gameId = createGameId();
+
+        HttpResponse<String> response = get("/games/running");
+
+        assertThat(response.statusCode()).isEqualTo(HttpStatus.OK.value());
+        JsonNode games = json(response);
+        assertThat(games.isArray()).isTrue();
+        assertThat(games.valueStream()
+                .map(game -> game.path("id").asText()))
+                .contains(gameId);
+    }
+
+    @Test
+    void getFinishedGamesReturnsEmptyListWhenNoneExist() throws Exception {
+        HttpResponse<String> response = get("/games/finished");
+
+        assertThat(response.statusCode()).isEqualTo(HttpStatus.OK.value());
+        JsonNode games = json(response);
+        assertThat(games.isArray()).isTrue();
+        assertThat(games.isEmpty()).isTrue();
+    }
+
+    @Test
     void cannotAddPlayerToMissingGame() throws Exception {
         UUID missingGameId = UUID.randomUUID();
 
@@ -99,6 +123,8 @@ class GameApiIntegrationTest {
         assertThat(paths.path("/games").has("post")).isTrue();
         assertThat(paths.path("/games/{gameId}/players").has("post")).isTrue();
         assertThat(paths.path("/games/{gameId}").has("get")).isTrue();
+        assertThat(paths.path("/games/running").has("get")).isTrue();
+        assertThat(paths.path("/games/finished").has("get")).isTrue();
     }
 
     @Test

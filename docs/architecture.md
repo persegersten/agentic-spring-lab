@@ -73,6 +73,8 @@ The REST API currently exposes:
 - `POST /games` — create a game with an empty player list and a 20 × 20 board.
 - `POST /games/{gameId}/players` — add a named player to an existing game.
 - `GET /games/{gameId}` — read the current game state.
+- `GET /games/running` — list all running games, or an empty list when none exist.
+- `GET /games/finished` — list all finished games, or an empty list when none exist.
 
 Missing games produce HTTP 404. Invalid domain input, such as a blank player
 name, produces HTTP 400.
@@ -87,6 +89,8 @@ A `Game` contains:
 - a stable UUID used by the REST API and domain;
 - zero or more `Player` objects, each with a UUID and non-blank name;
 - a `Board` value with width and height.
+- a lifecycle status of `RUNNING` or `FINISHED`; newly created games are
+  running.
 
 The database also uses internal numeric primary keys. These are persistence
 details and are not exposed through the domain or API. Domain UUIDs are stored

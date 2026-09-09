@@ -10,6 +10,8 @@ import java.util.UUID;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -18,6 +20,7 @@ import jakarta.persistence.Table;
 
 import se.segersten.wreckage.game.domain.Board;
 import se.segersten.wreckage.game.domain.Game;
+import se.segersten.wreckage.game.domain.GameStatus;
 import se.segersten.wreckage.game.domain.Player;
 
 @Entity
@@ -40,6 +43,10 @@ class GameEntity {
     @Column(name = "board_height")
     private Integer boardHeight;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false)
+    private GameStatus status;
+
     @OneToMany(mappedBy = "game", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<PlayerEntity> players = new ArrayList<>();
 
@@ -56,6 +63,7 @@ class GameEntity {
 
     static GameEntity fromDomain(Game game) {
         GameEntity entity = new GameEntity(game.getId(), game.getBoard());
+        entity.status = game.getStatus();
         entity.addMissingPlayers(game.getPlayers());
         return entity;
     }
@@ -64,6 +72,7 @@ class GameEntity {
         Board board = game.getBoard();
         this.boardWidth = board == null ? null : board.width();
         this.boardHeight = board == null ? null : board.height();
+        this.status = game.getStatus();
         addMissingPlayers(game.getPlayers());
         return this;
     }
@@ -85,6 +94,6 @@ class GameEntity {
         List<Player> domainPlayers = players.stream()
                 .map(PlayerEntity::toDomain)
                 .toList();
-        return new Game(domainId, domainPlayers, board);
+        return new Game(domainId, domainPlayers, board, status);
     }
 }
