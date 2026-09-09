@@ -33,5 +33,9 @@ The `in-memory` profile uses an H2 database that is discarded when the backend
 process exits. Calling the script without either `postgres` or `in-memory`
 results in an error.
 
+With the backend running, interactive API documentation is available in
+Swagger UI at <http://localhost:8080/swagger-ui.html>. The generated OpenAPI
+document is available as JSON at <http://localhost:8080/v3/api-docs>.
+
 Acceptance tests live in `acceptance-tests/` and exercise the running system over
 HTTP. See `acceptance-tests/README.md` for how to run them.

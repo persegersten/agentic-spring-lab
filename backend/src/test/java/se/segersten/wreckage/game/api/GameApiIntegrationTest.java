@@ -90,6 +90,26 @@ class GameApiIntegrationTest {
                 .isEqualTo("Game not found: " + missingGameId);
     }
 
+    @Test
+    void publishesOpenApiDocumentationForGameEndpoints() throws Exception {
+        HttpResponse<String> response = get("/v3/api-docs");
+
+        assertThat(response.statusCode()).isEqualTo(HttpStatus.OK.value());
+        JsonNode paths = json(response).path("paths");
+        assertThat(paths.path("/games").has("post")).isTrue();
+        assertThat(paths.path("/games/{gameId}/players").has("post")).isTrue();
+        assertThat(paths.path("/games/{gameId}").has("get")).isTrue();
+    }
+
+    @Test
+    void exposesSwaggerUi() throws Exception {
+        HttpResponse<String> response = get("/swagger-ui.html");
+
+        assertThat(response.statusCode()).isBetween(300, 399);
+        assertThat(response.headers().firstValue("location"))
+                .hasValueSatisfying(location -> assertThat(location).contains("/swagger-ui/index.html"));
+    }
+
     private String createGameId() throws Exception {
         HttpResponse<String> response = post("/games", null);
         assertThat(response.statusCode()).isEqualTo(HttpStatus.CREATED.value());
