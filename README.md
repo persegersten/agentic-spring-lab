@@ -6,10 +6,11 @@ Current scope:
 - Create game
 - Add players
 - Read game state
+- Program three private movement cards per player
+- Resolve simultaneous movement and replay each round in the browser
 
-No combat.
-No movement.
-No authentication.
+There is no account system; private player views use the secret token returned
+when that player joins a game.
 
 ## Run the backend
 

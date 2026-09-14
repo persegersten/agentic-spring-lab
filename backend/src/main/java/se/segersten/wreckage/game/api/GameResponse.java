@@ -8,7 +8,9 @@ import se.segersten.wreckage.game.domain.Game;
 public record GameResponse(
         UUID id,
         List<PlayerResponse> players,
-        BoardResponse board) {
+        BoardResponse board,
+        List<VehicleResponse> vehicles,
+        PublicRoundResponse round) {
 
     public static GameResponse from(Game game) {
         List<PlayerResponse> players = game.getPlayers().stream()
@@ -17,6 +19,8 @@ public record GameResponse(
         BoardResponse board = game.getBoard() == null
                 ? null
                 : BoardResponse.from(game.getBoard());
-        return new GameResponse(game.getId(), players, board);
+        return new GameResponse(game.getId(), players, board,
+                game.getVehicleStates().stream().map(VehicleResponse::from).toList(),
+                PublicRoundResponse.from(game.getRound()));
     }
 }

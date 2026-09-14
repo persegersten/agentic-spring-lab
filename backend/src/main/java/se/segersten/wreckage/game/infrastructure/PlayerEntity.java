@@ -32,17 +32,21 @@ class PlayerEntity {
     @Column(name = "name", nullable = false)
     private String name;
 
+    @Column(name = "access_token_hash", nullable = false)
+    private String accessTokenHash;
+
     protected PlayerEntity() {
     }
 
-    private PlayerEntity(UUID domainId, GameEntity game, String name) {
+    private PlayerEntity(UUID domainId, GameEntity game, String name, String accessTokenHash) {
         this.domainId = domainId;
         this.game = game;
         this.name = name;
+        this.accessTokenHash = accessTokenHash;
     }
 
     static PlayerEntity fromDomain(Player player, GameEntity game) {
-        return new PlayerEntity(player.getId(), game, player.getName());
+        return new PlayerEntity(player.getId(), game, player.getName(), player.getAccessTokenHash());
     }
 
     UUID getDomainId() {
@@ -50,6 +54,6 @@ class PlayerEntity {
     }
 
     Player toDomain() {
-        return Player.rehydrate(domainId, name);
+        return Player.rehydrate(domainId, name, accessTokenHash);
     }
 }
