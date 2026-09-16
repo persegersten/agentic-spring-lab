@@ -1,9 +1,1 @@
-:root {
-  font-family: system-ui, sans-serif;
-  color: #202020;
-  background: #fafafa;
-}
-
-body {
-  margin: 0;
-}
+:root{font-family:Inter,ui-sans-serif,system-ui,sans-serif;color:#e7eee8;background:#0c1412;font-synthesis:none}*{box-sizing:border-box}body{margin:0;min-width:320px;background:radial-gradient(circle at 15% 0,#26382f 0,transparent 35%),#0c1412}button:focus-visible,input:focus-visible{outline:3px solid #f5b642;outline-offset:2px}

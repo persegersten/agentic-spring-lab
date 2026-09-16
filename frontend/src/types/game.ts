@@ -1,15 +1,12 @@
-export type Player = {
-  id: string
-  name: string
-}
-
-export type Board = {
-  width: number
-  height: number
-}
-
-export type Game = {
-  id: string
-  players: Player[]
-  board: Board
-}
+export type MovementOrder = 'FORWARD' | 'REVERSE' | 'TURN_LEFT' | 'TURN_RIGHT'
+export type Direction = 'NORTH' | 'EAST' | 'SOUTH' | 'WEST'
+export type RoundPhase = 'PROGRAMMING' | 'RESOLVING' | 'PLAYBACK'
+export type Player = { id: string; name: string }
+export type PlayerJoin = Player & { token: string }
+export type Board = { width: number; height: number }
+export type Vehicle = { id: string; playerId: string; x: number; y: number; direction: Direction }
+export type PlaybackStep = { index: number; commands: Record<string, MovementOrder>; vehicles: Vehicle[] }
+export type PublicRound = { number: number; phase: RoundPhase; ready: Record<string, boolean>; initialVehicles: Vehicle[]; playback: PlaybackStep[] }
+export type Game = { id: string; players: Player[]; board: Board; vehicles: Vehicle[]; round: PublicRound | null }
+export type PlayerGame = Omit<Game, 'round'> & { playerId: string; round: { state: PublicRound; hand: MovementOrder[] } | null }
+export type PlayerSession = { gameId: string; playerId: string; token: string }

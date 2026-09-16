@@ -57,6 +57,7 @@ class GameApiIntegrationTest {
         JsonNode player = json(response);
         assertThat(player.path("id").asText()).isNotBlank();
         assertThat(player.path("name").asText()).isEqualTo("Per");
+        assertThat(player.path("token").asText()).isNotBlank();
     }
 
     @Test
@@ -75,6 +76,7 @@ class GameApiIntegrationTest {
         assertThat(game.path("players").path(1).path("name").asText()).isEqualTo("Ulrika");
         assertThat(game.path("board").path("width").asInt()).isEqualTo(20);
         assertThat(game.path("board").path("height").asInt()).isEqualTo(20);
+        assertThat(game.toString()).doesNotContain("token", "hand");
     }
 
     @Test
@@ -123,6 +125,9 @@ class GameApiIntegrationTest {
         assertThat(paths.path("/games").has("post")).isTrue();
         assertThat(paths.path("/games/{gameId}/players").has("post")).isTrue();
         assertThat(paths.path("/games/{gameId}").has("get")).isTrue();
+        assertThat(paths.path("/games/{gameId}/players/{playerId}").has("get")).isTrue();
+        assertThat(paths.path("/games/{gameId}/rounds").has("post")).isTrue();
+        assertThat(paths.path("/games/{gameId}/rounds/current/program").has("post")).isTrue();
         assertThat(paths.path("/games/running").has("get")).isTrue();
         assertThat(paths.path("/games/finished").has("get")).isTrue();
     }

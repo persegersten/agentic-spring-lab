@@ -22,6 +22,14 @@ public class GameExceptionHandler {
         return new ErrorResponse(exception.getMessage());
     }
 
+    @ExceptionHandler(IllegalStateException.class)
+    @ResponseStatus(HttpStatus.CONFLICT)
+    public ErrorResponse handleInvalidState(IllegalStateException exception) { return new ErrorResponse(exception.getMessage()); }
+
+    @ExceptionHandler(SecurityException.class)
+    @ResponseStatus(HttpStatus.FORBIDDEN)
+    public ErrorResponse handleForbidden(SecurityException exception) { return new ErrorResponse(exception.getMessage()); }
+
     public record ErrorResponse(String message) {
     }
 }

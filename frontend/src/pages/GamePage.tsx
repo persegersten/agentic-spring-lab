@@ -1,55 +1,16 @@
-import { useState } from 'react'
-import { addPlayer, createGame, getGame } from '../api/games'
-import { GameSummary } from '../components/GameSummary'
-import type { Game } from '../types/game'
-
-export function GamePage() {
-  const [game, setGame] = useState<Game | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [isWorking, setIsWorking] = useState(false)
-
-  async function handleCreateGame() {
-    setIsWorking(true)
-    setError(null)
-
-    try {
-      const createdGame = await createGame()
-      setGame(await getGame(createdGame.id))
-    } catch (error) {
-      setError(error instanceof Error ? error.message : 'Ett oväntat fel inträffade')
-    } finally {
-      setIsWorking(false)
-    }
-  }
-
-  async function handleAddPlayer(name: string) {
-    if (!game) return false
-
-    setIsWorking(true)
-    setError(null)
-
-    try {
-      await addPlayer(game.id, name)
-      setGame(await getGame(game.id))
-      return true
-    } catch (error) {
-      setError(error instanceof Error ? error.message : 'Ett oväntat fel inträffade')
-      return false
-    } finally {
-      setIsWorking(false)
-    }
-  }
-
-  return (
-    <main className="game-page">
-      <h1>WRECKAGE</h1>
-      <button type="button" onClick={handleCreateGame} disabled={isWorking}>
-        Create Game
-      </button>
-      {error && <p className="error">{error}</p>}
-      {game && (
-        <GameSummary game={game} onAddPlayer={handleAddPlayer} disabled={isWorking} />
-      )}
-    </main>
-  )
+import { useCallback, useEffect, useState } from 'react'
+import { addPlayer, createGame, getGame, getPlayerGame, startRound, submitProgram } from '../api/games'
+import { CommandHand } from '../components/CommandHand'; import { GameBoard } from '../components/GameBoard'; import { RoundPlayback } from '../components/RoundPlayback'; import { RoundStatus } from '../components/RoundStatus'
+import type { Game, PlayerGame, PlayerSession, Vehicle } from '../types/game'
+export function GamePage(){
+ const [game,setGame]=useState<Game|null>(null),[view,setView]=useState<PlayerGame|null>(null),[session,setSession]=useState<PlayerSession|null>(()=>JSON.parse(sessionStorage.getItem('wreckage-session')??'null'));
+ const [name,setName]=useState(''),[gameId,setGameId]=useState(''),[vehicles,setVehicles]=useState<Vehicle[]>([]),[error,setError]=useState<string|null>(null),[working,setWorking]=useState(false),[playbackDone,setPlaybackDone]=useState(false);
+ const refresh=useCallback(async()=>{if(session){const next=await getPlayerGame(session);setView(next);setVehicles(next.round?.state.phase==='PLAYBACK'?next.round.state.initialVehicles:next.vehicles)}},[session]);
+ useEffect(()=>{if(!session)return;void refresh().catch(e=>setError(e.message));const id=setInterval(()=>void refresh().catch(e=>setError(e.message)),1500);return()=>clearInterval(id)},[session,refresh]);
+ async function run(action:()=>Promise<void>){setWorking(true);setError(null);try{await action()}catch(e){setError(e instanceof Error?e.message:'Ett oväntat fel inträffade')}finally{setWorking(false)}}
+ async function create(){await run(async()=>{const g=await createGame();setGame(g);setGameId(g.id)})}
+ async function load(){await run(async()=>setGame(await getGame(gameId.trim())))}
+ async function join(){if(!game||!name.trim())return;await run(async()=>{const p=await addPlayer(game.id,name.trim());const s={gameId:game.id,playerId:p.id,token:p.token};sessionStorage.setItem('wreckage-session',JSON.stringify(s));setSession(s);setView(await getPlayerGame(s))})}
+ if(view&&session){const round=view.round?.state;return <main className="game-page"><header><div><p className="eyebrow">Wreckage control deck</p><h1>WRECKAGE</h1></div><span className="game-code">Spel {view.id.slice(0,8)}</span></header>{error&&<p className="error" role="alert">{error}</p>}<div className="game-layout"><section><GameBoard board={view.board} vehicles={vehicles} players={view.players}/></section><div className="sidebar">{!round&&<section className="panel"><h2>Spelare anslutna</h2><p>{view.players.map(p=>p.name).join(', ')}</p><button disabled={working} onClick={()=>void run(async()=>setView(await startRound(session)))}>Starta första rundan</button></section>}{round&&<RoundStatus round={round} players={view.players}/>} {round?.phase==='PROGRAMMING'&&<CommandHand hand={view.round?.hand??[]} locked={round.ready[view.playerId]} onSubmit={async orders=>run(async()=>setView(await submitProgram(session,orders)))}/>} {round?.phase==='PLAYBACK'&&<RoundPlayback round={round} players={view.players} onVehicles={setVehicles} onFinished={()=>setPlaybackDone(true)}/>} {playbackDone&&<button onClick={()=>void run(async()=>{setPlaybackDone(false);setView(await startRound(session))})}>Starta nästa runda</button>}</div></div></main>}
+ return <main className="landing"><p className="eyebrow">Turn-based vehicular mayhem</p><h1>WRECKAGE</h1><p className="lead">Programmera. Kollidera. Se kaoset spelas upp.</p>{error&&<p className="error" role="alert">{error}</p>}<div className="lobby panel"><button disabled={working} onClick={()=>void create()}>Skapa spel</button><span>eller</span><input aria-label="Spel-id" placeholder="Klistra in spel-id" value={gameId} onChange={e=>setGameId(e.target.value)}/><button className="secondary" disabled={working||!gameId.trim()} onClick={()=>void load()}>Öppna spel</button></div>{game&&<section className="panel join"><h2>Anslut till spelet</h2><code>{game.id}</code><p>{game.players.length?`${game.players.length} spelare väntar`:'Bli den första spelaren'}</p><input aria-label="Spelarnamn" placeholder="Ditt namn" value={name} onChange={e=>setName(e.target.value)}/><button disabled={working||!name.trim()} onClick={()=>void join()}>Gå med</button></section>}</main>
 }

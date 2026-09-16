@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RestController;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -22,6 +23,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import se.segersten.wreckage.game.application.GameService;
 import se.segersten.wreckage.game.domain.Player;
+import se.segersten.wreckage.game.domain.MovementOrder;
 
 @RestController
 @RequestMapping("/games")
@@ -62,7 +64,7 @@ public class GameController {
                     description = "Game not found",
                     content = @Content(schema = @Schema(implementation = GameExceptionHandler.ErrorResponse.class)))
     })
-    public PlayerResponse addPlayer(
+    public PlayerJoinResponse addPlayer(
             @Parameter(description = "Game identifier", required = true)
             @PathVariable UUID gameId,
             @io.swagger.v3.oas.annotations.parameters.RequestBody(
@@ -70,8 +72,32 @@ public class GameController {
                     required = true,
                     content = @Content(schema = @Schema(implementation = AddPlayerRequest.class)))
             @RequestBody AddPlayerRequest request) {
-        Player player = gameService.addPlayer(gameId, request.name());
-        return PlayerResponse.from(player);
+        var join = gameService.addPlayer(gameId, request.name());
+        return new PlayerJoinResponse(join.player().getId(), join.player().getName(), join.token());
+    }
+
+    @GetMapping("/{gameId}/players/{playerId}")
+    public PlayerGameResponse getPlayerGame(@PathVariable UUID gameId, @PathVariable UUID playerId,
+            @RequestHeader(value = "X-Player-Token", required = false) String token) {
+        return PlayerGameResponse.from(gameService.getPlayerGame(gameId, playerId, token), playerId);
+    }
+
+    @PostMapping("/{gameId}/rounds")
+    @ResponseStatus(HttpStatus.CREATED)
+    public PlayerGameResponse startRound(@PathVariable UUID gameId,
+            @RequestHeader("X-Player-Id") UUID playerId,
+            @RequestHeader(value = "X-Player-Token", required = false) String token) {
+        gameService.startRound(gameId, playerId, token);
+        return PlayerGameResponse.from(gameService.getPlayerGame(gameId, playerId, token), playerId);
+    }
+
+    @PostMapping("/{gameId}/rounds/current/program")
+    public PlayerGameResponse submitProgram(@PathVariable UUID gameId,
+            @RequestHeader("X-Player-Id") UUID playerId,
+            @RequestHeader(value = "X-Player-Token", required = false) String token,
+            @RequestBody ProgramRequest request) {
+        gameService.submitProgram(gameId, playerId, token, request.orders());
+        return PlayerGameResponse.from(gameService.getPlayerGame(gameId, playerId, token), playerId);
     }
 
     @GetMapping("/{gameId}")
@@ -118,5 +144,7 @@ public class GameController {
 
     public record AddPlayerRequest(String name) {
     }
+    public record ProgramRequest(List<MovementOrder> orders) {}
+    public record PlayerJoinResponse(UUID id, String name, String token) {}
 
 }
