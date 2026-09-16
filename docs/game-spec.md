@@ -223,3 +223,18 @@ Spelet följer:
 Servern ansvarar för alla state transitions.
 
 En klient som tappar anslutningen eller laddar om sidan ska kunna återansluta och återskapa aktuell spelvy från serverns state.
+
+## Testability
+
+The game must support deterministic automated testing.
+
+Random game behaviour must be based on an injectable or seedable
+random source.
+
+Time-dependent behaviour must be testable without relying on long
+real-world waits.
+
+The GUI must expose stable selectors for automated tests.
+
+Server-generated game state and round events are the authoritative
+source used when verifying multiplayer behaviour.
