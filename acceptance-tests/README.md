@@ -1,16 +1,36 @@
-# Acceptance tests
+# End-to-end tests
 
-Tests here exercise Wreckage as a black box over HTTP.
+The tests in this directory use Playwright to exercise user-visible Wreckage
+behaviour in a real browser. API contracts and game-engine rules remain covered
+by backend integration and unit tests respectively.
 
-Start PostgreSQL and the backend, then run:
+Install the dependencies and Chromium once:
 
 ```bash
 cd acceptance-tests
+npm ci
+npx playwright install chromium
+```
+
+Then run the tests:
+
+```bash
 npm test
 ```
 
-The backend is expected at `http://localhost:8080`. Override it when needed:
+Playwright starts the Spring Boot backend with the disposable `in-memory`
+profile and starts the Vite development server automatically. If compatible
+servers are already running locally, Playwright reuses them. Set `BASE_URL` to
+run the browser against a different frontend URL:
 
 ```bash
-BASE_URL=http://localhost:9000 npm test
+BASE_URL=http://localhost:4173 npm test
 ```
+
+## Multiplayer scenarios
+
+Represent every player with a separate Playwright `BrowserContext` and create
+one page in each context. The contexts must be closed in a `finally` block. The
+`withPlayerPages` helper in `game-creation.spec.mjs` demonstrates this pattern.
+Separate contexts ensure that cookies, local storage and other browser session
+state are not shared between players.
