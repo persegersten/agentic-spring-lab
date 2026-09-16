@@ -149,10 +149,14 @@ The project uses three complementary test levels:
 - Backend integration tests start Spring Boot on a random port and use a real
   PostgreSQL Testcontainer. They cover HTTP, Flyway, JPA, repository mappings,
   and responses together.
-- Tests in `acceptance-tests/` treat the running application as a black box and
-  describe behavior in game language. The first scenario creates a game, adds
-  Alice and Bob, then reads the game and verifies both players are present.
+- Playwright tests in `acceptance-tests/` exercise user-visible behavior through
+  Chromium. The first scenario creates a game through the GUI, adds Alice and
+  Bob, and verifies that both players are rendered from the server-backed game
+  state. Multiplayer scenarios give each player a separate browser context so
+  cookies, local storage, and other client state are isolated.
 
 This separation is intentional: unit tests explain individual rules,
-integration tests protect technical wiring, and acceptance tests state what the
-system does from a user's point of view.
+integration tests protect technical wiring, and Playwright tests state what the
+system does from a user's point of view. The Playwright configuration starts the
+backend with the in-memory profile and the Vite frontend for repeatable local
+end-to-end runs.
