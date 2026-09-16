@@ -437,9 +437,24 @@ The following rules are intentionally **not part of the movement engine yet**:
 * obstacles
 * movement costs
 * initiative
-* turn phases
-* persistent movement orders
 * AI-controlled players
+
+## 15. Rounds and command cards
+
+Each round has three phases. In `PROGRAMMING`, the server randomly deals three
+cards to every participating player. A card is one of the four movement orders.
+Only its owner may retrieve the hand. The player submits all three dealt cards
+in the desired order; a submitted program is immutable.
+
+When every player is ready, the server enters `RESOLVING`. For card positions
+one through three it resolves every player's card simultaneously using the
+collision rules above. The initial state and the resulting state after every
+card are retained. Resolution completes atomically and exposes no partial
+result.
+
+In `PLAYBACK`, all commands and the three resulting states are public so every
+client can reproduce the same animation. A new round may start only after the
+current round has reached playback, and starts from its final vehicle state.
 
 These rules must not be introduced implicitly by the movement implementation.
 

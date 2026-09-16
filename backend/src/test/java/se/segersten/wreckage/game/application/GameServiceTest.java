@@ -38,7 +38,7 @@ class GameServiceTest {
         Game game = repository.save(new Game(UUID.randomUUID(), new Board(20, 20)));
         GameService service = new GameService(repository);
 
-        Player player = service.addPlayer(game.getId(), " Per ");
+        Player player = service.addPlayer(game.getId(), " Per ").player();
 
         assertThat(player.getId()).isNotNull();
         assertThat(player.getName()).isEqualTo("Per");

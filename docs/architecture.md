@@ -28,6 +28,20 @@ Vite proxies requests under `/games` to Spring Boot on port 8080. The browser
 therefore uses the same relative REST paths regardless of whether a request is
 made directly or through the development server.
 
+## Round and player views
+
+Joining a game returns a one-time player token. The browser stores it in
+`sessionStorage` and sends it in `X-Player-Token`; mutations also identify the
+player with `X-Player-Id`. Only the authenticated player endpoint returns that
+player's programming hand. The public game response contains readiness but no
+hands or unrevealed programs. Tokens are stored server-side only as SHA-256
+hashes.
+
+The aggregate persists the current round, programs and playback. After all
+programs are locked, the application uses `MovementEngine` three times and
+publishes the completed playback. React polls the private view while waiting,
+then animates the persisted states rather than predicting movement locally.
+
 ## Backend layers
 
 Backend code is grouped by the `game` feature and then by responsibility:
