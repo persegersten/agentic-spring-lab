@@ -1,48 +1,32 @@
 import { expect, test } from '@playwright/test'
+import { joinGame, withPlayerPages } from './player-pages.mjs'
 
-test('a user creates a game and adds Alice and Bob', async ({ browser }) => {
-  await withPlayerPages(browser, ['creator', 'second player'], async ({ creator, secondPlayer }) => {
-    await creator.goto('/')
-    await secondPlayer.goto('/')
+test('Alice creates a game and Bob joins from a separate session', async ({ browser }) => {
+  await withPlayerPages(browser, ['alice', 'bob'], async ({ alice, bob }) => {
+    await alice.goto('/')
+    await bob.goto('/')
 
-    expect(creator.context()).not.toBe(secondPlayer.context())
-    await expect(creator.getByRole('heading', { name: 'WRECKAGE' })).toBeVisible()
-    await expect(secondPlayer.getByRole('heading', { name: 'WRECKAGE' })).toBeVisible()
+    expect(alice.context()).not.toBe(bob.context())
+    await expect(alice.getByRole('heading', { name: 'WRECKAGE' })).toBeVisible()
+    await expect(bob.getByRole('heading', { name: 'WRECKAGE' })).toBeVisible()
 
-    await creator.getByRole('button', { name: 'Create Game' }).click()
-    await expect(creator.getByRole('heading', { name: /^Game:/ })).toBeVisible()
+    await alice.getByRole('button', { name: 'Skapa spel', exact: true }).click()
+    await expect(alice.getByRole('heading', { name: 'Anslut till spelet' })).toBeVisible()
+    const gameId = await alice.getByLabel('Spel-id', { exact: true }).inputValue()
+    expect(gameId).not.toBe('')
 
-    await addPlayer(creator, 'Alice')
-    await addPlayer(creator, 'Bob')
+    await joinGame(alice, 'Alice')
+    await expect(alice.getByText('Alice', { exact: true })).toBeVisible()
+    await expect(bob.getByRole('heading', { name: 'Spelare anslutna' })).not.toBeVisible()
 
-    await expect(creator.getByRole('listitem')).toHaveText(['Alice', 'Bob'])
-    await expect(secondPlayer.getByRole('heading', { name: /^Game:/ })).not.toBeVisible()
+    await bob.getByLabel('Spel-id', { exact: true }).fill(gameId)
+    await bob.getByRole('button', { name: 'Öppna spel', exact: true }).click()
+    await expect(bob.getByRole('heading', { name: 'Anslut till spelet' })).toBeVisible()
+    await joinGame(bob, 'Bob')
+
+    for (const page of [alice, bob]) {
+      await expect(page.getByText(`Spel ${gameId.slice(0, 8)}`, { exact: true })).toBeVisible()
+      await expect(page.getByText('Alice, Bob', { exact: true })).toBeVisible()
+    }
   })
 })
-
-async function addPlayer(page, name) {
-  await page.getByLabel('Player name').fill(name)
-  await page.getByRole('button', { name: 'Add Player' }).click()
-  await expect(page.getByRole('listitem', { name })).toBeVisible()
-}
-
-export async function withPlayerPages(browser, playerNames, runScenario) {
-  const players = {}
-  const contexts = []
-
-  try {
-    for (const playerName of playerNames) {
-      const context = await browser.newContext()
-      contexts.push(context)
-      players[toPropertyName(playerName)] = await context.newPage()
-    }
-
-    await runScenario(players)
-  } finally {
-    await Promise.all(contexts.map((context) => context.close()))
-  }
-}
-
-function toPropertyName(playerName) {
-  return playerName.replace(/\s+(.)/g, (_, character) => character.toUpperCase())
-}

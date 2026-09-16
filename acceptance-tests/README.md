@@ -18,6 +18,9 @@ Then run the tests:
 npm test
 ```
 
+This runs both game creation and round programming/playback scenarios. The
+round scenario checks independent player programs and all three shared playback steps.
+
 Playwright starts the Spring Boot backend with the disposable `in-memory`
 profile and starts the Vite development server automatically. If compatible
 servers are already running locally, Playwright reuses them. Set `BASE_URL` to
@@ -31,6 +34,6 @@ BASE_URL=http://localhost:4173 npm test
 
 Represent every player with a separate Playwright `BrowserContext` and create
 one page in each context. The contexts must be closed in a `finally` block. The
-`withPlayerPages` helper in `game-creation.spec.mjs` demonstrates this pattern.
+`withPlayerPages` helper in `player-pages.mjs` demonstrates this pattern.
 Separate contexts ensure that cookies, local storage and other browser session
 state are not shared between players.
