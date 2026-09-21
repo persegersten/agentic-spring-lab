@@ -1,20 +1,25 @@
 package se.segersten.wreckage.game.application;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 import java.util.concurrent.ThreadLocalRandom;
+import java.time.Clock;
+import java.time.Instant;
 
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
 
 import se.segersten.wreckage.game.domain.Board;
 import se.segersten.wreckage.game.domain.Game;
 import se.segersten.wreckage.game.domain.GameRepository;
 import se.segersten.wreckage.game.domain.GameStatus;
+import se.segersten.wreckage.game.domain.GameConfiguration;
 import se.segersten.wreckage.game.domain.Player;
 import se.segersten.wreckage.game.domain.MovementOrder;
 import se.segersten.wreckage.game.domain.Round;
@@ -28,20 +33,34 @@ public class GameService {
     private static final int DEFAULT_BOARD_HEIGHT = 20;
 
     private final GameRepository gameRepository;
+    private final Clock clock;
 
+    @Autowired
     public GameService(GameRepository gameRepository) {
+        this(gameRepository, Clock.systemUTC());
+    }
+
+    GameService(GameRepository gameRepository, Clock clock) {
         this.gameRepository = gameRepository;
+        this.clock = clock;
     }
 
     public Game createGame() {
+        return createGame(GameConfiguration.defaults());
+    }
+
+    public Game createGame(GameConfiguration configuration) {
         Board board = new Board(DEFAULT_BOARD_WIDTH, DEFAULT_BOARD_HEIGHT);
-        return gameRepository.save(new Game(UUID.randomUUID(), board));
+        Instant createdAt = clock.instant();
+        return gameRepository.save(new Game(UUID.randomUUID(), List.of(), board,
+                GameStatus.WAITING_FOR_PLAYERS, Map.of(), null, configuration, createdAt,
+                createdAt.plusSeconds(configuration.joinTimeoutSeconds())));
     }
 
     public PlayerJoin addPlayer(UUID gameId, String name) {
         Game game = findGame(gameId);
         String token = UUID.randomUUID().toString() + UUID.randomUUID();
-        Player player = game.addPlayer(name, hash(token));
+        Player player = game.addPlayer(name, hash(token), clock.instant());
         gameRepository.save(game);
         return new PlayerJoin(player, token);
     }
@@ -76,7 +95,9 @@ public class GameService {
 
     @Transactional(readOnly = true)
     public List<Game> getRunningGames() {
-        return gameRepository.findAllByStatus(GameStatus.RUNNING);
+        List<Game> games = new java.util.ArrayList<>(gameRepository.findAllByStatus(GameStatus.WAITING_FOR_PLAYERS));
+        games.addAll(gameRepository.findAllByStatus(GameStatus.RUNNING));
+        return List.copyOf(games);
     }
 
     @Transactional(readOnly = true)

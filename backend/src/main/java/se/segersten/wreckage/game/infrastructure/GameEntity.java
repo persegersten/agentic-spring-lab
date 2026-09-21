@@ -1,6 +1,7 @@
 package se.segersten.wreckage.game.infrastructure;
 
 import java.time.OffsetDateTime;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -15,6 +16,11 @@ class GameEntity {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY) private Long id;
     @Column(name = "domain_id", nullable = false, unique = true) private UUID domainId;
     @Column(name = "created_at", nullable = false, insertable = false, updatable = false) private OffsetDateTime createdAt;
+    @Column(name = "join_deadline", nullable = false) private Instant joinDeadline;
+    @Column(name = "max_players", nullable = false) private Integer maxPlayers;
+    @Column(name = "join_timeout_seconds", nullable = false) private Integer joinTimeoutSeconds;
+    @Column(name = "cards_per_round", nullable = false) private Integer cardsPerRound;
+    @Column(name = "planning_timeout_seconds", nullable = false) private Integer planningTimeoutSeconds;
     @Column(name = "board_width") private Integer boardWidth;
     @Column(name = "board_height") private Integer boardHeight;
     @Enumerated(EnumType.STRING) @Column(name = "status", nullable = false) private GameStatus status;
@@ -25,7 +31,11 @@ class GameEntity {
     private GameEntity(UUID domainId, Board board) { this.domainId = domainId; setBoard(board); }
     static GameEntity fromDomain(Game game) { return new GameEntity(game.getId(), game.getBoard()).updateFrom(game); }
     GameEntity updateFrom(Game game) {
-        setBoard(game.getBoard()); status = game.getStatus(); addMissingPlayers(game.getPlayers()); syncVehicles(game.getVehicleStates());
+        setBoard(game.getBoard()); status = game.getStatus();
+        GameConfiguration configuration = game.getConfiguration();
+        maxPlayers = configuration.maxPlayers(); joinTimeoutSeconds = configuration.joinTimeoutSeconds();
+        cardsPerRound = configuration.cardsPerRound(); planningTimeoutSeconds = configuration.planningTimeoutSeconds();
+        joinDeadline = game.getJoinDeadline(); addMissingPlayers(game.getPlayers()); syncVehicles(game.getVehicleStates());
         if (game.getRound() != null) round = round == null ? RoundEntity.fromDomain(game.getRound(), this) : round.updateFrom(game.getRound());
         return this;
     }
@@ -47,6 +57,9 @@ class GameEntity {
         var byVehicleId = new LinkedHashMap<UUID, Vehicle>();
         for (VehicleEntity entity : vehicles) { VehicleState state = entity.toDomain(); vehicleMap.put(state.vehicle().playerId(), state); byVehicleId.put(state.vehicle().id(), state.vehicle()); }
         Round domainRound = round == null ? null : round.toDomain(board, byVehicleId);
-        return new Game(domainId, domainPlayers, board, status, vehicleMap, domainRound);
+        GameConfiguration configuration = new GameConfiguration(maxPlayers, joinTimeoutSeconds,
+                cardsPerRound, planningTimeoutSeconds);
+        return new Game(domainId, domainPlayers, board, status, vehicleMap, domainRound,
+                configuration, createdAt.toInstant(), joinDeadline);
     }
 }

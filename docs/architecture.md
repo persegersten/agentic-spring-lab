@@ -1,7 +1,8 @@
 # Wreckage Architecture
 
 Wreckage is a small web application for a turn-based multiplayer vehicle combat
-game. The current system only creates games, adds players, and reads game state.
+game. The system creates configured games, exposes a shareable lobby link, adds
+players, and reads game state.
 Gameplay, movement, and combat are intentionally outside the present scope.
 
 ```text
@@ -84,7 +85,8 @@ JpaGameRepository -> Spring Data JPA -> PostgreSQL
 
 The REST API currently exposes:
 
-- `POST /games` — create a game with an empty player list and a 20 × 20 board.
+- `GET /games/configuration/defaults` — read server-owned defaults for the create-game form.
+- `POST /games` — create a waiting game with a validated configuration, empty player list and a 20 × 20 board.
 - `POST /games/{gameId}/players` — add a named player to an existing game.
 - `GET /games/{gameId}` — read the current game state.
 - `GET /games/running` — list all running games, or an empty list when none exist.
@@ -103,8 +105,16 @@ A `Game` contains:
 - a stable UUID used by the REST API and domain;
 - zero or more `Player` objects, each with a UUID and non-blank name;
 - a `Board` value with width and height.
-- a lifecycle status of `RUNNING` or `FINISHED`; newly created games are
-  running.
+- a persistent `GameConfiguration` containing player capacity, join timeout,
+  cards per round, and planning timeout;
+- a creation time and authoritative join deadline;
+- a lifecycle status of `WAITING_FOR_PLAYERS`, `RUNNING`, or `FINISHED`;
+  newly created games wait in the lobby.
+
+The aggregate rejects blank or duplicate nicknames, joins after the deadline,
+and joins beyond the configured capacity. The database additionally enforces
+nickname uniqueness per game. A browser opens a lobby directly at
+`/game/{gameId}`; the frontend does not embed configuration defaults.
 
 The database also uses internal numeric primary keys. These are persistence
 details and are not exposed through the domain or API. Domain UUIDs are stored
