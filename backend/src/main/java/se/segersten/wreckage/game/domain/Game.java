@@ -6,38 +6,61 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
+import java.time.Instant;
 import java.util.function.Supplier;
 
 public class Game {
     private final UUID id;
     private final List<Player> players;
     private final Board board;
-    private final GameStatus status;
+    private GameStatus status;
+    private final GameConfiguration configuration;
+    private final Instant createdAt;
+    private final Instant joinDeadline;
     private final Map<UUID, VehicleState> vehicles;
     private Round round;
 
     public Game(UUID id, Board board) { this(id, new ArrayList<>(), board, GameStatus.RUNNING); }
     public Game(UUID id, List<Player> players, Board board) { this(id, players, board, GameStatus.RUNNING); }
     public Game(UUID id, List<Player> players, Board board, GameStatus status) {
-        this(id, players, board, status, Map.of(), null);
+        this(id, players, board, status, Map.of(), null, GameConfiguration.defaults(),
+                Instant.now(), Instant.now().plusSeconds(GameConfiguration.DEFAULT_JOIN_TIMEOUT_SECONDS));
     }
     public Game(UUID id, List<Player> players, Board board, GameStatus status,
                 Map<UUID, VehicleState> vehicles, Round round) {
+        this(id, players, board, status, vehicles, round, GameConfiguration.defaults(),
+                Instant.now(), Instant.now().plusSeconds(GameConfiguration.DEFAULT_JOIN_TIMEOUT_SECONDS));
+    }
+    public Game(UUID id, List<Player> players, Board board, GameStatus status,
+                Map<UUID, VehicleState> vehicles, Round round, GameConfiguration configuration,
+                Instant createdAt, Instant joinDeadline) {
         this.id = Objects.requireNonNull(id); this.players = new ArrayList<>(Objects.requireNonNull(players));
         this.board = Objects.requireNonNull(board); this.status = Objects.requireNonNull(status);
+        this.configuration = Objects.requireNonNull(configuration);
+        this.createdAt = Objects.requireNonNull(createdAt);
+        this.joinDeadline = Objects.requireNonNull(joinDeadline);
         this.vehicles = new LinkedHashMap<>(vehicles); this.round = round;
     }
     public UUID getId() { return id; }
     public List<Player> getPlayers() { return List.copyOf(players); }
     public Board getBoard() { return board; }
     public GameStatus getStatus() { return status; }
+    public GameConfiguration getConfiguration() { return configuration; }
+    public Instant getCreatedAt() { return createdAt; }
+    public Instant getJoinDeadline() { return joinDeadline; }
     public List<VehicleState> getVehicleStates() { return List.copyOf(vehicles.values()); }
     public Round getRound() { return round; }
 
-    public Player addPlayer(String name) { return addPlayer(name, "legacy"); }
-    public Player addPlayer(String name, String tokenHash) {
+    public Player addPlayer(String name) { return addPlayer(name, "legacy", Instant.now()); }
+    public Player addPlayer(String name, String tokenHash) { return addPlayer(name, tokenHash, Instant.now()); }
+    public Player addPlayer(String name, String tokenHash, Instant now) {
         if (round != null) throw new IllegalStateException("Cannot add players after rounds have started");
-        Player player = Player.create(UUID.randomUUID(), name, tokenHash);
+        if (!now.isBefore(joinDeadline)) throw new IllegalStateException("The lobby is closed");
+        if (players.size() >= configuration.maxPlayers()) throw new IllegalStateException("The lobby is full");
+        String nickname = name == null ? null : name.trim();
+        if (nickname != null && players.stream().anyMatch(player -> player.getName().equals(nickname)))
+            throw new IllegalArgumentException("Nickname is already in use");
+        Player player = Player.create(UUID.randomUUID(), nickname, tokenHash);
         players.add(player);
         int index = players.size() - 1;
         Position position = new Position(index % board.width(), (index / board.width()) % board.height());
@@ -60,6 +83,7 @@ public class Game {
         }
         round = new Round(round == null ? 1 : round.number() + 1, programs,
                 new GameState(board, getVehicleStates()));
+        status = GameStatus.RUNNING;
         return round;
     }
 

@@ -1,9 +1,10 @@
-import type { Game, MovementOrder, PlayerGame, PlayerJoin, PlayerSession } from '../types/game'
+import type { Game, GameConfiguration, MovementOrder, PlayerGame, PlayerJoin, PlayerSession } from '../types/game'
 async function json<T>(response: Response, fallback: string): Promise<T> {
   if (!response.ok) { const body = await response.json().catch(() => null) as {message?:string}|null; throw new Error(body?.message ?? fallback) }
   return response.json() as Promise<T>
 }
-export async function createGame(): Promise<Game> { return json(await fetch('/games',{method:'POST'}),'Kunde inte skapa spelet') }
+export async function getDefaultConfiguration(): Promise<GameConfiguration> { return json(await fetch('/games/configuration/defaults'),'Kunde inte hämta standardinställningar') }
+export async function createGame(configuration:GameConfiguration): Promise<Game> { return json(await fetch('/games',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(configuration)}),'Kunde inte skapa spelet') }
 export async function addPlayer(gameId:string,name:string):Promise<PlayerJoin> { return json(await fetch(`/games/${gameId}/players`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})}),'Kunde inte lägga till spelaren') }
 export async function getGame(gameId:string):Promise<Game> { return json(await fetch(`/games/${gameId}`),'Kunde inte hämta spelet') }
 function auth(session:PlayerSession){return {'X-Player-Id':session.playerId,'X-Player-Token':session.token}}

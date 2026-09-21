@@ -24,6 +24,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import se.segersten.wreckage.game.application.GameService;
 import se.segersten.wreckage.game.domain.Player;
 import se.segersten.wreckage.game.domain.MovementOrder;
+import se.segersten.wreckage.game.domain.GameConfiguration;
 
 @RestController
 @RequestMapping("/games")
@@ -43,9 +44,16 @@ public class GameController {
             responseCode = "201",
             description = "Game created",
             content = @Content(schema = @Schema(implementation = GameResponse.class)))
-    public GameResponse createGame() {
-        return GameResponse.from(gameService.createGame());
+    public GameResponse createGame(@RequestBody(required = false) CreateGameRequest request) {
+        GameConfiguration configuration = request == null
+                ? GameConfiguration.defaults()
+                : new GameConfiguration(request.maxPlayers(), request.joinTimeoutSeconds(),
+                        request.cardsPerRound(), request.planningTimeoutSeconds());
+        return GameResponse.from(gameService.createGame(configuration));
     }
+
+    @GetMapping("/configuration/defaults")
+    public GameConfiguration getDefaultConfiguration() { return GameConfiguration.defaults(); }
 
     @PostMapping("/{gameId}/players")
     @ResponseStatus(HttpStatus.CREATED)
@@ -144,6 +152,8 @@ public class GameController {
 
     public record AddPlayerRequest(String name) {
     }
+    public record CreateGameRequest(int maxPlayers, int joinTimeoutSeconds,
+                                    int cardsPerRound, int planningTimeoutSeconds) {}
     public record ProgramRequest(List<MovementOrder> orders) {}
     public record PlayerJoinResponse(UUID id, String name, String token) {}
 

@@ -8,6 +8,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 
 import org.junit.jupiter.api.Test;
 
@@ -15,6 +18,7 @@ import se.segersten.wreckage.game.domain.Board;
 import se.segersten.wreckage.game.domain.Game;
 import se.segersten.wreckage.game.domain.GameRepository;
 import se.segersten.wreckage.game.domain.GameStatus;
+import se.segersten.wreckage.game.domain.GameConfiguration;
 import se.segersten.wreckage.game.domain.Player;
 
 class GameServiceTest {
@@ -28,8 +32,82 @@ class GameServiceTest {
 
         assertThat(game.getId()).isNotNull();
         assertThat(game.getPlayers()).isEmpty();
+        assertThat(game.getStatus()).isEqualTo(GameStatus.WAITING_FOR_PLAYERS);
+        assertThat(game.getConfiguration()).isEqualTo(GameConfiguration.defaults());
         assertThat(game.getBoard()).isEqualTo(new Board(20, 20));
         assertThat(repository.findById(game.getId())).containsSame(game);
+    }
+
+    @Test
+    void shouldCreateGameWithConfigurationAndDeterministicDeadline() {
+        InMemoryGameRepository repository = new InMemoryGameRepository();
+        Instant now = Instant.parse("2026-01-01T12:00:00Z");
+        GameService service = new GameService(repository, Clock.fixed(now, ZoneOffset.UTC));
+        GameConfiguration configuration = new GameConfiguration(4, 60, 10, 45);
+
+        Game game = service.createGame(configuration);
+
+        assertThat(game.getConfiguration()).isEqualTo(configuration);
+        assertThat(game.getCreatedAt()).isEqualTo(now);
+        assertThat(game.getJoinDeadline()).isEqualTo(now.plusSeconds(60));
+    }
+
+    @Test
+    void shouldAcceptCardsPerRoundBoundaryValues() {
+        assertThat(new GameConfiguration(12, 60, 3, 30).cardsPerRound()).isEqualTo(3);
+        assertThat(new GameConfiguration(12, 60, 10, 30).cardsPerRound()).isEqualTo(10);
+    }
+
+    @Test
+    void shouldRejectInvalidConfiguration() {
+        assertThatThrownBy(() -> new GameConfiguration(0, 60, 3, 30))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new GameConfiguration(12, 0, 3, 30))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new GameConfiguration(12, 60, 2, 30))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new GameConfiguration(12, 60, 11, 30))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new GameConfiguration(12, 60, 3, 0))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void shouldRejectDuplicateNickname() {
+        InMemoryGameRepository repository = new InMemoryGameRepository();
+        GameService service = new GameService(repository);
+        Game game = service.createGame();
+        service.addPlayer(game.getId(), "Alice");
+
+        assertThatThrownBy(() -> service.addPlayer(game.getId(), " Alice "))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Nickname is already in use");
+    }
+
+    @Test
+    void shouldRejectPlayerWhenLobbyIsFull() {
+        InMemoryGameRepository repository = new InMemoryGameRepository();
+        GameService service = new GameService(repository);
+        Game game = service.createGame(new GameConfiguration(1, 60, 3, 30));
+        service.addPlayer(game.getId(), "Alice");
+
+        assertThatThrownBy(() -> service.addPlayer(game.getId(), "Bob"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("The lobby is full");
+    }
+
+    @Test
+    void shouldRejectPlayerAfterJoinTimeout() {
+        InMemoryGameRepository repository = new InMemoryGameRepository();
+        Instant created = Instant.parse("2026-01-01T12:00:00Z");
+        GameService creator = new GameService(repository, Clock.fixed(created, ZoneOffset.UTC));
+        Game game = creator.createGame(new GameConfiguration(12, 60, 3, 30));
+        GameService expired = new GameService(repository,
+                Clock.fixed(created.plusSeconds(60), ZoneOffset.UTC));
+
+        assertThatThrownBy(() -> expired.addPlayer(game.getId(), "Alice"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("The lobby is closed");
     }
 
     @Test

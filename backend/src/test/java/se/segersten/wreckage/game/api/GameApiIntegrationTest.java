@@ -41,8 +41,66 @@ class GameApiIntegrationTest {
         JsonNode game = json(response);
         assertThat(game.path("id").asText()).isNotBlank();
         assertThat(game.path("players").isEmpty()).isTrue();
+        assertThat(game.path("status").asText()).isEqualTo("WAITING_FOR_PLAYERS");
+        assertThat(game.path("configuration").path("maxPlayers").asInt()).isEqualTo(12);
+        assertThat(game.path("configuration").path("cardsPerRound").asInt()).isEqualTo(3);
+        assertThat(game.path("joinDeadline").asText()).isNotBlank();
         assertThat(game.path("board").path("width").asInt()).isEqualTo(20);
         assertThat(game.path("board").path("height").asInt()).isEqualTo(20);
+    }
+
+    @Test
+    void createGameWithConfigurationAndRetrieveIt() throws Exception {
+        HttpResponse<String> created = post("/games", """
+                {"maxPlayers":4,"joinTimeoutSeconds":90,"cardsPerRound":10,"planningTimeoutSeconds":45}
+                """);
+        assertThat(created.statusCode()).isEqualTo(HttpStatus.CREATED.value());
+        JsonNode createdGame = json(created);
+
+        HttpResponse<String> retrieved = get("/games/" + createdGame.path("id").asText());
+
+        JsonNode configuration = json(retrieved).path("configuration");
+        assertThat(configuration.path("maxPlayers").asInt()).isEqualTo(4);
+        assertThat(configuration.path("joinTimeoutSeconds").asInt()).isEqualTo(90);
+        assertThat(configuration.path("cardsPerRound").asInt()).isEqualTo(10);
+        assertThat(configuration.path("planningTimeoutSeconds").asInt()).isEqualTo(45);
+    }
+
+    @Test
+    void rejectInvalidGameConfiguration() throws Exception {
+        HttpResponse<String> response = post("/games", """
+                {"maxPlayers":4,"joinTimeoutSeconds":90,"cardsPerRound":11,"planningTimeoutSeconds":45}
+                """);
+
+        assertThat(response.statusCode()).isEqualTo(HttpStatus.BAD_REQUEST.value());
+        assertThat(json(response).path("message").asText()).contains("cardsPerRound");
+    }
+
+    @Test
+    void rejectDuplicateNickname() throws Exception {
+        String gameId = createGameId();
+        post("/games/%s/players".formatted(gameId), "{\"name\":\"Alice\"}");
+
+        HttpResponse<String> response = post("/games/%s/players".formatted(gameId),
+                "{\"name\":\" Alice \"}");
+
+        assertThat(response.statusCode()).isEqualTo(HttpStatus.BAD_REQUEST.value());
+        assertThat(json(response).path("message").asText()).isEqualTo("Nickname is already in use");
+    }
+
+    @Test
+    void rejectPlayerWhenLobbyIsFull() throws Exception {
+        HttpResponse<String> created = post("/games", """
+                {"maxPlayers":1,"joinTimeoutSeconds":90,"cardsPerRound":3,"planningTimeoutSeconds":45}
+                """);
+        String gameId = json(created).path("id").asText();
+        post("/games/%s/players".formatted(gameId), "{\"name\":\"Alice\"}");
+
+        HttpResponse<String> response = post("/games/%s/players".formatted(gameId),
+                "{\"name\":\"Bob\"}");
+
+        assertThat(response.statusCode()).isEqualTo(HttpStatus.CONFLICT.value());
+        assertThat(json(response).path("message").asText()).isEqualTo("The lobby is full");
     }
 
     @Test
@@ -123,6 +181,7 @@ class GameApiIntegrationTest {
         assertThat(response.statusCode()).isEqualTo(HttpStatus.OK.value());
         JsonNode paths = json(response).path("paths");
         assertThat(paths.path("/games").has("post")).isTrue();
+        assertThat(paths.path("/games/configuration/defaults").has("get")).isTrue();
         assertThat(paths.path("/games/{gameId}/players").has("post")).isTrue();
         assertThat(paths.path("/games/{gameId}").has("get")).isTrue();
         assertThat(paths.path("/games/{gameId}/players/{playerId}").has("get")).isTrue();
