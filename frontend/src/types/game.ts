@@ -1,6 +1,6 @@
 export type MovementOrder = 'FORWARD' | 'REVERSE' | 'TURN_LEFT' | 'TURN_RIGHT'
 export type Direction = 'NORTH' | 'EAST' | 'SOUTH' | 'WEST'
-export type RoundPhase = 'PROGRAMMING' | 'RESOLVING' | 'PLAYBACK'
+export type RoundPhase = 'PLANNING' | 'RESOLVING' | 'PLAYBACK'
 export type Player = { id: string; name: string }
 export type PlayerJoin = Player & { token: string }
 export type GameStatus = 'WAITING_FOR_PLAYERS' | 'RUNNING' | 'FINISHED'

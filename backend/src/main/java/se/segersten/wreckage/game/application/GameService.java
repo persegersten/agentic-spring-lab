@@ -58,21 +58,28 @@ public class GameService {
     }
 
     public PlayerJoin addPlayer(UUID gameId, String name) {
-        Game game = findGame(gameId);
+        Game game = findGameForUpdate(gameId);
         String token = UUID.randomUUID().toString() + UUID.randomUUID();
         Player player = game.addPlayer(name, hash(token), clock.instant());
+        game.startIfReady(clock.instant(), this::randomCard);
         gameRepository.save(game);
         return new PlayerJoin(player, token);
     }
 
     public Round startRound(UUID gameId, UUID playerId, String token) {
-        Game game = authenticatedGame(gameId, playerId, token);
-        Round round = game.startRound(() -> {
-            MovementOrder[] cards = MovementOrder.values();
-            return cards[ThreadLocalRandom.current().nextInt(cards.length)];
-        });
+        Game game = authenticatedGameForUpdate(gameId, playerId, token);
+        if (game.getRound() == null)
+            throw new IllegalStateException("The first round starts automatically");
+        Round round = game.startRound(this::randomCard);
         gameRepository.save(game);
         return round;
+    }
+
+    public void startExpiredLobbies() {
+        Instant now = clock.instant();
+        for (Game game : gameRepository.findAllByStatusForUpdate(GameStatus.WAITING_FOR_PLAYERS)) {
+            if (game.startIfReady(now, this::randomCard)) gameRepository.save(game);
+        }
     }
 
     public Game getPlayerGame(UUID gameId, UUID playerId, String token) {
@@ -80,7 +87,7 @@ public class GameService {
     }
 
     public Round submitProgram(UUID gameId, UUID playerId, String token, List<MovementOrder> orders) {
-        Game game = authenticatedGame(gameId, playerId, token);
+        Game game = authenticatedGameForUpdate(gameId, playerId, token);
         if (game.getRound() == null) throw new IllegalStateException("No round has started");
         game.getRound().lock(playerId, orders);
         if (game.getRound().allReady()) game.getRound().resolve(new MovementEngine());
@@ -110,15 +117,35 @@ public class GameService {
                 .orElseThrow(() -> new GameNotFoundException(gameId));
     }
 
+    private Game findGameForUpdate(UUID gameId) {
+        return gameRepository.findByIdForUpdate(gameId)
+                .orElseThrow(() -> new GameNotFoundException(gameId));
+    }
+
     private Game authenticatedGame(UUID gameId, UUID playerId, String token) {
         Game game = findGame(gameId);
+        authenticate(game, playerId, token);
+        return game;
+    }
+
+    private Game authenticatedGameForUpdate(UUID gameId, UUID playerId, String token) {
+        Game game = findGameForUpdate(gameId);
+        authenticate(game, playerId, token);
+        return game;
+    }
+
+    private void authenticate(Game game, UUID playerId, String token) {
         Player player = game.requirePlayer(playerId);
         if (token == null || !MessageDigest.isEqual(
                 player.getAccessTokenHash().getBytes(StandardCharsets.UTF_8),
                 hash(token).getBytes(StandardCharsets.UTF_8))) {
             throw new SecurityException("Invalid player token");
         }
-        return game;
+    }
+
+    private MovementOrder randomCard() {
+        MovementOrder[] cards = MovementOrder.values();
+        return cards[ThreadLocalRandom.current().nextInt(cards.length)];
     }
 
     private static String hash(String value) {

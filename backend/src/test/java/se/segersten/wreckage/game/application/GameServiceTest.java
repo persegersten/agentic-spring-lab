@@ -20,6 +20,7 @@ import se.segersten.wreckage.game.domain.GameRepository;
 import se.segersten.wreckage.game.domain.GameStatus;
 import se.segersten.wreckage.game.domain.GameConfiguration;
 import se.segersten.wreckage.game.domain.Player;
+import se.segersten.wreckage.game.domain.RoundPhase;
 
 class GameServiceTest {
 
@@ -111,6 +112,70 @@ class GameServiceTest {
     }
 
     @Test
+    void shouldStartPlanningWhenFourthPlayerFillsLobby() {
+        InMemoryGameRepository repository = new InMemoryGameRepository();
+        GameService service = new GameService(repository);
+        Game game = service.createGame(new GameConfiguration(4, 60, 3, 30));
+        service.addPlayer(game.getId(), "Alice");
+        service.addPlayer(game.getId(), "Bob");
+        service.addPlayer(game.getId(), "Charlie");
+
+        service.addPlayer(game.getId(), "Dana");
+
+        assertThat(game.getStatus()).isEqualTo(GameStatus.RUNNING);
+        assertThat(game.getRound().phase()).isEqualTo(RoundPhase.PLANNING);
+    }
+
+    @Test
+    void shouldStartPlanningAtDeadlineWhenAtLeastTwoPlayersJoined() {
+        InMemoryGameRepository repository = new InMemoryGameRepository();
+        Instant created = Instant.parse("2026-01-01T12:00:00Z");
+        GameService creator = new GameService(repository, Clock.fixed(created, ZoneOffset.UTC));
+        Game game = creator.createGame(new GameConfiguration(4, 60, 3, 30));
+        creator.addPlayer(game.getId(), "Alice");
+        creator.addPlayer(game.getId(), "Bob");
+        GameService expired = new GameService(repository,
+                Clock.fixed(created.plusSeconds(60), ZoneOffset.UTC));
+
+        expired.startExpiredLobbies();
+        expired.startExpiredLobbies();
+
+        assertThat(game.getStatus()).isEqualTo(GameStatus.RUNNING);
+        assertThat(game.getRound().phase()).isEqualTo(RoundPhase.PLANNING);
+        assertThat(game.getRound().number()).isEqualTo(1);
+        assertThatThrownBy(() -> expired.addPlayer(game.getId(), "Charlie"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("The lobby is closed");
+    }
+
+    @Test
+    void shouldNotStartAtDeadlineWithOnlyOnePlayer() {
+        InMemoryGameRepository repository = new InMemoryGameRepository();
+        Instant created = Instant.parse("2026-01-01T12:00:00Z");
+        GameService creator = new GameService(repository, Clock.fixed(created, ZoneOffset.UTC));
+        Game game = creator.createGame(new GameConfiguration(4, 60, 3, 30));
+        creator.addPlayer(game.getId(), "Alice");
+
+        new GameService(repository, Clock.fixed(created.plusSeconds(60), ZoneOffset.UTC))
+                .startExpiredLobbies();
+
+        assertThat(game.getStatus()).isEqualTo(GameStatus.WAITING_FOR_PLAYERS);
+        assertThat(game.getRound()).isNull();
+    }
+
+    @Test
+    void shouldNotAllowClientToStartFirstRound() {
+        InMemoryGameRepository repository = new InMemoryGameRepository();
+        GameService service = new GameService(repository);
+        Game game = service.createGame();
+        var alice = service.addPlayer(game.getId(), "Alice");
+
+        assertThatThrownBy(() -> service.startRound(game.getId(), alice.player().getId(), alice.token()))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("The first round starts automatically");
+    }
+
+    @Test
     void shouldAddPlayerToExistingGame() {
         InMemoryGameRepository repository = new InMemoryGameRepository();
         Game game = repository.save(new Game(UUID.randomUUID(), new Board(20, 20)));
@@ -190,10 +255,20 @@ class GameServiceTest {
         }
 
         @Override
+        public Optional<Game> findByIdForUpdate(UUID id) {
+            return findById(id);
+        }
+
+        @Override
         public List<Game> findAllByStatus(GameStatus status) {
             return games.values().stream()
                     .filter(game -> game.getStatus() == status)
                     .toList();
+        }
+
+        @Override
+        public List<Game> findAllByStatusForUpdate(GameStatus status) {
+            return findAllByStatus(status);
         }
     }
 }

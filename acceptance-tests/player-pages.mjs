@@ -1,9 +1,6 @@
-import { expect } from '@playwright/test'
-
 export async function joinGame(page, name) {
   await page.getByLabel('Spelarnamn', { exact: true }).fill(name)
   await page.getByRole('button', { name: 'Gå med', exact: true }).click()
-  await expect(page.getByRole('heading', { name: 'Spelare anslutna' })).toBeVisible()
 }
 
 export async function withPlayerPages(browser, playerNames, runScenario) {

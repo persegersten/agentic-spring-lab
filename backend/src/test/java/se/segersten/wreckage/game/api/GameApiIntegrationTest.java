@@ -104,6 +104,22 @@ class GameApiIntegrationTest {
     }
 
     @Test
+    void startsPlanningWhenLobbyBecomesFullAndPersistsThePhase() throws Exception {
+        HttpResponse<String> created = post("/games", """
+                {"maxPlayers":2,"joinTimeoutSeconds":90,"cardsPerRound":3,"planningTimeoutSeconds":45}
+                """);
+        String gameId = json(created).path("id").asText();
+        post("/games/%s/players".formatted(gameId), "{\"name\":\"Alice\"}");
+
+        post("/games/%s/players".formatted(gameId), "{\"name\":\"Bob\"}");
+        HttpResponse<String> retrieved = get("/games/" + gameId);
+
+        JsonNode game = json(retrieved);
+        assertThat(game.path("status").asText()).isEqualTo("RUNNING");
+        assertThat(game.path("round").path("phase").asText()).isEqualTo("PLANNING");
+    }
+
+    @Test
     void addPlayer() throws Exception {
         String gameId = createGameId();
 

@@ -54,7 +54,7 @@ public class Game {
     public Player addPlayer(String name) { return addPlayer(name, "legacy", Instant.now()); }
     public Player addPlayer(String name, String tokenHash) { return addPlayer(name, tokenHash, Instant.now()); }
     public Player addPlayer(String name, String tokenHash, Instant now) {
-        if (round != null) throw new IllegalStateException("Cannot add players after rounds have started");
+        if (round != null) throw new IllegalStateException("The lobby is closed");
         if (!now.isBefore(joinDeadline)) throw new IllegalStateException("The lobby is closed");
         if (players.size() >= configuration.maxPlayers()) throw new IllegalStateException("The lobby is full");
         String nickname = name == null ? null : name.trim();
@@ -67,6 +67,18 @@ public class Game {
         Vehicle vehicle = new Vehicle(UUID.randomUUID(), player.getId());
         vehicles.put(player.getId(), new VehicleState(vehicle, position, Direction.SOUTH));
         return player;
+    }
+
+    public boolean startIfReady(Instant now, Supplier<MovementOrder> cards) {
+        Objects.requireNonNull(now);
+        Objects.requireNonNull(cards);
+        if (status != GameStatus.WAITING_FOR_PLAYERS || round != null || players.size() < 2)
+            return false;
+        boolean full = players.size() >= configuration.maxPlayers();
+        boolean expired = !now.isBefore(joinDeadline);
+        if (!full && !expired) return false;
+        startRound(cards);
+        return true;
     }
 
     public Round startRound(Supplier<MovementOrder> cards) {

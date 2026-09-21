@@ -8,7 +8,7 @@ public record PlayerGameResponse(UUID id, UUID playerId, GameStatus status,
         BoardResponse board, List<VehicleResponse> vehicles, PlayerRoundResponse round) {
     static PlayerGameResponse from(Game game, UUID playerId) {
         Round r=game.getRound(); PlayerRoundResponse round=null;
-        if(r!=null){ PlayerProgram p=r.programs().get(playerId); round=new PlayerRoundResponse(PublicRoundResponse.from(r),r.phase()==RoundPhase.PROGRAMMING?p.hand():List.of()); }
+        if(r!=null){ PlayerProgram p=r.programs().get(playerId); round=new PlayerRoundResponse(PublicRoundResponse.from(r),r.phase()==RoundPhase.PLANNING?p.hand():List.of()); }
         return new PlayerGameResponse(game.getId(), playerId, game.getStatus(),
                 game.getConfiguration(), game.getJoinDeadline(),
                 game.getPlayers().stream().map(PlayerResponse::from).toList(),
