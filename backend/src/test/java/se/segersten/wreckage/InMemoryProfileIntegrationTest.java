@@ -46,9 +46,13 @@ class InMemoryProfileIntegrationTest {
         Game retrieved = gameService.getGame(game.getId());
         assertThat(retrieved.getRound().phase()).isEqualTo(RoundPhase.PLAYBACK);
         assertThat(retrieved.getRound().allReady()).isTrue();
-        assertThat(retrieved.getRound().playback()).hasSize(5);
+        assertThat(retrieved.getRound().playback()).allSatisfy(event -> {
+            assertThat(event.sequence()).isPositive();
+            assertThat(event.oldPosition()).isNotNull();
+            assertThat(event.newPosition()).isNotNull();
+        });
         assertThat(retrieved.getRound().programs().get(alice.player().getId()).orders()).hasSize(5);
         assertThat(retrieved.getVehicleStates()).hasSize(2);
-        assertThat(retrieved.getRound().playback().getLast().vehicleStates()).hasSize(2);
+        assertThat(retrieved.getRound().finalVehicleStates()).hasSize(2);
     }
 }

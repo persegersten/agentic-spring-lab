@@ -40,7 +40,7 @@ export function GamePage() {
     if (!session) return
     const next = await getPlayerGame(session)
     setView(next)
-    setVehicles(next.round?.state.phase === 'PLAYBACK' ? next.round.state.initialVehicles : next.vehicles)
+    if (next.round?.state.phase !== 'PLAYBACK') setVehicles(next.vehicles)
   }, [session])
 
   useEffect(() => {

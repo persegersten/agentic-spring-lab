@@ -193,7 +193,7 @@ class GameServiceTest {
 
         assertThat(game.getRound().allReady()).isTrue();
         assertThat(game.getRound().phase()).isEqualTo(RoundPhase.PLAYBACK);
-        assertThat(game.getRound().playback()).hasSize(5);
+        assertThat(game.getRound().playback()).isEmpty();
         assertThat(game.getRound().programs().get(alice.player().getId()).orders())
                 .containsExactlyElementsOf(fiveCards);
     }

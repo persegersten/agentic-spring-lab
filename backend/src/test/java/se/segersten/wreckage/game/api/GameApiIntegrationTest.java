@@ -188,10 +188,14 @@ class GameApiIntegrationTest {
         assertThat(resolved.statusCode()).isEqualTo(HttpStatus.OK.value());
         assertThat(json(resolved).path("round").path("state").path("phase").asText())
                 .isEqualTo("PLAYBACK");
-        assertThat(json(resolved).path("round").path("state").path("playback")).hasSize(5);
+        JsonNode resolvedPlayback = json(resolved).path("round").path("state").path("playback");
+        assertThat(resolvedPlayback.isArray()).isTrue();
         JsonNode publicResolved = json(get("/games/" + gameId));
         assertThat(publicResolved.path("round").path("phase").asText()).isEqualTo("PLAYBACK");
-        assertThat(publicResolved.path("round").path("playback")).hasSize(5);
+        assertThat(publicResolved.path("round").path("playback")).isEqualTo(resolvedPlayback);
+        JsonNode aliceResolved = json(getPlayerGame(gameId, per));
+        assertThat(aliceResolved.path("round").path("state").path("playback"))
+                .isEqualTo(resolvedPlayback);
         assertThat(publicResolved.toString()).doesNotContain("hand", "orders");
     }
 
