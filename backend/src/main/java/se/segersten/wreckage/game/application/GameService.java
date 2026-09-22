@@ -8,6 +8,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.function.Supplier;
 import java.time.Clock;
 import java.time.Instant;
 
@@ -23,7 +24,6 @@ import se.segersten.wreckage.game.domain.GameConfiguration;
 import se.segersten.wreckage.game.domain.Player;
 import se.segersten.wreckage.game.domain.MovementOrder;
 import se.segersten.wreckage.game.domain.Round;
-import se.segersten.wreckage.game.engine.MovementEngine;
 
 @Service
 @Transactional
@@ -34,15 +34,21 @@ public class GameService {
 
     private final GameRepository gameRepository;
     private final Clock clock;
+    private final Supplier<MovementOrder> cardSource;
 
     @Autowired
     public GameService(GameRepository gameRepository) {
-        this(gameRepository, Clock.systemUTC());
+        this(gameRepository, Clock.systemUTC(), GameService::randomCard);
     }
 
     GameService(GameRepository gameRepository, Clock clock) {
+        this(gameRepository, clock, GameService::randomCard);
+    }
+
+    GameService(GameRepository gameRepository, Clock clock, Supplier<MovementOrder> cardSource) {
         this.gameRepository = gameRepository;
         this.clock = clock;
+        this.cardSource = java.util.Objects.requireNonNull(cardSource);
     }
 
     public Game createGame() {
@@ -61,7 +67,7 @@ public class GameService {
         Game game = findGameForUpdate(gameId);
         String token = UUID.randomUUID().toString() + UUID.randomUUID();
         Player player = game.addPlayer(name, hash(token), clock.instant());
-        game.startIfReady(clock.instant(), this::randomCard);
+        game.startIfReady(clock.instant(), cardSource);
         gameRepository.save(game);
         return new PlayerJoin(player, token);
     }
@@ -70,7 +76,7 @@ public class GameService {
         Game game = authenticatedGameForUpdate(gameId, playerId, token);
         if (game.getRound() == null)
             throw new IllegalStateException("The first round starts automatically");
-        Round round = game.startRound(this::randomCard);
+        Round round = game.startRound(cardSource);
         gameRepository.save(game);
         return round;
     }
@@ -78,7 +84,7 @@ public class GameService {
     public void startExpiredLobbies() {
         Instant now = clock.instant();
         for (Game game : gameRepository.findAllByStatusForUpdate(GameStatus.WAITING_FOR_PLAYERS)) {
-            if (game.startIfReady(now, this::randomCard)) gameRepository.save(game);
+            if (game.startIfReady(now, cardSource)) gameRepository.save(game);
         }
     }
 
@@ -90,7 +96,6 @@ public class GameService {
         Game game = authenticatedGameForUpdate(gameId, playerId, token);
         if (game.getRound() == null) throw new IllegalStateException("No round has started");
         game.getRound().lock(playerId, orders);
-        if (game.getRound().allReady()) game.getRound().resolve(new MovementEngine());
         gameRepository.save(game);
         return game.getRound();
     }
@@ -143,7 +148,7 @@ public class GameService {
         }
     }
 
-    private MovementOrder randomCard() {
+    private static MovementOrder randomCard() {
         MovementOrder[] cards = MovementOrder.values();
         return cards[ThreadLocalRandom.current().nextInt(cards.length)];
     }

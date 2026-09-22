@@ -18,8 +18,8 @@ Then run the tests:
 npm test
 ```
 
-This runs both game creation and round programming/playback scenarios. The
-round scenario checks independent player programs and all three shared playback steps.
+This runs both game creation and planning scenarios. The planning scenario checks
+private five-card hands, ordering a hand, locking a program, and shared readiness.
 
 Playwright starts the Spring Boot backend with the disposable `in-memory`
 profile and starts the Vite development server automatically. If compatible

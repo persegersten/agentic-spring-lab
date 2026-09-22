@@ -141,6 +141,46 @@ class GameApiIntegrationTest {
     }
 
     @Test
+    void keepsFiveCardHandsPrivateAndPublishesReadiness() throws Exception {
+        HttpResponse<String> created = post("/games", """
+                {"maxPlayers":2,"joinTimeoutSeconds":90,"cardsPerRound":5,"planningTimeoutSeconds":45}
+                """);
+        String gameId = json(created).path("id").asText();
+        JsonNode per = json(post("/games/%s/players".formatted(gameId), "{\"name\":\"Per\"}"));
+        JsonNode alice = json(post("/games/%s/players".formatted(gameId), "{\"name\":\"Alice\"}"));
+
+        JsonNode publicGame = json(get("/games/" + gameId));
+        JsonNode perGame = json(getPlayerGame(gameId, per));
+        JsonNode aliceGame = json(getPlayerGame(gameId, alice));
+
+        assertThat(publicGame.toString()).doesNotContain("hand", "orders");
+        assertThat(perGame.path("round").path("hand")).hasSize(5);
+        assertThat(aliceGame.path("round").path("hand")).hasSize(5);
+        assertThat(perGame.path("round").has("state")).isTrue();
+        assertThat(perGame.path("round").size()).isEqualTo(2);
+
+        var selectedOrder = objectMapper.createArrayNode();
+        for (int index = 4; index >= 0; index--) {
+            selectedOrder.add(perGame.path("round").path("hand").path(index).asText());
+        }
+        HttpResponse<String> submitted = postPlayer(
+                "/games/%s/rounds/current/program".formatted(gameId), per,
+                objectMapper.createObjectNode()
+                        .set("orders", selectedOrder)
+                        .toString());
+        assertThat(submitted.statusCode()).isEqualTo(HttpStatus.OK.value());
+        assertThat(json(submitted).path("round").path("hand")).isEqualTo(selectedOrder);
+
+        JsonNode aliceAfterSubmission = json(getPlayerGame(gameId, alice));
+        assertThat(aliceAfterSubmission.path("round").path("state").path("phase").asText())
+                .isEqualTo("PLANNING");
+        assertThat(aliceAfterSubmission.path("round").path("state").path("ready")
+                .path(per.path("id").asText()).asBoolean()).isTrue();
+        assertThat(aliceAfterSubmission.path("round").path("hand")).hasSize(5);
+        assertThat(aliceAfterSubmission.toString()).doesNotContain("orders", "playback\":[{");
+    }
+
+    @Test
     void addPlayer() throws Exception {
         String gameId = createGameId();
 
@@ -267,6 +307,17 @@ class GameApiIntegrationTest {
                         gameId, player.path("id").asText())))
                 .header("X-Player-Token", player.path("token").asText())
                 .GET()
+                .build();
+        return httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+    }
+
+    private HttpResponse<String> postPlayer(String path, JsonNode player, String body)
+            throws IOException, InterruptedException {
+        HttpRequest request = HttpRequest.newBuilder(uri(path))
+                .header("Content-Type", "application/json")
+                .header("X-Player-Id", player.path("id").asText())
+                .header("X-Player-Token", player.path("token").asText())
+                .POST(HttpRequest.BodyPublishers.ofString(body))
                 .build();
         return httpClient.send(request, HttpResponse.BodyHandlers.ofString());
     }

@@ -8,10 +8,10 @@ public record PlayerProgram(UUID playerId, List<MovementOrder> hand, List<Moveme
         hand = List.copyOf(hand);
         orders = orders == null ? List.of() : List.copyOf(orders);
     }
-    public boolean ready() { return orders.size() == 3; }
+    public boolean ready() { return !hand.isEmpty() && orders.size() == hand.size(); }
     public PlayerProgram lock(List<MovementOrder> selected) {
         if (ready()) throw new IllegalStateException("Program is already locked");
-        if (selected == null || selected.size() != 3 || !sameCards(hand, selected))
+        if (selected == null || selected.size() != hand.size() || !sameCards(hand, selected))
             throw new IllegalArgumentException("Program must contain each dealt card exactly once");
         return new PlayerProgram(playerId, hand, selected);
     }
