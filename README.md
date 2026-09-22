@@ -12,7 +12,36 @@ Current scope:
 There is no account system; private player views use the secret token returned
 when that player joins a game.
 
-## Run the backend
+## Run backend and frontend
+
+Install frontend dependencies once:
+
+```bash
+cd frontend
+npm ci
+cd ..
+```
+
+Start both services with one database profile argument:
+
+```bash
+./start.sh in-memory
+```
+
+For PostgreSQL, start the database first:
+
+```bash
+docker compose up -d postgres
+./start.sh postgres
+```
+
+Open the frontend URL printed by Vite (normally <http://localhost:5173>).
+The frontend listens on all network interfaces so players on the same network
+can use your computer's IP address. Press Ctrl+C to stop both services; if
+either service exits, the script stops the other as well. PostgreSQL remains
+running independently.
+
+## Run the backend only
 
 The startup script requires a database profile. To run with PostgreSQL, first
 start the database and then the backend:
