@@ -62,14 +62,38 @@ class GameRoundTest {
         assertThat(round.allReady()).isTrue();
         assertThatThrownBy(() -> round.lock(player.getId(), selected)).isInstanceOf(IllegalStateException.class);
     }
-    @Test void resolvesThreeSequentialStepsAndPreservesPlayback() {
-        Game game=new Game(UUID.randomUUID(),new Board(5,5)); Player player=game.addPlayer("Alice","a");
-        Round round=game.startRound(()->MovementOrder.FORWARD);
+    @Test void resolvesConfiguredNumberOfCardPositionsAndPreservesPlayback() {
+        Game game=configuredGame(5); Player player=game.addPlayer("Alice","a");
+        Round round=game.startRound(()->MovementOrder.REVERSE);
         round.lock(player.getId(),round.programs().get(player.getId()).hand()); round.resolve(new MovementEngine());
-        assertThat(round.phase()).isEqualTo(RoundPhase.PLAYBACK); assertThat(round.playback()).hasSize(3);
-        assertThat(round.playback()).extracting(PlaybackStep::index).containsExactly(1,2,3);
+        assertThat(round.phase()).isEqualTo(RoundPhase.PLAYBACK); assertThat(round.playback()).hasSize(5);
+        assertThat(round.playback()).extracting(PlaybackStep::index).containsExactly(1,2,3,4,5);
         assertThat(round.initialState().vehicleStates().getFirst().position()).isEqualTo(new Position(0,0));
-        assertThat(round.playback().get(2).vehicleStates().getFirst().position()).isEqualTo(new Position(0,3));
+        assertThat(round.playback().get(4).vehicleStates().getFirst().position()).isEqualTo(new Position(0,4));
+    }
+    @Test void resolvesEveryPlayersCurrentCardBeforeTheNextCardPosition() {
+        UUID aliceId = UUID.randomUUID();
+        UUID bobId = UUID.randomUUID();
+        Vehicle aliceVehicle = new Vehicle(UUID.randomUUID(), aliceId);
+        Vehicle bobVehicle = new Vehicle(UUID.randomUUID(), bobId);
+        VehicleState alice = new VehicleState(aliceVehicle, new Position(0, 0), Direction.NORTH);
+        VehicleState bob = new VehicleState(bobVehicle, new Position(0, 1), Direction.NORTH);
+        Map<UUID, PlayerProgram> programs = new java.util.LinkedHashMap<>();
+        programs.put(aliceId, lockedProgram(aliceId, MovementOrder.FORWARD, MovementOrder.TURN_RIGHT));
+        programs.put(bobId, lockedProgram(bobId, MovementOrder.FORWARD, MovementOrder.FORWARD));
+        Round round = new Round(1, programs, new GameState(new Board(5, 5), List.of(alice, bob)));
+
+        round.resolve(new MovementEngine());
+
+        assertThat(round.playback()).hasSize(2);
+        assertThat(round.playback().get(0).commands()).containsOnly(
+                entry(aliceId, MovementOrder.FORWARD),
+                entry(bobId, MovementOrder.FORWARD));
+        assertThat(round.playback().get(0).vehicleStates()).extracting(VehicleState::position)
+                .containsExactly(new Position(0, 0), new Position(0, 2));
+        assertThat(round.playback().get(1).vehicleStates()).containsExactly(
+                new VehicleState(aliceVehicle, new Position(0, 0), Direction.EAST),
+                new VehicleState(bobVehicle, new Position(0, 3), Direction.NORTH));
     }
     @Test void waitsForEveryPlayerBeforeResolution() {
         Game game=new Game(UUID.randomUUID(),new Board(5,5)); Player a=game.addPlayer("Alice","a"); game.addPlayer("Bob","b");
@@ -81,5 +105,10 @@ class GameRoundTest {
         var now = java.time.Instant.parse("2099-01-01T12:00:00Z");
         return new Game(UUID.randomUUID(), List.of(), new Board(5, 5), GameStatus.WAITING_FOR_PLAYERS,
                 Map.of(), null, new GameConfiguration(12, 60, cardsPerRound, 30), now, now.plusSeconds(60));
+    }
+
+    private static PlayerProgram lockedProgram(UUID playerId, MovementOrder... orders) {
+        List<MovementOrder> cards = List.of(orders);
+        return new PlayerProgram(playerId, cards, cards);
     }
 }

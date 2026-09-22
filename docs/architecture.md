@@ -39,9 +39,11 @@ hands or unrevealed programs. Tokens are stored server-side only as SHA-256
 hashes.
 
 The aggregate persists the current round, programs and playback. After all
-programs are locked, the application uses `MovementEngine` three times and
-publishes the completed playback. React polls the private view while waiting,
-then animates the persisted states rather than predicting movement locally.
+programs are locked, the application resolves the configured number of card
+positions through `MovementEngine`, processing players in stable order at each
+position, and publishes the completed playback. React polls the private view
+while waiting, then animates the persisted states rather than predicting
+movement locally.
 
 ## Backend layers
 

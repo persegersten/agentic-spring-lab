@@ -51,7 +51,7 @@ Positions are represented using integer coordinates:
 Position(x, y)
 ```
 
-The top-left position is:
+The bottom-left position is:
 
 ```text
 (0, 0)
@@ -59,14 +59,14 @@ The top-left position is:
 
 The x-coordinate increases towards the right.
 
-The y-coordinate increases downwards.
+The y-coordinate increases towards `NORTH`.
 
 Example:
 
 ```text
-(0,0) (1,0) (2,0) (3,0)
-(0,1) (1,1) (2,1) (3,1)
 (0,2) (1,2) (2,2) (3,2)
+(0,1) (1,1) (2,1) (3,1)
+(0,0) (1,0) (2,0) (3,0)
 ```
 
 For a board with width `W` and height `H`, a position is valid when:
@@ -140,9 +140,9 @@ The movement vectors are:
 
 | Orientation | Change       |
 | ----------- | ------------ |
-| NORTH       | `(x, y - 1)` |
+| NORTH       | `(x, y + 1)` |
 | EAST        | `(x + 1, y)` |
-| SOUTH       | `(x, y + 1)` |
+| SOUTH       | `(x, y - 1)` |
 | WEST        | `(x - 1, y)` |
 
 Example:
@@ -152,7 +152,7 @@ Position:    (3, 4)
 Orientation: NORTH
 Order:       FORWARD
 
-Intended position: (3, 3)
+Intended position: (3, 5)
 ```
 
 Executing `FORWARD` does not change the vehicle's orientation.
@@ -165,9 +165,9 @@ The movement vectors are:
 
 | Orientation | Change       |
 | ----------- | ------------ |
-| NORTH       | `(x, y + 1)` |
+| NORTH       | `(x, y - 1)` |
 | EAST        | `(x - 1, y)` |
-| SOUTH       | `(x, y - 1)` |
+| SOUTH       | `(x, y + 1)` |
 | WEST        | `(x + 1, y)` |
 
 Executing `REVERSE` does not change the vehicle's orientation.
@@ -210,12 +210,12 @@ Example:
 
 ```text
 Board:       10 x 10
-Position:    (0, 0)
+Position:    (0, 9)
 Orientation: NORTH
 Order:       FORWARD
 
 Result:
-Position:    (0, 0)
+Position:    (0, 9)
 Orientation: NORTH
 ```
 
@@ -223,150 +223,22 @@ Leaving the board does not currently cause damage or destroy the vehicle.
 
 ---
 
-## 9. Simultaneous Movement
+## 9. Command order
 
-Movement orders from all players are resolved simultaneously.
-
-The result must not depend on:
-
-* player ordering
-* map iteration order
-* insertion order of movement orders
-
-The engine must therefore not resolve movement by simply moving one vehicle after another.
-
-Movement resolution conceptually consists of three phases:
+Commands are resolved sequentially in stable player order within each card
+position. Every player's first card is resolved before any second card:
 
 ```text
-1. Determine intentions
-2. Resolve conflicts
-3. Apply results
+A1 -> B1 -> C1 -> A2 -> B2 -> C2
 ```
 
-### Phase 1 — Determine intentions
-
-For every vehicle, determine its intended resulting position and orientation without modifying the game state.
-
-### Phase 2 — Resolve conflicts
-
-Determine whether any intended movements conflict with other vehicles.
-
-### Phase 3 — Apply results
-
-After all conflicts have been resolved, construct the resulting game state.
+Each command observes the state produced by the preceding command. A move into
+an occupied position is blocked; it does not push or otherwise affect the
+occupying vehicle. Ramming rules are introduced by a later feature.
 
 ---
 
-## 10. Collision Rules
-
-A collision occurs when simultaneous movement would result in an invalid vehicle configuration.
-
-The current collision rules are deliberately simple.
-
-### 10.1 Moving to an empty position
-
-If a vehicle moves to an empty position and no other vehicle attempts to occupy that position, the movement succeeds.
-
-```text
-Before:
-
-A -> [ ]
-
-After:
-
-[ ]  A
-```
-
----
-
-### 10.2 Moving into a stationary vehicle
-
-If a vehicle attempts to move into a position occupied by a vehicle that does not move away, the movement is blocked.
-
-Both vehicles remain in their original positions.
-
-```text
-A -> B
-```
-
-Result:
-
-```text
-A    B
-```
-
----
-
-### 10.3 Two vehicles moving to the same position
-
-If two or more vehicles attempt to move into the same position, all conflicting movements are blocked.
-
-Example:
-
-```text
-    A
-    |
-    v
-
-[ target ] <- B
-```
-
-Both A and B remain in their original positions.
-
----
-
-### 10.4 Vehicles swapping positions
-
-Two vehicles may not pass through each other by swapping positions during the same movement resolution.
-
-Example:
-
-```text
-Before:
-
-A -> <- B
-```
-
-If A intends to move to B's position and B intends to move to A's position, both movements are blocked.
-
-Both vehicles remain in their original positions.
-
----
-
-### 10.5 Moving into a position vacated by another vehicle
-
-A vehicle may move into another vehicle's current position if that vehicle successfully moves away during the same movement resolution.
-
-Example:
-
-```text
-Before:
-
-A -> B -> [ ]
-```
-
-If:
-
-```text
-A intends to move into B's position
-B intends to move into the empty position
-```
-
-and B's movement succeeds, both movements succeed.
-
-Result:
-
-```text
-[ ] A B
-```
-
-If B's movement is blocked, A's movement is also blocked.
-
-This means that blocking one movement may cause other dependent movements to become blocked.
-
----
-
-## 11. Missing Movement Orders
+## 10. Missing Movement Orders
 
 If a player does not provide a movement order, the vehicle performs no action.
 
@@ -382,7 +254,7 @@ NO_ACTION
 
 ---
 
-## 12. Movement Invariants
+## 11. Movement Invariants
 
 After every movement resolution, the following conditions must always hold.
 
@@ -418,16 +290,18 @@ The same game state and movement orders must always produce the same resulting g
 
 ### Ordering invariant
 
-Changing the iteration or insertion order of movement orders must not change the result.
+Resolution always follows the stable player order recorded by the round.
 
 ---
 
-## 13. Out of Scope
+## 12. Out of Scope
 
 The following rules are intentionally **not part of the movement engine yet**:
 
 * weapons
 * combat
+* ramming
+* board effects
 * damage
 * vehicle destruction
 * vehicle segment destruction
@@ -439,20 +313,21 @@ The following rules are intentionally **not part of the movement engine yet**:
 * initiative
 * AI-controlled players
 
-## 15. Rounds and command cards
+## 13. Rounds and command cards
 
-Each round has three phases. In `PROGRAMMING`, the server randomly deals three
-cards to every participating player. A card is one of the four movement orders.
-Only its owner may retrieve the hand. The player submits all three dealt cards
+Each round has three phases. In `PLANNING`, the server randomly deals the
+configured number of cards to every participating player. A card is one of the
+four movement orders.
+Only its owner may retrieve the hand. The player submits all dealt cards
 in the desired order; a submitted program is immutable.
 
 When every player is ready, the server enters `RESOLVING`. For card positions
-one through three it resolves every player's card simultaneously using the
-collision rules above. The initial state and the resulting state after every
-card are retained. Resolution completes atomically and exposes no partial
-result.
+one through the configured card count it resolves every player's card in stable
+player order. The initial state and the resulting state after every complete
+card position are retained. Resolution completes atomically and exposes no
+partial result.
 
-In `PLAYBACK`, all commands and the three resulting states are public so every
+In `PLAYBACK`, all commands and the resulting states are public so every
 client can reproduce the same animation. A new round may start only after the
 current round has reached playback, and starts from its final vehicle state.
 

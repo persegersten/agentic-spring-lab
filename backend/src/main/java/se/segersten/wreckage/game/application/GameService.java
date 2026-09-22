@@ -24,6 +24,7 @@ import se.segersten.wreckage.game.domain.GameConfiguration;
 import se.segersten.wreckage.game.domain.Player;
 import se.segersten.wreckage.game.domain.MovementOrder;
 import se.segersten.wreckage.game.domain.Round;
+import se.segersten.wreckage.game.engine.MovementEngine;
 
 @Service
 @Transactional
@@ -96,6 +97,7 @@ public class GameService {
         Game game = authenticatedGameForUpdate(gameId, playerId, token);
         if (game.getRound() == null) throw new IllegalStateException("No round has started");
         game.getRound().lock(playerId, orders);
+        if (game.getRound().allReady()) game.getRound().resolve(new MovementEngine());
         gameRepository.save(game);
         return game.getRound();
     }

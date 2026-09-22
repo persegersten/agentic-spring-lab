@@ -31,7 +31,7 @@ class InMemoryProfileIntegrationTest {
     }
 
     @Test
-    void persistsPrivateProgramsAndReadinessWithoutPlaybackUsingInMemoryDatabase() {
+    void persistsResolvedProgramsAndPlaybackUsingInMemoryDatabase() {
         Game game = gameService.createGame(new GameConfiguration(2, 300, 5, 120));
         var alice = gameService.addPlayer(game.getId(), "Alice");
         var bob = gameService.addPlayer(game.getId(), "Bob");
@@ -44,10 +44,11 @@ class InMemoryProfileIntegrationTest {
                 bobView.getRound().programs().get(bob.player().getId()).hand());
 
         Game retrieved = gameService.getGame(game.getId());
-        assertThat(retrieved.getRound().phase()).isEqualTo(RoundPhase.PLANNING);
+        assertThat(retrieved.getRound().phase()).isEqualTo(RoundPhase.PLAYBACK);
         assertThat(retrieved.getRound().allReady()).isTrue();
-        assertThat(retrieved.getRound().playback()).isEmpty();
+        assertThat(retrieved.getRound().playback()).hasSize(5);
         assertThat(retrieved.getRound().programs().get(alice.player().getId()).orders()).hasSize(5);
         assertThat(retrieved.getVehicleStates()).hasSize(2);
+        assertThat(retrieved.getRound().playback().getLast().vehicleStates()).hasSize(2);
     }
 }
