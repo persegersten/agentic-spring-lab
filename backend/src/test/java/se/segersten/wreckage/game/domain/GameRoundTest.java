@@ -2,6 +2,7 @@ package se.segersten.wreckage.game.domain;
 
 import static org.assertj.core.api.Assertions.*;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import se.segersten.wreckage.game.engine.MovementEngine;
@@ -25,21 +26,41 @@ class GameRoundTest {
                 });
     }
 
-    @Test void dealsThreeCardsToEveryPlayerAndKeepsThemPrivateByPlayer() {
-        Game game=new Game(UUID.randomUUID(),new Board(5,5));
-        Player a=game.addPlayer("Alice","a"), b=game.addPlayer("Bob","b");
-        Round round=game.startRound(()->MovementOrder.FORWARD);
-        assertThat(round.phase()).isEqualTo(RoundPhase.PLANNING);
-        assertThat(round.programs().get(a.getId()).hand()).containsExactly(MovementOrder.FORWARD,MovementOrder.FORWARD,MovementOrder.FORWARD);
-        assertThat(round.programs().get(b.getId()).hand()).hasSize(3);
+    @Test void dealsConfiguredNumberOfCardsToEveryPlayer() {
+        for (int cardsPerRound : List.of(3, 5, 10)) {
+            Game game = configuredGame(cardsPerRound);
+            Player alice = game.addPlayer("Alice", "a");
+            Player bob = game.addPlayer("Bob", "b");
+
+            Round round = game.startRound(() -> MovementOrder.FORWARD);
+
+            assertThat(round.phase()).isEqualTo(RoundPhase.PLANNING);
+            assertThat(round.programs().get(alice.getId()).hand()).hasSize(cardsPerRound);
+            assertThat(round.programs().get(bob.getId()).hand()).hasSize(cardsPerRound);
+        }
     }
-    @Test void validatesCardsAndLocksAProgramOnlyOnce() {
-        Game game=new Game(UUID.randomUUID(),new Board(5,5)); Player player=game.addPlayer("Alice","a");
-        Round round=game.startRound(()->MovementOrder.FORWARD);
-        assertThatThrownBy(()->round.lock(player.getId(),List.of(MovementOrder.REVERSE,MovementOrder.FORWARD,MovementOrder.FORWARD))).isInstanceOf(IllegalArgumentException.class);
-        round.lock(player.getId(),List.of(MovementOrder.FORWARD,MovementOrder.FORWARD,MovementOrder.FORWARD));
+
+    @Test void validatesDuplicateCardsAndLocksAProgramOnlyOnce() {
+        Game game = configuredGame(5);
+        Player player = game.addPlayer("Alice", "a");
+        var dealt = new java.util.ArrayDeque<>(List.of(MovementOrder.FORWARD, MovementOrder.REVERSE,
+                MovementOrder.FORWARD, MovementOrder.TURN_LEFT, MovementOrder.TURN_RIGHT));
+        Round round = game.startRound(dealt::removeFirst);
+        List<MovementOrder> selected = List.of(MovementOrder.FORWARD, MovementOrder.TURN_RIGHT,
+                MovementOrder.REVERSE, MovementOrder.TURN_LEFT, MovementOrder.FORWARD);
+
+        assertThatThrownBy(() -> round.lock(player.getId(), List.of(MovementOrder.FORWARD,
+                MovementOrder.REVERSE, MovementOrder.TURN_LEFT, MovementOrder.TURN_RIGHT)))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> round.lock(player.getId(), List.of(MovementOrder.FORWARD,
+                MovementOrder.REVERSE, MovementOrder.TURN_LEFT, MovementOrder.TURN_RIGHT,
+                MovementOrder.TURN_RIGHT))).isInstanceOf(IllegalArgumentException.class);
+
+        round.lock(player.getId(), selected);
+
+        assertThat(round.programs().get(player.getId()).orders()).containsExactlyElementsOf(selected);
         assertThat(round.allReady()).isTrue();
-        assertThatThrownBy(()->round.lock(player.getId(),List.of(MovementOrder.FORWARD,MovementOrder.FORWARD,MovementOrder.FORWARD))).isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> round.lock(player.getId(), selected)).isInstanceOf(IllegalStateException.class);
     }
     @Test void resolvesThreeSequentialStepsAndPreservesPlayback() {
         Game game=new Game(UUID.randomUUID(),new Board(5,5)); Player player=game.addPlayer("Alice","a");
@@ -54,5 +75,11 @@ class GameRoundTest {
         Game game=new Game(UUID.randomUUID(),new Board(5,5)); Player a=game.addPlayer("Alice","a"); game.addPlayer("Bob","b");
         Round round=game.startRound(()->MovementOrder.TURN_LEFT); round.lock(a.getId(),round.programs().get(a.getId()).hand());
         assertThat(round.allReady()).isFalse(); assertThatThrownBy(()->round.resolve(new MovementEngine())).isInstanceOf(IllegalStateException.class);
+    }
+
+    private static Game configuredGame(int cardsPerRound) {
+        var now = java.time.Instant.parse("2099-01-01T12:00:00Z");
+        return new Game(UUID.randomUUID(), List.of(), new Board(5, 5), GameStatus.WAITING_FOR_PLAYERS,
+                Map.of(), null, new GameConfiguration(12, 60, cardsPerRound, 30), now, now.plusSeconds(60));
     }
 }

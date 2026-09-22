@@ -90,8 +90,11 @@ public class Game {
         }
         Map<UUID, PlayerProgram> programs = new LinkedHashMap<>();
         for (Player player : players) {
-            programs.put(player.getId(), new PlayerProgram(player.getId(),
-                    List.of(cards.get(), cards.get(), cards.get()), List.of()));
+            List<MovementOrder> hand = new ArrayList<>(configuration.cardsPerRound());
+            for (int index = 0; index < configuration.cardsPerRound(); index++) {
+                hand.add(Objects.requireNonNull(cards.get(), "card source must not return null"));
+            }
+            programs.put(player.getId(), new PlayerProgram(player.getId(), hand, List.of()));
         }
         round = new Round(round == null ? 1 : round.number() + 1, programs,
                 new GameState(board, getVehicleStates()));

@@ -20,6 +20,7 @@ import se.segersten.wreckage.game.domain.GameRepository;
 import se.segersten.wreckage.game.domain.GameStatus;
 import se.segersten.wreckage.game.domain.GameConfiguration;
 import se.segersten.wreckage.game.domain.Player;
+import se.segersten.wreckage.game.domain.MovementOrder;
 import se.segersten.wreckage.game.domain.RoundPhase;
 
 class GameServiceTest {
@@ -173,6 +174,28 @@ class GameServiceTest {
         assertThatThrownBy(() -> service.startRound(game.getId(), alice.player().getId(), alice.token()))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("The first round starts automatically");
+    }
+
+    @Test
+    void shouldStoreConfiguredProgramAndRemainInPlanningWhenEveryoneIsReady() {
+        InMemoryGameRepository repository = new InMemoryGameRepository();
+        Instant now = Instant.parse("2026-01-01T12:00:00Z");
+        GameService service = new GameService(repository, Clock.fixed(now, ZoneOffset.UTC),
+                () -> MovementOrder.FORWARD);
+        Game game = service.createGame(new GameConfiguration(2, 60, 5, 30));
+        var alice = service.addPlayer(game.getId(), "Alice");
+        var bob = service.addPlayer(game.getId(), "Bob");
+        List<MovementOrder> fiveCards = List.of(MovementOrder.FORWARD, MovementOrder.FORWARD,
+                MovementOrder.FORWARD, MovementOrder.FORWARD, MovementOrder.FORWARD);
+
+        service.submitProgram(game.getId(), alice.player().getId(), alice.token(), fiveCards);
+        service.submitProgram(game.getId(), bob.player().getId(), bob.token(), fiveCards);
+
+        assertThat(game.getRound().allReady()).isTrue();
+        assertThat(game.getRound().phase()).isEqualTo(RoundPhase.PLANNING);
+        assertThat(game.getRound().playback()).isEmpty();
+        assertThat(game.getRound().programs().get(alice.player().getId()).orders())
+                .containsExactlyElementsOf(fiveCards);
     }
 
     @Test
