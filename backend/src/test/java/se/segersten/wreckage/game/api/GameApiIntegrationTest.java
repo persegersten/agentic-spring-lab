@@ -120,6 +120,27 @@ class GameApiIntegrationTest {
     }
 
     @Test
+    void returnsTheSameServerOwnedBoardAndVehiclePositionsToEveryPlayer() throws Exception {
+        HttpResponse<String> created = post("/games", """
+                {"maxPlayers":2,"joinTimeoutSeconds":90,"cardsPerRound":3,"planningTimeoutSeconds":45}
+                """);
+        String gameId = json(created).path("id").asText();
+        JsonNode alice = json(post("/games/%s/players".formatted(gameId), "{\"name\":\"Alice\"}"));
+        JsonNode bob = json(post("/games/%s/players".formatted(gameId), "{\"name\":\"Bob\"}"));
+
+        JsonNode publicGame = json(get("/games/" + gameId));
+        JsonNode aliceGame = json(getPlayerGame(gameId, alice));
+        JsonNode bobGame = json(getPlayerGame(gameId, bob));
+
+        assertThat(publicGame.path("round").path("phase").asText()).isEqualTo("PLANNING");
+        assertThat(publicGame.path("vehicles")).hasSize(2);
+        assertThat(aliceGame.path("board")).isEqualTo(publicGame.path("board"));
+        assertThat(bobGame.path("board")).isEqualTo(publicGame.path("board"));
+        assertThat(aliceGame.path("vehicles")).isEqualTo(publicGame.path("vehicles"));
+        assertThat(bobGame.path("vehicles")).isEqualTo(publicGame.path("vehicles"));
+    }
+
+    @Test
     void addPlayer() throws Exception {
         String gameId = createGameId();
 
@@ -237,6 +258,16 @@ class GameApiIntegrationTest {
     private HttpResponse<String> get(String path)
             throws IOException, InterruptedException {
         HttpRequest request = HttpRequest.newBuilder(uri(path)).GET().build();
+        return httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+    }
+
+    private HttpResponse<String> getPlayerGame(String gameId, JsonNode player)
+            throws IOException, InterruptedException {
+        HttpRequest request = HttpRequest.newBuilder(uri("/games/%s/players/%s".formatted(
+                        gameId, player.path("id").asText())))
+                .header("X-Player-Token", player.path("token").asText())
+                .GET()
+                .build();
         return httpClient.send(request, HttpResponse.BodyHandlers.ofString());
     }
 
