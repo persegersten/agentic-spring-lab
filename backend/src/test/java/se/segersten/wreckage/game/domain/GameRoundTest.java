@@ -7,6 +7,24 @@ import org.junit.jupiter.api.Test;
 import se.segersten.wreckage.game.engine.MovementEngine;
 
 class GameRoundTest {
+    @Test void assignsDistinctInitialVehiclePositionsOnTheServer() {
+        Board board = new Board(5, 5);
+        Game game = new Game(UUID.randomUUID(), board);
+        Player alice = game.addPlayer("Alice", "a");
+        Player bob = game.addPlayer("Bob", "b");
+
+        List<VehicleState> vehicles = game.getVehicleStates();
+
+        assertThat(vehicles).extracting(state -> state.vehicle().playerId())
+                .containsExactly(alice.getId(), bob.getId());
+        assertThat(vehicles).extracting(VehicleState::position)
+                .doesNotHaveDuplicates()
+                .allSatisfy(position -> {
+                    assertThat(position.x()).isBetween(0, board.width() - 1);
+                    assertThat(position.y()).isBetween(0, board.height() - 1);
+                });
+    }
+
     @Test void dealsThreeCardsToEveryPlayerAndKeepsThemPrivateByPlayer() {
         Game game=new Game(UUID.randomUUID(),new Board(5,5));
         Player a=game.addPlayer("Alice","a"), b=game.addPlayer("Bob","b");
