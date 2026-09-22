@@ -14,7 +14,7 @@ public final class Round {
     private List<PlaybackStep> playback;
 
     public Round(int number, Map<UUID, PlayerProgram> programs, GameState initialState) {
-        this(number, RoundPhase.PROGRAMMING, programs, initialState, List.of());
+        this(number, RoundPhase.PLANNING, programs, initialState, List.of());
     }
     public Round(int number, RoundPhase phase, Map<UUID, PlayerProgram> programs,
                  GameState initialState, List<PlaybackStep> playback) {
@@ -28,7 +28,7 @@ public final class Round {
     public GameState initialState() { return initialState; }
     public List<PlaybackStep> playback() { return playback; }
     public void lock(UUID playerId, List<MovementOrder> orders) {
-        if (phase != RoundPhase.PROGRAMMING) throw new IllegalStateException("Round is not accepting programs");
+        if (phase != RoundPhase.PLANNING) throw new IllegalStateException("Round is not accepting programs");
         var current = programs.get(playerId);
         if (current == null) throw new IllegalArgumentException("Player is not part of this round");
         programs.put(playerId, current.lock(orders));

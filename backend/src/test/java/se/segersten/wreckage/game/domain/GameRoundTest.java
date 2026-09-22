@@ -11,6 +11,7 @@ class GameRoundTest {
         Game game=new Game(UUID.randomUUID(),new Board(5,5));
         Player a=game.addPlayer("Alice","a"), b=game.addPlayer("Bob","b");
         Round round=game.startRound(()->MovementOrder.FORWARD);
+        assertThat(round.phase()).isEqualTo(RoundPhase.PLANNING);
         assertThat(round.programs().get(a.getId()).hand()).containsExactly(MovementOrder.FORWARD,MovementOrder.FORWARD,MovementOrder.FORWARD);
         assertThat(round.programs().get(b.getId()).hand()).hasSize(3);
     }

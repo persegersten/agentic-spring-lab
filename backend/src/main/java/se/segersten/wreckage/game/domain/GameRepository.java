@@ -10,5 +10,9 @@ public interface GameRepository {
 
     Optional<Game> findById(UUID id);
 
+    Optional<Game> findByIdForUpdate(UUID id);
+
     List<Game> findAllByStatus(GameStatus status);
+
+    List<Game> findAllByStatusForUpdate(GameStatus status);
 }

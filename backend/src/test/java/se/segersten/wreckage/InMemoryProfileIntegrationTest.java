@@ -9,6 +9,7 @@ import org.springframework.test.context.ActiveProfiles;
 
 import se.segersten.wreckage.game.application.GameService;
 import se.segersten.wreckage.game.domain.Game;
+import se.segersten.wreckage.game.domain.GameConfiguration;
 import se.segersten.wreckage.game.domain.RoundPhase;
 
 @ActiveProfiles("in-memory")
@@ -31,10 +32,9 @@ class InMemoryProfileIntegrationTest {
 
     @Test
     void persistsPrivateProgramsAndPlaybackUsingInMemoryDatabase() {
-        Game game = gameService.createGame();
+        Game game = gameService.createGame(new GameConfiguration(2, 300, 3, 120));
         var alice = gameService.addPlayer(game.getId(), "Alice");
         var bob = gameService.addPlayer(game.getId(), "Bob");
-        gameService.startRound(game.getId(), alice.player().getId(), alice.token());
 
         Game aliceView = gameService.getPlayerGame(game.getId(), alice.player().getId(), alice.token());
         Game bobView = gameService.getPlayerGame(game.getId(), bob.player().getId(), bob.token());

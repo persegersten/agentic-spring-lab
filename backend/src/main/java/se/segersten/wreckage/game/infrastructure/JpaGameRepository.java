@@ -34,8 +34,20 @@ public class JpaGameRepository implements GameRepository {
     }
 
     @Override
+    public Optional<Game> findByIdForUpdate(UUID id) {
+        return repository.findForUpdateByDomainId(id).map(GameEntity::toDomain);
+    }
+
+    @Override
     public List<Game> findAllByStatus(GameStatus status) {
         return repository.findAllByStatus(status).stream()
+                .map(GameEntity::toDomain)
+                .toList();
+    }
+
+    @Override
+    public List<Game> findAllByStatusForUpdate(GameStatus status) {
+        return repository.findAllForUpdateByStatus(status).stream()
                 .map(GameEntity::toDomain)
                 .toList();
     }
