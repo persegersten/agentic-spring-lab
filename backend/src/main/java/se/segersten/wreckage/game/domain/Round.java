@@ -39,7 +39,8 @@ public final class Round {
         phase = RoundPhase.RESOLVING;
         GameState state = initialState;
         List<PlaybackStep> steps = new ArrayList<>();
-        for (int index = 0; index < 3; index++) {
+        int cardPositions = programs.values().iterator().next().orders().size();
+        for (int index = 0; index < cardPositions; index++) {
             List<VehicleTurn> turns = new ArrayList<>();
             Map<UUID, MovementOrder> commands = new LinkedHashMap<>();
             for (VehicleState vehicle : state.vehicleStates()) {

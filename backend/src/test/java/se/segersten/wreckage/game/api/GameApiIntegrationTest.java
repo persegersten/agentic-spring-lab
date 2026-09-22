@@ -178,6 +178,21 @@ class GameApiIntegrationTest {
                 .path(per.path("id").asText()).asBoolean()).isTrue();
         assertThat(aliceAfterSubmission.path("round").path("hand")).hasSize(5);
         assertThat(aliceAfterSubmission.toString()).doesNotContain("orders", "playback\":[{");
+
+        HttpResponse<String> resolved = postPlayer(
+                "/games/%s/rounds/current/program".formatted(gameId), alice,
+                objectMapper.createObjectNode()
+                        .set("orders", aliceGame.path("round").path("hand"))
+                        .toString());
+
+        assertThat(resolved.statusCode()).isEqualTo(HttpStatus.OK.value());
+        assertThat(json(resolved).path("round").path("state").path("phase").asText())
+                .isEqualTo("PLAYBACK");
+        assertThat(json(resolved).path("round").path("state").path("playback")).hasSize(5);
+        JsonNode publicResolved = json(get("/games/" + gameId));
+        assertThat(publicResolved.path("round").path("phase").asText()).isEqualTo("PLAYBACK");
+        assertThat(publicResolved.path("round").path("playback")).hasSize(5);
+        assertThat(publicResolved.toString()).doesNotContain("hand", "orders");
     }
 
     @Test

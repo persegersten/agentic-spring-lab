@@ -19,39 +19,39 @@ import se.segersten.wreckage.game.domain.VehicleTurn;
 class MovementEngineTest {
 
     private final MovementEngine engine = new MovementEngine();
-    private final Board board = new Board(5, 5);
+    private final Board board = new Board(7, 7);
 
     @Test
-    void movesForwardToAnUnoccupiedPosition() {
-        VehicleState vehicle = state(1, 1, Direction.EAST);
+    void movesForwardNorthByIncreasingY() {
+        VehicleState vehicle = state(3, 3, Direction.NORTH);
 
         GameState result = resolve(List.of(vehicle), order(vehicle, MovementOrder.FORWARD));
 
         assertThat(result.vehicleStates()).containsExactly(
-                new VehicleState(vehicle.vehicle(), new Position(2, 1), Direction.EAST));
+                new VehicleState(vehicle.vehicle(), new Position(3, 4), Direction.NORTH));
     }
 
     @Test
-    void reversesInTheOppositeDirectionWithoutChangingOrientation() {
-        VehicleState north = state(2, 2, Direction.NORTH);
-        VehicleState east = state(2, 2, Direction.EAST);
-        VehicleState south = state(2, 2, Direction.SOUTH);
-        VehicleState west = state(2, 2, Direction.WEST);
+    void reversesWithoutChangingOrientation() {
+        VehicleState north = state(3, 3, Direction.NORTH);
+        VehicleState east = state(3, 3, Direction.EAST);
+        VehicleState south = state(3, 3, Direction.SOUTH);
+        VehicleState west = state(3, 3, Direction.WEST);
 
         assertThat(resolve(List.of(north), order(north, MovementOrder.REVERSE)).vehicleStates())
-                .containsExactly(new VehicleState(north.vehicle(), new Position(2, 3), Direction.NORTH));
+                .containsExactly(new VehicleState(north.vehicle(), new Position(3, 2), Direction.NORTH));
         assertThat(resolve(List.of(east), order(east, MovementOrder.REVERSE)).vehicleStates())
-                .containsExactly(new VehicleState(east.vehicle(), new Position(1, 2), Direction.EAST));
+                .containsExactly(new VehicleState(east.vehicle(), new Position(2, 3), Direction.EAST));
         assertThat(resolve(List.of(south), order(south, MovementOrder.REVERSE)).vehicleStates())
-                .containsExactly(new VehicleState(south.vehicle(), new Position(2, 1), Direction.SOUTH));
+                .containsExactly(new VehicleState(south.vehicle(), new Position(3, 4), Direction.SOUTH));
         assertThat(resolve(List.of(west), order(west, MovementOrder.REVERSE)).vehicleStates())
-                .containsExactly(new VehicleState(west.vehicle(), new Position(3, 2), Direction.WEST));
+                .containsExactly(new VehicleState(west.vehicle(), new Position(4, 3), Direction.WEST));
     }
 
     @Test
     void turnsWithoutChangingPosition() {
         VehicleState left = state(1, 1, Direction.NORTH);
-        VehicleState right = state(3, 3, Direction.SOUTH);
+        VehicleState right = state(3, 3, Direction.NORTH);
 
         GameState result = resolve(List.of(left, right),
                 order(left, MovementOrder.TURN_LEFT),
@@ -59,50 +59,24 @@ class MovementEngineTest {
 
         assertThat(result.vehicleStates()).containsExactly(
                 new VehicleState(left.vehicle(), left.position(), Direction.WEST),
-                new VehicleState(right.vehicle(), right.position(), Direction.WEST));
+                new VehicleState(right.vehicle(), right.position(), Direction.EAST));
     }
 
     @Test
-    void blocksMovementOutsideBoard() {
-        VehicleState vehicle = state(0, 0, Direction.NORTH);
+    void blocksForwardAndReverseAtBoardBoundary() {
+        VehicleState northAtTop = state(0, 6, Direction.NORTH);
+        VehicleState reversingSouthAtTop = state(1, 6, Direction.SOUTH);
 
-        assertThat(resolve(List.of(vehicle), order(vehicle, MovementOrder.FORWARD)).vehicleStates())
-                .containsExactly(vehicle);
+        assertThat(resolve(List.of(northAtTop),
+                order(northAtTop, MovementOrder.FORWARD)).vehicleStates())
+                .containsExactly(northAtTop);
+        assertThat(resolve(List.of(reversingSouthAtTop),
+                order(reversingSouthAtTop, MovementOrder.REVERSE)).vehicleStates())
+                .containsExactly(reversingSouthAtTop);
     }
 
     @Test
-    void blocksReverseMovementOutsideBoard() {
-        VehicleState vehicle = state(0, 0, Direction.SOUTH);
-
-        assertThat(resolve(List.of(vehicle), order(vehicle, MovementOrder.REVERSE)).vehicleStates())
-                .containsExactly(vehicle);
-    }
-
-    @Test
-    void reverseMovementIsBlockedByAnOccupiedPosition() {
-        VehicleState reversing = state(2, 2, Direction.EAST);
-        VehicleState stationary = state(1, 2, Direction.NORTH);
-
-        GameState result = resolve(List.of(reversing, stationary),
-                order(reversing, MovementOrder.REVERSE));
-
-        assertThat(result.vehicleStates()).containsExactly(reversing, stationary);
-    }
-
-    @Test
-    void reverseMovementCompetesWithOtherMovementForTheSamePosition() {
-        VehicleState reversing = state(1, 2, Direction.WEST);
-        VehicleState movingForward = state(3, 2, Direction.WEST);
-
-        GameState result = resolve(List.of(reversing, movingForward),
-                order(reversing, MovementOrder.REVERSE),
-                order(movingForward, MovementOrder.FORWARD));
-
-        assertThat(result.vehicleStates()).containsExactly(reversing, movingForward);
-    }
-
-    @Test
-    void vehicleWithoutOrderRemainsStationaryAndBlocksAnIncomingVehicle() {
+    void blocksMovementIntoAnOccupiedPositionWithoutRamming() {
         VehicleState moving = state(1, 2, Direction.EAST);
         VehicleState stationary = state(2, 2, Direction.NORTH);
 
@@ -113,59 +87,28 @@ class MovementEngineTest {
     }
 
     @Test
-    void blocksAllVehiclesMovingToTheSamePosition() {
-        VehicleState fromLeft = state(1, 2, Direction.EAST);
-        VehicleState fromRight = state(3, 2, Direction.WEST);
-
-        GameState result = resolve(List.of(fromLeft, fromRight),
-                order(fromRight, MovementOrder.FORWARD),
-                order(fromLeft, MovementOrder.FORWARD));
-
-        assertThat(result.vehicleStates()).containsExactly(fromLeft, fromRight);
-    }
-
-    @Test
-    void blocksVehiclesSwappingPositions() {
-        VehicleState left = state(1, 2, Direction.EAST);
-        VehicleState right = state(2, 2, Direction.WEST);
-
-        GameState result = resolve(List.of(left, right),
-                order(left, MovementOrder.FORWARD),
-                order(right, MovementOrder.FORWARD));
-
-        assertThat(result.vehicleStates()).containsExactly(left, right);
-    }
-
-    @Test
-    void allowsFollowingIntoAPositionThatIsSuccessfullyVacated() {
-        VehicleState follower = state(1, 2, Direction.EAST);
+    void resolvesCommandsInTheProvidedPlayerOrder() {
         VehicleState leader = state(2, 2, Direction.EAST);
+        VehicleState follower = state(1, 2, Direction.EAST);
 
-        GameState result = resolve(List.of(follower, leader),
+        GameState leaderFirst = resolve(List.of(follower, leader),
+                order(leader, MovementOrder.FORWARD),
+                order(follower, MovementOrder.FORWARD));
+        GameState followerFirst = resolve(List.of(follower, leader),
                 order(follower, MovementOrder.FORWARD),
                 order(leader, MovementOrder.FORWARD));
 
-        assertThat(result.vehicleStates()).containsExactly(
+        assertThat(leaderFirst.vehicleStates()).containsExactly(
                 new VehicleState(follower.vehicle(), new Position(2, 2), Direction.EAST),
+                new VehicleState(leader.vehicle(), new Position(3, 2), Direction.EAST));
+        assertThat(followerFirst.vehicleStates()).containsExactly(
+                follower,
                 new VehicleState(leader.vehicle(), new Position(3, 2), Direction.EAST));
     }
 
     @Test
-    void propagatesBlockedMovementBackThroughAChain() {
-        VehicleState first = state(0, 2, Direction.EAST);
-        VehicleState second = state(1, 2, Direction.EAST);
-        VehicleState third = state(2, 2, Direction.NORTH);
-
-        GameState result = resolve(List.of(first, second, third),
-                order(first, MovementOrder.FORWARD),
-                order(second, MovementOrder.FORWARD));
-
-        assertThat(result.vehicleStates()).containsExactly(first, second, third);
-    }
-
-    @Test
     void doesNotModifyTheInputState() {
-        VehicleState vehicle = state(1, 1, Direction.EAST);
+        VehicleState vehicle = state(1, 1, Direction.NORTH);
         GameState original = new GameState(board, List.of(vehicle));
 
         engine.resolveTurn(new Turn(List.of(order(vehicle, MovementOrder.FORWARD))), original);

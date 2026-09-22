@@ -1,16 +1,11 @@
 package se.segersten.wreckage.game.engine;
 
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.IdentityHashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.Objects;
 
-import se.segersten.wreckage.game.domain.Board;
 import se.segersten.wreckage.game.domain.Direction;
 import se.segersten.wreckage.game.domain.GameState;
-import se.segersten.wreckage.game.domain.MovementOrder;
 import se.segersten.wreckage.game.domain.Position;
 import se.segersten.wreckage.game.domain.Turn;
 import se.segersten.wreckage.game.domain.Vehicle;
@@ -20,114 +15,57 @@ import se.segersten.wreckage.game.domain.VehicleTurn;
 public class MovementEngine {
 
     public GameState resolveTurn(Turn turn, GameState gameState) {
-        Map<Vehicle, MovementOrder> orders = ordersByVehicle(turn);
-        List<VehicleState> currentStates = gameState.vehicleStates();
-        List<VehicleState> intentions = new ArrayList<>(currentStates.size());
+        Objects.requireNonNull(turn);
+        Objects.requireNonNull(gameState);
 
-        for (VehicleState state : currentStates) {
-            MovementOrder order = orders.get(state.vehicle());
-            intentions.add(order == null ? state : applyOrder(state, order, gameState.board()));
-        }
-
-        Set<Vehicle> blocked = blockedMovements(currentStates, intentions);
-        List<VehicleState> result = new ArrayList<>(currentStates.size());
-        for (int i = 0; i < currentStates.size(); i++) {
-            VehicleState current = currentStates.get(i);
-            VehicleState intended = intentions.get(i);
-            result.add(blocked.contains(current.vehicle()) ? current : intended);
-        }
-
-        return new GameState(gameState.board(), List.copyOf(result));
-    }
-
-    private Map<Vehicle, MovementOrder> ordersByVehicle(Turn turn) {
-        Map<Vehicle, MovementOrder> orders = new IdentityHashMap<>();
+        GameState result = gameState;
         for (VehicleTurn vehicleTurn : turn.vehicleTurns()) {
-            orders.put(vehicleTurn.vehicleState().vehicle(), vehicleTurn.movementOrder());
+            result = applyOrder(result, vehicleTurn);
         }
-        return orders;
+        return result;
     }
 
-    private VehicleState applyOrder(VehicleState state, MovementOrder order, Board board) {
+    private GameState applyOrder(GameState gameState, VehicleTurn vehicleTurn) {
+        List<VehicleState> currentStates = gameState.vehicleStates();
+        Vehicle vehicle = vehicleTurn.vehicleState().vehicle();
+        int vehicleIndex = indexOf(currentStates, vehicle);
+        if (vehicleIndex < 0) {
+            return gameState;
+        }
+
+        VehicleState state = currentStates.get(vehicleIndex);
         Position position = state.position();
         Direction orientation = state.orientation();
 
-        switch (order) {
+        switch (vehicleTurn.movementOrder()) {
             case FORWARD -> position = position.move(orientation);
             case REVERSE -> position = position.move(orientation.reverse());
             case TURN_LEFT -> orientation = orientation.turnLeft();
             case TURN_RIGHT -> orientation = orientation.turnRight();
         }
 
-        if (!board.isValidPosition(position)) {
-            return state;
+        if (!gameState.board().isValidPosition(position)
+                || isOccupiedByAnotherVehicle(currentStates, vehicle, position)) {
+            return gameState;
         }
-        return new VehicleState(state.vehicle(), position, orientation);
+
+        List<VehicleState> result = new ArrayList<>(currentStates);
+        result.set(vehicleIndex, new VehicleState(vehicle, position, orientation));
+        return new GameState(gameState.board(), List.copyOf(result));
     }
 
-    private Set<Vehicle> blockedMovements(
-            List<VehicleState> currentStates, List<VehicleState> intentions) {
-        Map<Position, VehicleState> currentByPosition = new HashMap<>();
-        Map<Position, List<VehicleState>> moversByTarget = new HashMap<>();
-        Map<Vehicle, VehicleState> intentionByVehicle = new IdentityHashMap<>();
-        Set<Vehicle> movers = identitySet();
-        Set<Vehicle> blocked = identitySet();
-
-        for (int i = 0; i < currentStates.size(); i++) {
-            VehicleState current = currentStates.get(i);
-            VehicleState intended = intentions.get(i);
-            currentByPosition.put(current.position(), current);
-            intentionByVehicle.put(current.vehicle(), intended);
-
-            if (!current.position().equals(intended.position())) {
-                movers.add(current.vehicle());
-                moversByTarget.computeIfAbsent(intended.position(), ignored -> new ArrayList<>())
-                        .add(current);
+    private int indexOf(List<VehicleState> states, Vehicle vehicle) {
+        for (int index = 0; index < states.size(); index++) {
+            if (states.get(index).vehicle() == vehicle) {
+                return index;
             }
         }
-
-        // All vehicles aiming for the same cell are blocked.
-        for (List<VehicleState> contenders : moversByTarget.values()) {
-            if (contenders.size() > 1) {
-                contenders.forEach(state -> blocked.add(state.vehicle()));
-            }
-        }
-
-        // A two-vehicle position swap is explicitly forbidden.
-        for (VehicleState current : currentStates) {
-            if (!movers.contains(current.vehicle())) {
-                continue;
-            }
-            VehicleState occupant = currentByPosition.get(
-                    intentionByVehicle.get(current.vehicle()).position());
-            if (occupant != null && movers.contains(occupant.vehicle())
-                    && intentionByVehicle.get(occupant.vehicle()).position().equals(current.position())) {
-                blocked.add(current.vehicle());
-                blocked.add(occupant.vehicle());
-            }
-        }
-
-        // Propagate blocking through chains such as A -> B -> stationary C.
-        boolean changed;
-        do {
-            changed = false;
-            for (VehicleState current : currentStates) {
-                if (!movers.contains(current.vehicle()) || blocked.contains(current.vehicle())) {
-                    continue;
-                }
-                VehicleState occupant = currentByPosition.get(
-                        intentionByVehicle.get(current.vehicle()).position());
-                if (occupant != null
-                        && (!movers.contains(occupant.vehicle()) || blocked.contains(occupant.vehicle()))) {
-                    changed |= blocked.add(current.vehicle());
-                }
-            }
-        } while (changed);
-
-        return blocked;
+        return -1;
     }
 
-    private Set<Vehicle> identitySet() {
-        return java.util.Collections.newSetFromMap(new IdentityHashMap<>());
+    private boolean isOccupiedByAnotherVehicle(
+            List<VehicleState> states, Vehicle vehicle, Position position) {
+        return states.stream().anyMatch(state -> state.vehicle() != vehicle
+                && state.position().equals(position));
     }
 }

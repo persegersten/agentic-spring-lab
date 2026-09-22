@@ -177,7 +177,7 @@ class GameServiceTest {
     }
 
     @Test
-    void shouldStoreConfiguredProgramAndRemainInPlanningWhenEveryoneIsReady() {
+    void shouldResolveConfiguredProgramsWhenEveryoneIsReady() {
         InMemoryGameRepository repository = new InMemoryGameRepository();
         Instant now = Instant.parse("2026-01-01T12:00:00Z");
         GameService service = new GameService(repository, Clock.fixed(now, ZoneOffset.UTC),
@@ -192,8 +192,8 @@ class GameServiceTest {
         service.submitProgram(game.getId(), bob.player().getId(), bob.token(), fiveCards);
 
         assertThat(game.getRound().allReady()).isTrue();
-        assertThat(game.getRound().phase()).isEqualTo(RoundPhase.PLANNING);
-        assertThat(game.getRound().playback()).isEmpty();
+        assertThat(game.getRound().phase()).isEqualTo(RoundPhase.PLAYBACK);
+        assertThat(game.getRound().playback()).hasSize(5);
         assertThat(game.getRound().programs().get(alice.player().getId()).orders())
                 .containsExactlyElementsOf(fiveCards);
     }
