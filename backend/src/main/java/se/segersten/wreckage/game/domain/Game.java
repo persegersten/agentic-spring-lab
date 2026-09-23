@@ -65,7 +65,7 @@ public class Game {
         int index = players.size() - 1;
         Position position = new Position(index % board.width(), (index / board.width()) % board.height());
         Vehicle vehicle = new Vehicle(UUID.randomUUID(), player.getId());
-        vehicles.put(player.getId(), new VehicleState(vehicle, position, Direction.SOUTH));
+        vehicles.put(player.getId(), new VehicleState(vehicle, position, Direction.SOUTH, 0));
         return player;
     }
 

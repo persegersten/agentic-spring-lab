@@ -23,6 +23,7 @@ class GameEntity {
     @Column(name = "planning_timeout_seconds", nullable = false) private Integer planningTimeoutSeconds;
     @Column(name = "board_width") private Integer boardWidth;
     @Column(name = "board_height") private Integer boardHeight;
+    @Column(name = "board_walls", nullable = false) private String boardWalls;
     @Enumerated(EnumType.STRING) @Column(name = "status", nullable = false) private GameStatus status;
     @OneToMany(mappedBy = "game", cascade = CascadeType.ALL, orphanRemoval = true) private List<PlayerEntity> players = new ArrayList<>();
     @OneToMany(mappedBy = "game", cascade = CascadeType.ALL, orphanRemoval = true) private List<VehicleEntity> vehicles = new ArrayList<>();
@@ -39,7 +40,11 @@ class GameEntity {
         if (game.getRound() != null) round = round == null ? RoundEntity.fromDomain(game.getRound(), this) : round.updateFrom(game.getRound());
         return this;
     }
-    private void setBoard(Board board) { boardWidth = board.width(); boardHeight = board.height(); }
+    private void setBoard(Board board) {
+        boardWidth = board.width(); boardHeight = board.height();
+        boardWalls = board.walls().stream().sorted(java.util.Comparator.comparingInt(Position::x).thenComparingInt(Position::y))
+                .map(position -> position.x() + "," + position.y()).collect(Collectors.joining("|"));
+    }
     private void addMissingPlayers(List<Player> domainPlayers) {
         Set<UUID> ids = players.stream().map(PlayerEntity::getDomainId).collect(Collectors.toSet());
         domainPlayers.stream().filter(p -> !ids.contains(p.getId())).map(p -> PlayerEntity.fromDomain(p, this)).forEach(players::add);
@@ -51,7 +56,12 @@ class GameEntity {
         }
     }
     Game toDomain() {
-        Board board = new Board(boardWidth, boardHeight);
+        java.util.Set<Position> walls = boardWalls == null || boardWalls.isBlank() ? java.util.Set.of()
+                : java.util.Arrays.stream(boardWalls.split("\\|"))
+                .map(value -> value.split(","))
+                .map(parts -> new Position(Integer.parseInt(parts[0]), Integer.parseInt(parts[1])))
+                .collect(Collectors.toUnmodifiableSet());
+        Board board = new Board(boardWidth, boardHeight, walls);
         List<Player> domainPlayers = players.stream().map(PlayerEntity::toDomain).toList();
         var vehicleMap = new LinkedHashMap<UUID, VehicleState>();
         var byVehicleId = new LinkedHashMap<UUID, Vehicle>();

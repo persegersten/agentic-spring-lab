@@ -22,6 +22,8 @@ import se.segersten.wreckage.game.domain.GameConfiguration;
 import se.segersten.wreckage.game.domain.Player;
 import se.segersten.wreckage.game.domain.MovementOrder;
 import se.segersten.wreckage.game.domain.RoundPhase;
+import se.segersten.wreckage.game.domain.RoundEvent;
+import se.segersten.wreckage.game.domain.RoundEventType;
 
 class GameServiceTest {
 
@@ -193,7 +195,8 @@ class GameServiceTest {
 
         assertThat(game.getRound().allReady()).isTrue();
         assertThat(game.getRound().phase()).isEqualTo(RoundPhase.PLAYBACK);
-        assertThat(game.getRound().playback()).isEmpty();
+        assertThat(game.getRound().playback()).extracting(RoundEvent::type)
+                .containsExactly(RoundEventType.FIRE, RoundEventType.FIRE);
         assertThat(game.getRound().programs().get(alice.player().getId()).orders())
                 .containsExactlyElementsOf(fiveCards);
     }

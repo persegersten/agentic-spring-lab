@@ -3,7 +3,7 @@
 Wreckage is a small web application for a turn-based multiplayer vehicle combat
 game. The system creates configured games, exposes a shareable lobby link, adds
 players, and reads game state.
-Gameplay, movement, and combat are intentionally outside the present scope.
+Movement and basic automatic cannon combat are resolved authoritatively by the backend.
 
 ```text
 Browser
@@ -40,11 +40,13 @@ hashes.
 
 The aggregate persists the current round, programs and an authoritative ordered
 event stream. After all programs are locked, `MovementEngine` resolves the
-configured card positions in stable player order and emits MOVE and TURN events
-with explicit before/after positions and directions. React polls the private
-view and applies those persisted events in server order; it never predicts a
-gameplay result locally. The same event stream is returned to every client and
-also drives the development debug view.
+configured card positions in stable player order. `CannonEngine` then fires
+every vehicle once, tracing each shot until the first vehicle, wall, or board
+boundary. Hits increment a minimal persisted damage counter. The engines emit
+MOVE, TURN, FIRE, HIT and DAMAGE events with enough before/after state for React
+to visualize the persisted events in server order without predicting a result.
+The same event stream is returned to every client and also drives the
+development debug view.
 
 ## Backend layers
 

@@ -35,6 +35,10 @@ public final class Round {
     }
     public boolean allReady() { return !programs.isEmpty() && programs.values().stream().allMatch(PlayerProgram::ready); }
     public void resolve(se.segersten.wreckage.game.engine.MovementEngine engine) {
+        resolve(engine, new se.segersten.wreckage.game.engine.CannonEngine());
+    }
+    public void resolve(se.segersten.wreckage.game.engine.MovementEngine engine,
+                        se.segersten.wreckage.game.engine.CannonEngine cannonEngine) {
         if (!allReady()) throw new IllegalStateException("Not all players are ready");
         phase = RoundPhase.RESOLVING;
         GameState state = initialState;
@@ -50,6 +54,9 @@ public final class Round {
             state = result.state();
             for (RoundEvent event : result.events()) events.add(event.withSequence(events.size() + 1));
         }
+        var cannonResult = cannonEngine.resolve(state);
+        state = cannonResult.state();
+        for (RoundEvent event : cannonResult.events()) events.add(event.withSequence(events.size() + 1));
         playback = List.copyOf(events);
         phase = RoundPhase.PLAYBACK;
     }
@@ -59,8 +66,15 @@ public final class Round {
         initialState.vehicleStates().forEach(state -> result.put(state.vehicle().id(), state));
         for (RoundEvent event : playback) {
             VehicleState current = result.get(event.vehicleId());
-            if (current != null) result.put(event.vehicleId(), new VehicleState(current.vehicle(),
-                    event.newPosition(), event.newDirection()));
+            if (current == null) continue;
+            if (event.type() == RoundEventType.MOVE || event.type() == RoundEventType.TURN
+                    || event.type() == RoundEventType.RAM || event.type() == RoundEventType.PUSH) {
+                result.put(event.vehicleId(), new VehicleState(current.vehicle(), event.newPosition(),
+                        event.newDirection(), current.damage()));
+            } else if (event.type() == RoundEventType.DAMAGE) {
+                result.put(event.vehicleId(), new VehicleState(current.vehicle(), current.position(),
+                        current.orientation(), event.newDamage()));
+            }
         }
         return List.copyOf(result.values());
     }
