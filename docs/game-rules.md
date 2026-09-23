@@ -233,8 +233,26 @@ A1 -> B1 -> C1 -> A2 -> B2 -> C2
 ```
 
 Each command observes the state produced by the preceding command. A move into
-an occupied position is blocked; it does not push or otherwise affect the
-occupying vehicle. Ramming rules are introduced by a later feature.
+an occupied position attempts to ram the occupying vehicle according to the
+rules below.
+
+### Ramming and pushing
+
+Both `FORWARD` and `REVERSE` can ram another vehicle. The movement direction of
+the active command is also the direction in which the other vehicle is pushed;
+the pushed vehicle's own orientation is irrelevant and remains unchanged.
+
+If another vehicle occupies the destination, the engine follows the contiguous
+line of vehicles in the movement direction. The move succeeds only when the
+position immediately beyond the line is empty and inside the board. Every
+vehicle in the line then moves exactly one position, and the active vehicle
+moves into the position vacated by the first vehicle.
+
+The whole operation is atomic. If the line ends at a board boundary, no vehicle
+moves and no event is produced. A successful ram produces one `PUSH` event for
+each pushed vehicle, ordered from the front of the line back towards the active
+vehicle, followed by one `RAM` event for the active vehicle. This ordering lets
+playback apply every displacement without introducing an intermediate overlap.
 
 ---
 
@@ -300,7 +318,6 @@ The following rules are intentionally **not part of the movement engine yet**:
 
 * weapons
 * combat
-* ramming
 * board effects
 * damage
 * vehicle destruction
