@@ -38,12 +38,13 @@ player's programming hand. The public game response contains readiness but no
 hands or unrevealed programs. Tokens are stored server-side only as SHA-256
 hashes.
 
-The aggregate persists the current round, programs and playback. After all
-programs are locked, the application resolves the configured number of card
-positions through `MovementEngine`, processing players in stable order at each
-position, and publishes the completed playback. React polls the private view
-while waiting, then animates the persisted states rather than predicting
-movement locally.
+The aggregate persists the current round, programs and an authoritative ordered
+event stream. After all programs are locked, `MovementEngine` resolves the
+configured card positions in stable player order and emits MOVE and TURN events
+with explicit before/after positions and directions. React polls the private
+view and applies those persisted events in server order; it never predicts a
+gameplay result locally. The same event stream is returned to every client and
+also drives the development debug view.
 
 ## Backend layers
 

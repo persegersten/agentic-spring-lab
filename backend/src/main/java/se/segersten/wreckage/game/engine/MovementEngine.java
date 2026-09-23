@@ -6,7 +6,10 @@ import java.util.Objects;
 
 import se.segersten.wreckage.game.domain.Direction;
 import se.segersten.wreckage.game.domain.GameState;
+import se.segersten.wreckage.game.domain.MovementResult;
 import se.segersten.wreckage.game.domain.Position;
+import se.segersten.wreckage.game.domain.RoundEvent;
+import se.segersten.wreckage.game.domain.RoundEventType;
 import se.segersten.wreckage.game.domain.Turn;
 import se.segersten.wreckage.game.domain.Vehicle;
 import se.segersten.wreckage.game.domain.VehicleState;
@@ -15,22 +18,29 @@ import se.segersten.wreckage.game.domain.VehicleTurn;
 public class MovementEngine {
 
     public GameState resolveTurn(Turn turn, GameState gameState) {
+        return resolveTurnWithEvents(turn, gameState).state();
+    }
+
+    public MovementResult resolveTurnWithEvents(Turn turn, GameState gameState) {
         Objects.requireNonNull(turn);
         Objects.requireNonNull(gameState);
 
         GameState result = gameState;
+        List<RoundEvent> events = new ArrayList<>();
         for (VehicleTurn vehicleTurn : turn.vehicleTurns()) {
-            result = applyOrder(result, vehicleTurn);
+            MovementResult movement = applyOrder(result, vehicleTurn);
+            result = movement.state();
+            events.addAll(movement.events());
         }
-        return result;
+        return new MovementResult(result, events);
     }
 
-    private GameState applyOrder(GameState gameState, VehicleTurn vehicleTurn) {
+    private MovementResult applyOrder(GameState gameState, VehicleTurn vehicleTurn) {
         List<VehicleState> currentStates = gameState.vehicleStates();
         Vehicle vehicle = vehicleTurn.vehicleState().vehicle();
         int vehicleIndex = indexOf(currentStates, vehicle);
         if (vehicleIndex < 0) {
-            return gameState;
+            return new MovementResult(gameState, List.of());
         }
 
         VehicleState state = currentStates.get(vehicleIndex);
@@ -46,12 +56,17 @@ public class MovementEngine {
 
         if (!gameState.board().isValidPosition(position)
                 || isOccupiedByAnotherVehicle(currentStates, vehicle, position)) {
-            return gameState;
+            return new MovementResult(gameState, List.of());
         }
 
         List<VehicleState> result = new ArrayList<>(currentStates);
-        result.set(vehicleIndex, new VehicleState(vehicle, position, orientation));
-        return new GameState(gameState.board(), List.copyOf(result));
+        VehicleState updated = new VehicleState(vehicle, position, orientation);
+        result.set(vehicleIndex, updated);
+        RoundEvent event = new RoundEvent(0,
+                position.equals(state.position()) ? RoundEventType.TURN : RoundEventType.MOVE,
+                vehicle.playerId(), vehicle.id(), state.position(), updated.position(),
+                state.orientation(), updated.orientation());
+        return new MovementResult(new GameState(gameState.board(), List.copyOf(result)), List.of(event));
     }
 
     private int indexOf(List<VehicleState> states, Vehicle vehicle) {

@@ -66,10 +66,10 @@ class GameRoundTest {
         Game game=configuredGame(5); Player player=game.addPlayer("Alice","a");
         Round round=game.startRound(()->MovementOrder.REVERSE);
         round.lock(player.getId(),round.programs().get(player.getId()).hand()); round.resolve(new MovementEngine());
-        assertThat(round.phase()).isEqualTo(RoundPhase.PLAYBACK); assertThat(round.playback()).hasSize(5);
-        assertThat(round.playback()).extracting(PlaybackStep::index).containsExactly(1,2,3,4,5);
+        assertThat(round.phase()).isEqualTo(RoundPhase.PLAYBACK); assertThat(round.playback()).hasSize(4);
+        assertThat(round.playback()).extracting(RoundEvent::sequence).containsExactly(1,2,3,4);
         assertThat(round.initialState().vehicleStates().getFirst().position()).isEqualTo(new Position(0,0));
-        assertThat(round.playback().get(4).vehicleStates().getFirst().position()).isEqualTo(new Position(0,4));
+        assertThat(round.finalVehicleStates().getFirst().position()).isEqualTo(new Position(0,4));
     }
     @Test void resolvesEveryPlayersCurrentCardBeforeTheNextCardPosition() {
         UUID aliceId = UUID.randomUUID();
@@ -85,13 +85,11 @@ class GameRoundTest {
 
         round.resolve(new MovementEngine());
 
-        assertThat(round.playback()).hasSize(2);
-        assertThat(round.playback().get(0).commands()).containsOnly(
-                entry(aliceId, MovementOrder.FORWARD),
-                entry(bobId, MovementOrder.FORWARD));
-        assertThat(round.playback().get(0).vehicleStates()).extracting(VehicleState::position)
-                .containsExactly(new Position(0, 0), new Position(0, 2));
-        assertThat(round.playback().get(1).vehicleStates()).containsExactly(
+        assertThat(round.playback()).hasSize(3);
+        assertThat(round.playback()).extracting(RoundEvent::playerId)
+                .containsExactly(bobId, aliceId, bobId);
+        assertThat(round.playback()).extracting(RoundEvent::sequence).containsExactly(1, 2, 3);
+        assertThat(round.finalVehicleStates()).containsExactly(
                 new VehicleState(aliceVehicle, new Position(0, 0), Direction.EAST),
                 new VehicleState(bobVehicle, new Position(0, 3), Direction.NORTH));
     }

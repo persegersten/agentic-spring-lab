@@ -11,6 +11,7 @@ import se.segersten.wreckage.game.domain.Direction;
 import se.segersten.wreckage.game.domain.GameState;
 import se.segersten.wreckage.game.domain.MovementOrder;
 import se.segersten.wreckage.game.domain.Position;
+import se.segersten.wreckage.game.domain.RoundEventType;
 import se.segersten.wreckage.game.domain.Turn;
 import se.segersten.wreckage.game.domain.Vehicle;
 import se.segersten.wreckage.game.domain.VehicleState;
@@ -20,6 +21,48 @@ class MovementEngineTest {
 
     private final MovementEngine engine = new MovementEngine();
     private final Board board = new Board(7, 7);
+
+    @Test
+    void createsMoveEventWithOldAndNewPosition() {
+        VehicleState per = state(2, 3, Direction.NORTH);
+
+        var result = engine.resolveTurnWithEvents(
+                new Turn(List.of(order(per, MovementOrder.FORWARD))),
+                new GameState(board, List.of(per)));
+
+        assertThat(result.events()).singleElement().satisfies(event -> {
+            assertThat(event.type()).isEqualTo(RoundEventType.MOVE);
+            assertThat(event.playerId()).isEqualTo(per.vehicle().playerId());
+            assertThat(event.oldPosition()).isEqualTo(new Position(2, 3));
+            assertThat(event.newPosition()).isEqualTo(new Position(2, 4));
+        });
+    }
+
+    @Test
+    void createsTurnEventWithOldAndNewDirection() {
+        VehicleState per = state(2, 3, Direction.NORTH);
+
+        var result = engine.resolveTurnWithEvents(
+                new Turn(List.of(order(per, MovementOrder.TURN_LEFT))),
+                new GameState(board, List.of(per)));
+
+        assertThat(result.events()).singleElement().satisfies(event -> {
+            assertThat(event.type()).isEqualTo(RoundEventType.TURN);
+            assertThat(event.oldDirection()).isEqualTo(Direction.NORTH);
+            assertThat(event.newDirection()).isEqualTo(Direction.WEST);
+            assertThat(event.oldPosition()).isEqualTo(event.newPosition());
+        });
+    }
+
+    @Test
+    void blockedMovementDoesNotCreateAnEvent() {
+        VehicleState per = state(0, 6, Direction.NORTH);
+        var result = engine.resolveTurnWithEvents(
+                new Turn(List.of(order(per, MovementOrder.FORWARD))),
+                new GameState(board, List.of(per)));
+        assertThat(result.events()).isEmpty();
+        assertThat(result.state().vehicleStates()).containsExactly(per);
+    }
 
     @Test
     void movesForwardNorthByIncreasingY() {

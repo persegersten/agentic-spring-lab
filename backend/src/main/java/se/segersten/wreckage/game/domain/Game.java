@@ -86,7 +86,7 @@ public class Game {
         if (round != null && round.phase() != RoundPhase.PLAYBACK)
             throw new IllegalStateException("The current round is not finished");
         if (round != null) {
-            round.playback().getLast().vehicleStates().forEach(s -> vehicles.put(s.vehicle().playerId(), s));
+            round.finalVehicleStates().forEach(s -> vehicles.put(s.vehicle().playerId(), s));
         }
         Map<UUID, PlayerProgram> programs = new LinkedHashMap<>();
         for (Player player : players) {

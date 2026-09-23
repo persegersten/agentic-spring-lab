@@ -1,0 +1,3 @@
+package se.segersten.wreckage.game.domain;
+
+public enum RoundEventType { MOVE, TURN }

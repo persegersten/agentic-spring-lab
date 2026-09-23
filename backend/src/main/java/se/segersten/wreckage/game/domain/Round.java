@@ -11,13 +11,13 @@ public final class Round {
     private RoundPhase phase;
     private final Map<UUID, PlayerProgram> programs;
     private final GameState initialState;
-    private List<PlaybackStep> playback;
+    private List<RoundEvent> playback;
 
     public Round(int number, Map<UUID, PlayerProgram> programs, GameState initialState) {
         this(number, RoundPhase.PLANNING, programs, initialState, List.of());
     }
     public Round(int number, RoundPhase phase, Map<UUID, PlayerProgram> programs,
-                 GameState initialState, List<PlaybackStep> playback) {
+                 GameState initialState, List<RoundEvent> playback) {
         this.number = number; this.phase = phase;
         this.programs = new LinkedHashMap<>(programs);
         this.initialState = initialState; this.playback = List.copyOf(playback);
@@ -26,7 +26,7 @@ public final class Round {
     public RoundPhase phase() { return phase; }
     public Map<UUID, PlayerProgram> programs() { return Map.copyOf(programs); }
     public GameState initialState() { return initialState; }
-    public List<PlaybackStep> playback() { return playback; }
+    public List<RoundEvent> playback() { return playback; }
     public void lock(UUID playerId, List<MovementOrder> orders) {
         if (phase != RoundPhase.PLANNING) throw new IllegalStateException("Round is not accepting programs");
         var current = programs.get(playerId);
@@ -38,20 +38,30 @@ public final class Round {
         if (!allReady()) throw new IllegalStateException("Not all players are ready");
         phase = RoundPhase.RESOLVING;
         GameState state = initialState;
-        List<PlaybackStep> steps = new ArrayList<>();
+        List<RoundEvent> events = new ArrayList<>();
         int cardPositions = programs.values().iterator().next().orders().size();
         for (int index = 0; index < cardPositions; index++) {
             List<VehicleTurn> turns = new ArrayList<>();
-            Map<UUID, MovementOrder> commands = new LinkedHashMap<>();
             for (VehicleState vehicle : state.vehicleStates()) {
                 MovementOrder order = programs.get(vehicle.vehicle().playerId()).orders().get(index);
-                commands.put(vehicle.vehicle().playerId(), order);
                 turns.add(new VehicleTurn(vehicle, order));
             }
-            state = engine.resolveTurn(new Turn(turns), state);
-            steps.add(new PlaybackStep(index + 1, commands, state.vehicleStates()));
+            var result = engine.resolveTurnWithEvents(new Turn(turns), state);
+            state = result.state();
+            for (RoundEvent event : result.events()) events.add(event.withSequence(events.size() + 1));
         }
-        playback = List.copyOf(steps);
+        playback = List.copyOf(events);
         phase = RoundPhase.PLAYBACK;
+    }
+
+    public List<VehicleState> finalVehicleStates() {
+        Map<UUID, VehicleState> result = new LinkedHashMap<>();
+        initialState.vehicleStates().forEach(state -> result.put(state.vehicle().id(), state));
+        for (RoundEvent event : playback) {
+            VehicleState current = result.get(event.vehicleId());
+            if (current != null) result.put(event.vehicleId(), new VehicleState(current.vehicle(),
+                    event.newPosition(), event.newDirection()));
+        }
+        return List.copyOf(result.values());
     }
 }
