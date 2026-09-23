@@ -119,14 +119,91 @@ class MovementEngineTest {
     }
 
     @Test
-    void blocksMovementIntoAnOccupiedPositionWithoutRamming() {
+    void pushesAnotherVehicleAndCreatesPushThenRamEvents() {
         VehicleState moving = state(1, 2, Direction.EAST);
         VehicleState stationary = state(2, 2, Direction.NORTH);
 
-        GameState result = resolve(List.of(moving, stationary),
-                order(moving, MovementOrder.FORWARD));
+        var result = engine.resolveTurnWithEvents(
+                new Turn(List.of(order(moving, MovementOrder.FORWARD))),
+                new GameState(board, List.of(moving, stationary)));
 
-        assertThat(result.vehicleStates()).containsExactly(moving, stationary);
+        assertThat(result.state().vehicleStates()).containsExactly(
+                new VehicleState(moving.vehicle(), new Position(2, 2), Direction.EAST),
+                new VehicleState(stationary.vehicle(), new Position(3, 2), Direction.NORTH));
+        assertThat(result.events()).extracting(event -> event.type())
+                .containsExactly(RoundEventType.PUSH, RoundEventType.RAM);
+        assertThat(result.events().get(0)).satisfies(event -> {
+            assertThat(event.vehicleId()).isEqualTo(stationary.vehicle().id());
+            assertThat(event.playerId()).isEqualTo(stationary.vehicle().playerId());
+            assertThat(event.oldPosition()).isEqualTo(new Position(2, 2));
+            assertThat(event.newPosition()).isEqualTo(new Position(3, 2));
+        });
+        assertThat(result.events().get(1)).satisfies(event -> {
+            assertThat(event.vehicleId()).isEqualTo(moving.vehicle().id());
+            assertThat(event.playerId()).isEqualTo(moving.vehicle().playerId());
+            assertThat(event.oldPosition()).isEqualTo(new Position(1, 2));
+            assertThat(event.newPosition()).isEqualTo(new Position(2, 2));
+        });
+    }
+
+    @Test
+    void pushesAChainFrontToBackWithoutChangingOrientations() {
+        VehicleState moving = state(1, 2, Direction.EAST);
+        VehicleState middle = state(2, 2, Direction.SOUTH);
+        VehicleState front = state(3, 2, Direction.NORTH);
+
+        var result = engine.resolveTurnWithEvents(
+                new Turn(List.of(order(moving, MovementOrder.FORWARD))),
+                new GameState(board, List.of(moving, middle, front)));
+
+        assertThat(result.state().vehicleStates()).containsExactly(
+                new VehicleState(moving.vehicle(), new Position(2, 2), Direction.EAST),
+                new VehicleState(middle.vehicle(), new Position(3, 2), Direction.SOUTH),
+                new VehicleState(front.vehicle(), new Position(4, 2), Direction.NORTH));
+        assertThat(result.events()).extracting(event -> event.type())
+                .containsExactly(RoundEventType.PUSH, RoundEventType.PUSH, RoundEventType.RAM);
+        assertThat(result.events()).extracting(event -> event.vehicleId())
+                .containsExactly(front.vehicle().id(), middle.vehicle().id(), moving.vehicle().id());
+        assertThat(result.state().vehicleStates()).extracting(VehicleState::position)
+                .doesNotHaveDuplicates();
+    }
+
+    @Test
+    void reverseCanPushAnotherVehicle() {
+        VehicleState moving = state(3, 2, Direction.EAST);
+        VehicleState pushed = state(2, 2, Direction.SOUTH);
+
+        var result = engine.resolveTurnWithEvents(
+                new Turn(List.of(order(moving, MovementOrder.REVERSE))),
+                new GameState(board, List.of(moving, pushed)));
+
+        assertThat(result.state().vehicleStates()).containsExactly(
+                new VehicleState(moving.vehicle(), new Position(2, 2), Direction.EAST),
+                new VehicleState(pushed.vehicle(), new Position(1, 2), Direction.SOUTH));
+        assertThat(result.events()).extracting(event -> event.type())
+                .containsExactly(RoundEventType.PUSH, RoundEventType.RAM);
+    }
+
+    @Test
+    void blocksWholePushChainAtEveryBoardBoundary() {
+        assertBlockedPush(state(0, 5, Direction.NORTH), state(0, 6, Direction.WEST), MovementOrder.FORWARD);
+        assertBlockedPush(state(5, 0, Direction.EAST), state(6, 0, Direction.NORTH), MovementOrder.FORWARD);
+        assertBlockedPush(state(0, 1, Direction.SOUTH), state(0, 0, Direction.EAST), MovementOrder.FORWARD);
+        assertBlockedPush(state(1, 0, Direction.WEST), state(0, 0, Direction.SOUTH), MovementOrder.FORWARD);
+    }
+
+    @Test
+    void rammingIsDeterministicAndDoesNotModifyInputState() {
+        VehicleState moving = state(1, 2, Direction.EAST);
+        VehicleState pushed = state(2, 2, Direction.NORTH);
+        GameState original = new GameState(board, List.of(moving, pushed));
+        Turn turn = new Turn(List.of(order(moving, MovementOrder.FORWARD)));
+
+        var first = engine.resolveTurnWithEvents(turn, original);
+        var second = engine.resolveTurnWithEvents(turn, original);
+
+        assertThat(first).isEqualTo(second);
+        assertThat(original.vehicleStates()).containsExactly(moving, pushed);
     }
 
     @Test
@@ -145,8 +222,8 @@ class MovementEngineTest {
                 new VehicleState(follower.vehicle(), new Position(2, 2), Direction.EAST),
                 new VehicleState(leader.vehicle(), new Position(3, 2), Direction.EAST));
         assertThat(followerFirst.vehicleStates()).containsExactly(
-                follower,
-                new VehicleState(leader.vehicle(), new Position(3, 2), Direction.EAST));
+                new VehicleState(follower.vehicle(), new Position(2, 2), Direction.EAST),
+                new VehicleState(leader.vehicle(), new Position(4, 2), Direction.EAST));
     }
 
     @Test
@@ -169,5 +246,17 @@ class MovementEngineTest {
 
     private VehicleState state(int x, int y, Direction direction) {
         return new VehicleState(new Vehicle(), new Position(x, y), direction);
+    }
+
+    private void assertBlockedPush(
+            VehicleState moving, VehicleState pushed, MovementOrder movementOrder) {
+        GameState original = new GameState(board, List.of(moving, pushed));
+
+        var result = engine.resolveTurnWithEvents(
+                new Turn(List.of(order(moving, movementOrder))), original);
+
+        assertThat(result.state()).isSameAs(original);
+        assertThat(result.state().vehicleStates()).containsExactly(moving, pushed);
+        assertThat(result.events()).isEmpty();
     }
 }

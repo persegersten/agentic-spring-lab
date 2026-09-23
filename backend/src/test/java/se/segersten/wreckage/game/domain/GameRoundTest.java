@@ -71,7 +71,7 @@ class GameRoundTest {
         assertThat(round.initialState().vehicleStates().getFirst().position()).isEqualTo(new Position(0,0));
         assertThat(round.finalVehicleStates().getFirst().position()).isEqualTo(new Position(0,4));
     }
-    @Test void resolvesEveryPlayersCurrentCardBeforeTheNextCardPosition() {
+    @Test void sequencesRammingPlaybackAndReconstructsItsFinalState() {
         UUID aliceId = UUID.randomUUID();
         UUID bobId = UUID.randomUUID();
         Vehicle aliceVehicle = new Vehicle(UUID.randomUUID(), aliceId);
@@ -85,13 +85,16 @@ class GameRoundTest {
 
         round.resolve(new MovementEngine());
 
-        assertThat(round.playback()).hasSize(3);
+        assertThat(round.playback()).hasSize(5);
+        assertThat(round.playback()).extracting(RoundEvent::type)
+                .containsExactly(RoundEventType.PUSH, RoundEventType.RAM, RoundEventType.MOVE,
+                        RoundEventType.TURN, RoundEventType.MOVE);
         assertThat(round.playback()).extracting(RoundEvent::playerId)
-                .containsExactly(bobId, aliceId, bobId);
-        assertThat(round.playback()).extracting(RoundEvent::sequence).containsExactly(1, 2, 3);
+                .containsExactly(bobId, aliceId, bobId, aliceId, bobId);
+        assertThat(round.playback()).extracting(RoundEvent::sequence).containsExactly(1, 2, 3, 4, 5);
         assertThat(round.finalVehicleStates()).containsExactly(
-                new VehicleState(aliceVehicle, new Position(0, 0), Direction.EAST),
-                new VehicleState(bobVehicle, new Position(0, 3), Direction.NORTH));
+                new VehicleState(aliceVehicle, new Position(0, 1), Direction.EAST),
+                new VehicleState(bobVehicle, new Position(0, 4), Direction.NORTH));
     }
     @Test void waitsForEveryPlayerBeforeResolution() {
         Game game=new Game(UUID.randomUUID(),new Board(5,5)); Player a=game.addPlayer("Alice","a"); game.addPlayer("Bob","b");
