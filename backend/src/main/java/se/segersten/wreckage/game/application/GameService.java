@@ -152,7 +152,8 @@ public class GameService {
     }
 
     private static MovementOrder randomCard() {
-        MovementOrder[] cards = MovementOrder.values();
+        MovementOrder[] cards = { MovementOrder.FORWARD, MovementOrder.REVERSE,
+                MovementOrder.TURN_LEFT, MovementOrder.TURN_RIGHT };
         return cards[ThreadLocalRandom.current().nextInt(cards.length)];
     }
 

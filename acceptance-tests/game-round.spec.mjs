@@ -40,3 +40,51 @@ test('players receive private five-card hands and share readiness only', async (
     await expect(bob.getByRole('heading', { name: 'Uppspelning', exact: true })).not.toBeVisible()
   })
 })
+
+test('a malfunction card is shown only in its owners planning hand', async ({ browser }) => {
+  await withPlayerPages(browser, ['per', 'alice'], async ({ per, alice }) => {
+    const gameId = '10000000-0000-0000-0000-000000000001'
+    const perId = '20000000-0000-0000-0000-000000000001'
+    const aliceId = '20000000-0000-0000-0000-000000000002'
+    const players = [{ id: perId, name: 'Per' }, { id: aliceId, name: 'Alice' }]
+    const state = {
+      number: 2,
+      phase: 'PLANNING',
+      ready: { [perId]: false, [aliceId]: false },
+      initialVehicles: [],
+      playback: [],
+    }
+    const playerGame = (playerId, hand) => ({
+      id: gameId,
+      playerId,
+      status: 'RUNNING',
+      configuration: { maxPlayers: 2, joinTimeoutSeconds: 300, cardsPerRound: 3, planningTimeoutSeconds: 120 },
+      createdAt: '2026-01-01T12:00:00Z',
+      joinDeadline: '2099-01-01T12:00:00Z',
+      players,
+      board: { width: 5, height: 5, walls: [], pits: [] },
+      vehicles: [],
+      round: { state, hand },
+    })
+    for (const [page, playerId, hand] of [
+      [per, perId, ['MALFUNCTION_REVERSE', 'FORWARD', 'TURN_LEFT']],
+      [alice, aliceId, ['FORWARD', 'REVERSE', 'TURN_RIGHT']],
+    ]) {
+      await page.addInitScript(session => sessionStorage.setItem('wreckage-session', JSON.stringify(session)),
+        { gameId, playerId, token: 'test-token' })
+      await page.route(`**/games/${gameId}/players/${playerId}`, route =>
+        route.fulfill({ json: playerGame(playerId, hand) }))
+      await page.goto(`/game/${gameId}`)
+    }
+
+    await expect(per.getByRole('heading', { name: 'Planering', exact: true })).toBeVisible()
+    await expect(per.getByText('Felfunktion: backa', { exact: true })).toHaveCount(1)
+    await expect(alice.getByText('Felfunktion: backa', { exact: true })).toHaveCount(0)
+
+    const perCards = per.locator('.cards').getByRole('listitem')
+    await expect(perCards).toHaveCount(3)
+    await per.getByRole('button', { name: 'Flytta Felfunktion: backa senare' }).click()
+    await expect(perCards.nth(1)).toContainText('Felfunktion: backa')
+    await expect(per.getByText('Felfunktion: backa', { exact: true })).toHaveCount(1)
+  })
+})

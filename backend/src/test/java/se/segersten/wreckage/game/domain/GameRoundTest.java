@@ -37,7 +37,39 @@ class GameRoundTest {
             assertThat(round.phase()).isEqualTo(RoundPhase.PLANNING);
             assertThat(round.programs().get(alice.getId()).hand()).hasSize(cardsPerRound);
             assertThat(round.programs().get(bob.getId()).hand()).hasSize(cardsPerRound);
+            assertThat(round.programs().values()).allSatisfy(program ->
+                    assertThat(program.hand()).doesNotContain(MovementOrder.MALFUNCTION_REVERSE));
         }
+    }
+
+    @Test void replacesOneNormalCardWithMandatoryMalfunctionForDamagedVehicle() {
+        UUID playerId = UUID.randomUUID();
+        Player player = Player.create(playerId, "Per", "token");
+        Vehicle vehicle = new Vehicle(UUID.randomUUID(), playerId);
+        VehicleState damaged = new VehicleState(vehicle, new Position(2, 2), Direction.NORTH, 1);
+        Board board = new Board(5, 5);
+        PlayerProgram previousProgram = lockedProgram(playerId, MovementOrder.FORWARD);
+        Round previousRound = new Round(1, RoundPhase.PLAYBACK, Map.of(playerId, previousProgram),
+                new GameState(board, List.of(damaged)), List.of());
+        var now = java.time.Instant.parse("2099-01-01T12:00:00Z");
+        Game game = new Game(UUID.randomUUID(), List.of(player), board, GameStatus.RUNNING,
+                Map.of(playerId, damaged), previousRound,
+                new GameConfiguration(12, 60, 3, 30), now, now.plusSeconds(60));
+
+        Round round = game.startRound(() -> MovementOrder.FORWARD);
+        List<MovementOrder> hand = round.programs().get(playerId).hand();
+
+        assertThat(hand).containsExactly(MovementOrder.MALFUNCTION_REVERSE,
+                MovementOrder.FORWARD, MovementOrder.FORWARD);
+        assertThatThrownBy(() -> round.lock(playerId, List.of(MovementOrder.FORWARD,
+                MovementOrder.FORWARD, MovementOrder.FORWARD)))
+                .isInstanceOf(IllegalArgumentException.class);
+
+        round.lock(playerId, List.of(MovementOrder.FORWARD,
+                MovementOrder.MALFUNCTION_REVERSE, MovementOrder.FORWARD));
+
+        assertThat(round.programs().get(playerId).orders()).containsExactly(
+                MovementOrder.FORWARD, MovementOrder.MALFUNCTION_REVERSE, MovementOrder.FORWARD);
     }
 
     @Test void validatesDuplicateCardsAndLocksAProgramOnlyOnce() {
