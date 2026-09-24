@@ -94,6 +94,40 @@ class GameRoundTest {
         assertThat(round.allReady()).isTrue();
         assertThatThrownBy(() -> round.lock(player.getId(), selected)).isInstanceOf(IllegalStateException.class);
     }
+
+    @Test void savesAValidatedPrivateDraftWithoutMarkingThePlayerReady() {
+        Game game = configuredGame(3);
+        Player player = game.addPlayer("Per", "token");
+        var dealt = new java.util.ArrayDeque<>(List.of(MovementOrder.FORWARD,
+                MovementOrder.REVERSE, MovementOrder.TURN_LEFT));
+        Round round = game.startRound(dealt::removeFirst);
+        List<MovementOrder> draft = List.of(MovementOrder.TURN_LEFT,
+                MovementOrder.FORWARD, MovementOrder.REVERSE);
+
+        round.reorder(player.getId(), draft);
+
+        assertThat(round.programs().get(player.getId()).hand()).containsExactlyElementsOf(draft);
+        assertThat(round.programs().get(player.getId()).ready()).isFalse();
+        assertThatThrownBy(() -> round.reorder(player.getId(), List.of(MovementOrder.FORWARD)))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> round.reorder(UUID.randomUUID(), draft))
+                .isInstanceOf(IllegalArgumentException.class);
+
+        round.lock(player.getId(), draft);
+        assertThatThrownBy(() -> round.reorder(player.getId(), draft))
+                .isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test void rejectsDraftChangesOutsidePlanning() {
+        UUID playerId = UUID.randomUUID();
+        PlayerProgram program = lockedProgram(playerId, MovementOrder.FORWARD);
+        Round round = new Round(1, RoundPhase.PLAYBACK, Map.of(playerId, program),
+                new GameState(new Board(5, 5), List.of()), List.of());
+
+        assertThatThrownBy(() -> round.reorder(playerId, List.of(MovementOrder.FORWARD)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("Round is not accepting programs");
+    }
     @Test void resolvesConfiguredNumberOfCardPositionsAndPreservesPlayback() {
         Game game=configuredGame(5); Player player=game.addPlayer("Alice","a");
         Round round=game.startRound(()->MovementOrder.REVERSE);

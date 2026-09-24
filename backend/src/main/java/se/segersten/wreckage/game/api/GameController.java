@@ -7,6 +7,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -105,6 +106,15 @@ public class GameController {
             @RequestHeader(value = "X-Player-Token", required = false) String token,
             @RequestBody ProgramRequest request) {
         gameService.submitProgram(gameId, playerId, token, request.orders());
+        return PlayerGameResponse.from(gameService.getPlayerGame(gameId, playerId, token), playerId);
+    }
+
+    @PutMapping("/{gameId}/rounds/current/program")
+    public PlayerGameResponse saveProgramDraft(@PathVariable UUID gameId,
+            @RequestHeader("X-Player-Id") UUID playerId,
+            @RequestHeader(value = "X-Player-Token", required = false) String token,
+            @RequestBody ProgramRequest request) {
+        gameService.saveProgramDraft(gameId, playerId, token, request.orders());
         return PlayerGameResponse.from(gameService.getPlayerGame(gameId, playerId, token), playerId);
     }
 
