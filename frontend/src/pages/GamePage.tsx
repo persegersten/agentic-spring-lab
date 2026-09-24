@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { addPlayer, createGame, getDefaultConfiguration, getGame, getPlayerGame, startRound, submitProgram } from '../api/games'
+import { addPlayer, createGame, getDefaultConfiguration, getGame, getPlayerGame, saveProgramDraft, startRound, submitProgram } from '../api/games'
 import { CommandHand } from '../components/CommandHand'
 import { GameBoard } from '../components/GameBoard'
 import { RoundPlayback } from '../components/RoundPlayback'
@@ -41,6 +41,7 @@ export function GamePage() {
     if (!session) return
     const next = await getPlayerGame(session)
     setView(next)
+    setError(null)
     if (next.round?.state.phase !== 'PLAYBACK') setVehicles(next.vehicles)
   }, [session])
 
@@ -101,7 +102,7 @@ export function GamePage() {
   if (view && session) {
     const round = view.round?.state
     const displayedVehicles = round?.phase === 'PLAYBACK' ? vehicles : view.vehicles
-    return <main className="game-page"><header><div><p className="eyebrow">Wreckage control deck</p><h1>WRECKAGE</h1></div><span className="game-code">Spel {view.id.slice(0, 8)}</span></header>{error && <p className="error" role="alert">{error}</p>}<div className="game-layout"><section><GameBoard board={view.board} vehicles={displayedVehicles} players={view.players} currentPlayerId={view.playerId} event={playbackEvent} /></section><div className="sidebar">{!round && <section className="panel"><h2>Spelare anslutna</h2><p>{view.players.map(p => p.name).join(', ')}</p><p>{view.players.length} / {view.configuration.maxPlayers} spelare</p><LobbyCountdown joinDeadline={view.joinDeadline} /></section>}{round && <RoundStatus round={round} players={view.players} />} {round?.phase === 'PLANNING' && <CommandHand hand={view.round?.hand ?? []} locked={round.ready[view.playerId]} onSubmit={async orders => run(async () => setView(await submitProgram(session, orders)))} />} {round?.phase === 'PLAYBACK' && <RoundPlayback round={round} players={view.players} onVehicles={setVehicles} onEvent={setPlaybackEvent} onFinished={() => setPlaybackDone(true)} />} {playbackDone && <button onClick={() => void run(async () => { setPlaybackDone(false); setPlaybackEvent(undefined); setView(await startRound(session)) })}>Starta nästa runda</button>}</div></div></main>
+    return <main className="game-page"><header><div><p className="eyebrow">Wreckage control deck</p><h1>WRECKAGE</h1></div><span className="game-code">Spel {view.id.slice(0, 8)}</span></header>{error && <p className="error" role="alert">{error}</p>}<div className="game-layout"><section><GameBoard board={view.board} vehicles={displayedVehicles} players={view.players} currentPlayerId={view.playerId} event={playbackEvent} /></section><div className="sidebar">{!round && <section className="panel"><h2>Spelare anslutna</h2><p>{view.players.map(p => p.name).join(', ')}</p><p>{view.players.length} / {view.configuration.maxPlayers} spelare</p><LobbyCountdown joinDeadline={view.joinDeadline} /></section>}{round && <RoundStatus round={round} players={view.players} />} {round?.phase === 'PLANNING' && <CommandHand hand={view.round?.hand ?? []} locked={round.ready[view.playerId]} onReorder={async orders => run(async () => setView(await saveProgramDraft(session, orders)))} onSubmit={async orders => run(async () => setView(await submitProgram(session, orders)))} />} {round?.phase === 'PLAYBACK' && <RoundPlayback round={round} players={view.players} onVehicles={setVehicles} onEvent={setPlaybackEvent} onFinished={() => setPlaybackDone(true)} />} {playbackDone && <button onClick={() => void run(async () => { setPlaybackDone(false); setPlaybackEvent(undefined); setView(await startRound(session)) })}>Starta nästa runda</button>}</div></div></main>
   }
 
   const gameLink = game ? `${window.location.origin}/game/${game.id}` : ''

@@ -203,6 +203,27 @@ class GameServiceTest {
     }
 
     @Test
+    void shouldPersistAnAuthenticatedProgramDraftForRecovery() {
+        InMemoryGameRepository repository = new InMemoryGameRepository();
+        GameService service = new GameService(repository, Clock.systemUTC(),
+                () -> MovementOrder.FORWARD);
+        Game game = service.createGame(new GameConfiguration(2, 60, 3, 30));
+        var per = service.addPlayer(game.getId(), "Per");
+        service.addPlayer(game.getId(), "Alice");
+        List<MovementOrder> draft = List.of(MovementOrder.FORWARD,
+                MovementOrder.FORWARD, MovementOrder.FORWARD);
+
+        service.saveProgramDraft(game.getId(), per.player().getId(), per.token(), draft);
+
+        Game recovered = service.getPlayerGame(game.getId(), per.player().getId(), per.token());
+        assertThat(recovered.getRound().programs().get(per.player().getId()).hand())
+                .containsExactlyElementsOf(draft);
+        assertThat(recovered.getRound().programs().get(per.player().getId()).ready()).isFalse();
+        assertThatThrownBy(() -> service.saveProgramDraft(game.getId(), per.player().getId(),
+                "wrong-token", draft)).isInstanceOf(SecurityException.class);
+    }
+
+    @Test
     void shouldAddPlayerToExistingGame() {
         InMemoryGameRepository repository = new InMemoryGameRepository();
         Game game = repository.save(new Game(UUID.randomUUID(), new Board(20, 20)));

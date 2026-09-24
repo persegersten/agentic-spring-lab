@@ -27,6 +27,12 @@ public final class Round {
     public Map<UUID, PlayerProgram> programs() { return Map.copyOf(programs); }
     public GameState initialState() { return initialState; }
     public List<RoundEvent> playback() { return playback; }
+    public void reorder(UUID playerId, List<MovementOrder> orders) {
+        if (phase != RoundPhase.PLANNING) throw new IllegalStateException("Round is not accepting programs");
+        var current = programs.get(playerId);
+        if (current == null) throw new IllegalArgumentException("Player is not part of this round");
+        programs.put(playerId, current.reorder(orders));
+    }
     public void lock(UUID playerId, List<MovementOrder> orders) {
         if (phase != RoundPhase.PLANNING) throw new IllegalStateException("Round is not accepting programs");
         var current = programs.get(playerId);

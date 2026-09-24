@@ -222,6 +222,34 @@ class GameApiIntegrationTest {
     }
 
     @Test
+    void persistsAPlayersPrivatePlanningDraftForReconnect() throws Exception {
+        HttpResponse<String> created = post("/games", """
+                {"maxPlayers":2,"joinTimeoutSeconds":90,"cardsPerRound":3,"planningTimeoutSeconds":45}
+                """);
+        String gameId = json(created).path("id").asText();
+        JsonNode per = json(post("/games/%s/players".formatted(gameId), "{\"name\":\"Per\"}"));
+        post("/games/%s/players".formatted(gameId), "{\"name\":\"Alice\"}");
+        JsonNode original = json(getPlayerGame(gameId, per));
+        var draft = objectMapper.createArrayNode();
+        for (int index = 2; index >= 0; index--) {
+            draft.add(original.path("round").path("hand").path(index).asText());
+        }
+
+        HttpResponse<String> saved = putPlayer(
+                "/games/%s/rounds/current/program".formatted(gameId), per,
+                objectMapper.createObjectNode().set("orders", draft).toString());
+
+        assertThat(saved.statusCode()).isEqualTo(HttpStatus.OK.value());
+        JsonNode recovered = json(getPlayerGame(gameId, per));
+        assertThat(recovered.path("round").path("hand")).isEqualTo(draft);
+        assertThat(recovered.path("round").path("state").path("number").asInt()).isEqualTo(1);
+        assertThat(recovered.path("board")).isEqualTo(original.path("board"));
+        assertThat(recovered.path("round").path("state").path("ready")
+                .path(per.path("id").asText()).asBoolean()).isFalse();
+        assertThat(json(get("/games/" + gameId)).toString()).doesNotContain("hand", "orders");
+    }
+
+    @Test
     void returnsMandatoryMalfunctionOnlyToTheDamagedPlayer() throws Exception {
         HttpResponse<String> created = post("/games", """
                 {"maxPlayers":2,"joinTimeoutSeconds":90,"cardsPerRound":3,"planningTimeoutSeconds":45}
@@ -343,6 +371,7 @@ class GameApiIntegrationTest {
         assertThat(paths.path("/games/{gameId}/players/{playerId}").has("get")).isTrue();
         assertThat(paths.path("/games/{gameId}/rounds").has("post")).isTrue();
         assertThat(paths.path("/games/{gameId}/rounds/current/program").has("post")).isTrue();
+        assertThat(paths.path("/games/{gameId}/rounds/current/program").has("put")).isTrue();
         assertThat(paths.path("/games/running").has("get")).isTrue();
         assertThat(paths.path("/games/finished").has("get")).isTrue();
     }
@@ -397,6 +426,17 @@ class GameApiIntegrationTest {
                 .header("X-Player-Id", player.path("id").asText())
                 .header("X-Player-Token", player.path("token").asText())
                 .POST(HttpRequest.BodyPublishers.ofString(body))
+                .build();
+        return httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+    }
+
+    private HttpResponse<String> putPlayer(String path, JsonNode player, String body)
+            throws IOException, InterruptedException {
+        HttpRequest request = HttpRequest.newBuilder(uri(path))
+                .header("Content-Type", "application/json")
+                .header("X-Player-Id", player.path("id").asText())
+                .header("X-Player-Token", player.path("token").asText())
+                .PUT(HttpRequest.BodyPublishers.ofString(body))
                 .build();
         return httpClient.send(request, HttpResponse.BodyHandlers.ofString());
     }

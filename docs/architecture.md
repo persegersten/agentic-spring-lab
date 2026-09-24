@@ -38,6 +38,16 @@ player's programming hand. The public game response contains readiness but no
 hands or unrevealed programs. Tokens are stored server-side only as SHA-256
 hashes.
 
+On reload, the game URL selects the matching stored player credential and the
+browser rebuilds the complete view from the authenticated player endpoint. The
+credential identifies the player but is not game state: the board, vehicles,
+current round, readiness, dealt hand, and the player's current private card
+ordering are all persisted by the server. Reordering cards during planning uses
+an authenticated `PUT` to the existing current-program resource; locking the
+program remains the existing `POST`. The normal polling loop retries after a
+temporary connection failure and replaces the rendered view with fresh server
+state without changing other players or the game aggregate.
+
 The aggregate persists the current round, programs and an authoritative ordered
 event stream. After all programs are locked, `MovementEngine` resolves the
 configured card positions in stable player order. `CannonEngine` then fires
@@ -99,6 +109,8 @@ The REST API currently exposes:
 - `POST /games` — create a waiting game with a validated configuration, empty player list and a 20 × 20 board.
 - `POST /games/{gameId}/players` — add a named player to an existing game.
 - `GET /games/{gameId}` — read the current game state.
+- `GET /games/{gameId}/players/{playerId}` — rebuild an authenticated player's public and private game view.
+- `PUT /games/{gameId}/rounds/current/program` — persist the authenticated player's private planning order without locking it.
 - `GET /games/running` — list all running games, or an empty list when none exist.
 - `GET /games/finished` — list all finished games, or an empty list when none exist.
 

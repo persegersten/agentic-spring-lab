@@ -94,6 +94,14 @@ public class GameService {
         return authenticatedGame(gameId, playerId, token);
     }
 
+    public Round saveProgramDraft(UUID gameId, UUID playerId, String token, List<MovementOrder> orders) {
+        Game game = authenticatedGameForUpdate(gameId, playerId, token);
+        if (game.getRound() == null) throw new IllegalStateException("No round has started");
+        game.getRound().reorder(playerId, orders);
+        gameRepository.save(game);
+        return game.getRound();
+    }
+
     public Round submitProgram(UUID gameId, UUID playerId, String token, List<MovementOrder> orders) {
         Game game = authenticatedGameForUpdate(gameId, playerId, token);
         if (game.getRound() == null) throw new IllegalStateException("No round has started");
