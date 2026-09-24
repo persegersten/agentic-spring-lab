@@ -35,12 +35,18 @@ public final class Round {
     }
     public boolean allReady() { return !programs.isEmpty() && programs.values().stream().allMatch(PlayerProgram::ready); }
     public void resolve(se.segersten.wreckage.game.engine.MovementEngine engine) {
-        resolve(engine, new se.segersten.wreckage.game.engine.CannonEngine());
+        resolve(engine, new se.segersten.wreckage.game.engine.CannonEngine(),
+                new se.segersten.wreckage.game.engine.BoardEffectEngine());
     }
     public void resolve(se.segersten.wreckage.game.engine.MovementEngine engine,
                         se.segersten.wreckage.game.engine.CannonEngine cannonEngine) {
+        resolve(engine, cannonEngine, new se.segersten.wreckage.game.engine.BoardEffectEngine());
+    }
+    public void resolve(se.segersten.wreckage.game.engine.MovementEngine engine,
+                        se.segersten.wreckage.game.engine.CannonEngine cannonEngine,
+                        se.segersten.wreckage.game.engine.BoardEffectEngine boardEffectEngine) {
         if (!allReady()) throw new IllegalStateException("Not all players are ready");
-        phase = RoundPhase.RESOLVING;
+        phase = RoundPhase.MOVEMENT_ACTIONS;
         GameState state = initialState;
         List<RoundEvent> events = new ArrayList<>();
         int cardPositions = programs.values().iterator().next().orders().size();
@@ -57,6 +63,9 @@ public final class Round {
         var cannonResult = cannonEngine.resolve(state);
         state = cannonResult.state();
         for (RoundEvent event : cannonResult.events()) events.add(event.withSequence(events.size() + 1));
+        phase = RoundPhase.BOARD_EFFECTS;
+        var boardEffectResult = boardEffectEngine.resolve(state);
+        for (RoundEvent event : boardEffectResult.events()) events.add(event.withSequence(events.size() + 1));
         playback = List.copyOf(events);
         phase = RoundPhase.PLAYBACK;
     }

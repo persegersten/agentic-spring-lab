@@ -103,6 +103,22 @@ class GameRoundTest {
         assertThat(round.allReady()).isFalse(); assertThatThrownBy(()->round.resolve(new MovementEngine())).isInstanceOf(IllegalStateException.class);
     }
 
+    @Test void resolvesMovementActionsBeforeBoardEffectsAndPlayback() {
+        UUID playerId = UUID.randomUUID();
+        Vehicle vehicle = new Vehicle(UUID.randomUUID(), playerId);
+        VehicleState state = new VehicleState(vehicle, new Position(4, 4), Direction.NORTH);
+        Map<UUID, PlayerProgram> programs = Map.of(playerId, lockedProgram(playerId, MovementOrder.FORWARD));
+        Board board = new Board(8, 8, java.util.Set.of(), java.util.Set.of(new Position(4, 5)));
+        Round round = new Round(1, programs, new GameState(board, List.of(state)));
+
+        round.resolve(new MovementEngine());
+
+        assertThat(round.phase()).isEqualTo(RoundPhase.PLAYBACK);
+        assertThat(round.playback()).extracting(RoundEvent::type)
+                .containsExactly(RoundEventType.MOVE, RoundEventType.FIRE, RoundEventType.PIT);
+        assertThat(round.playback()).extracting(RoundEvent::sequence).containsExactly(1, 2, 3);
+    }
+
     private static Game configuredGame(int cardsPerRound) {
         var now = java.time.Instant.parse("2099-01-01T12:00:00Z");
         return new Game(UUID.randomUUID(), List.of(), new Board(5, 5), GameStatus.WAITING_FOR_PLAYERS,

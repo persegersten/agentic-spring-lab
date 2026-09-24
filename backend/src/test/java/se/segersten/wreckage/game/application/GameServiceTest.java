@@ -38,7 +38,8 @@ class GameServiceTest {
         assertThat(game.getPlayers()).isEmpty();
         assertThat(game.getStatus()).isEqualTo(GameStatus.WAITING_FOR_PLAYERS);
         assertThat(game.getConfiguration()).isEqualTo(GameConfiguration.defaults());
-        assertThat(game.getBoard()).isEqualTo(new Board(20, 20));
+        assertThat(game.getBoard()).isEqualTo(new Board(20, 20, java.util.Set.of(),
+                java.util.Set.of(new se.segersten.wreckage.game.domain.Position(4, 5))));
         assertThat(repository.findById(game.getId())).containsSame(game);
     }
 

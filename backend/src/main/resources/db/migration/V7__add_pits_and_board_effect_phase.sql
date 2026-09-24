@@ -1,0 +1,6 @@
+ALTER TABLE game ADD COLUMN board_pits VARCHAR(20000) NOT NULL DEFAULT '';
+
+ALTER TABLE game_round DROP CONSTRAINT chk_round_phase;
+UPDATE game_round SET phase = 'MOVEMENT_ACTIONS' WHERE phase = 'RESOLVING';
+ALTER TABLE game_round ADD CONSTRAINT chk_round_phase
+    CHECK (phase IN ('PLANNING', 'MOVEMENT_ACTIONS', 'BOARD_EFFECTS', 'PLAYBACK'));

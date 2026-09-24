@@ -1,14 +1,14 @@
 export type MovementOrder = 'FORWARD' | 'REVERSE' | 'TURN_LEFT' | 'TURN_RIGHT'
 export type Direction = 'NORTH' | 'EAST' | 'SOUTH' | 'WEST'
-export type RoundPhase = 'PLANNING' | 'RESOLVING' | 'PLAYBACK'
+export type RoundPhase = 'PLANNING' | 'MOVEMENT_ACTIONS' | 'BOARD_EFFECTS' | 'PLAYBACK'
 export type Player = { id: string; name: string }
 export type PlayerJoin = Player & { token: string }
 export type GameStatus = 'WAITING_FOR_PLAYERS' | 'RUNNING' | 'FINISHED'
 export type GameConfiguration = { maxPlayers: number; joinTimeoutSeconds: number; cardsPerRound: number; planningTimeoutSeconds: number }
 export type Position = { x: number; y: number }
-export type Board = { width: number; height: number; walls: Position[] }
+export type Board = { width: number; height: number; walls: Position[]; pits: Position[] }
 export type Vehicle = { id: string; playerId: string; x: number; y: number; direction: Direction; damage: number }
-export type RoundEventType = 'MOVE' | 'TURN' | 'RAM' | 'PUSH' | 'FIRE' | 'HIT' | 'DAMAGE'
+export type RoundEventType = 'MOVE' | 'TURN' | 'RAM' | 'PUSH' | 'FIRE' | 'HIT' | 'DAMAGE' | 'PIT'
 export type RoundEvent = { sequence: number; type: RoundEventType; playerId: string; vehicleId: string; sourcePlayerId: string; sourceVehicleId: string; oldPosition: Position; newPosition: Position; oldDirection: Direction; newDirection: Direction; oldDamage: number; newDamage: number }
 export type PublicRound = { number: number; phase: RoundPhase; ready: Record<string, boolean>; initialVehicles: Vehicle[]; playback: RoundEvent[] }
 export type Game = { id: string; status: GameStatus; configuration: GameConfiguration; createdAt: string; joinDeadline: string; players: Player[]; board: Board; vehicles: Vehicle[]; round: PublicRound | null }
