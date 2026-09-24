@@ -323,9 +323,11 @@ vehicle shields any vehicles behind it.
 Every shot produces a `FIRE` event. A vehicle hit additionally produces `HIT`
 and `DAMAGE` events in that order. Damage is deliberately minimal: every hit
 increments the target vehicle's non-negative damage counter by one. Damage does
-not currently destroy a vehicle or change its commands. The authoritative
-event stream contains the source, target, shot endpoints, and damage before and
-after the event so clients only visualize the computed result.
+not currently destroy a vehicle. A vehicle with damage of at least one receives
+one mandatory `MALFUNCTION_REVERSE` card when its next Planning phase starts.
+The authoritative event stream contains the source, target, shot endpoints,
+and damage before and after the event so clients only visualize the computed
+result.
 
 ## 13. Board effects
 
@@ -357,16 +359,23 @@ The following rules are intentionally **not part of the movement engine yet**:
 * initiative
 * AI-controlled players
 
-* malfunction and other advanced damage effects
+* malfunction types other than `MALFUNCTION_REVERSE`
+* repair or removal of malfunction cards while damage remains
 
 ## 15. Rounds and command cards
 
 Each round has four phases: `PLANNING`, `MOVEMENT_ACTIONS`, `BOARD_EFFECTS`, and
 `PLAYBACK`. In `PLANNING`, the server randomly deals the
-configured number of cards to every participating player. A card is one of the
-four movement orders.
+configured number of cards to every participating player. A normal card is one
+of the four movement orders. For a vehicle whose persisted damage is at least
+one, exactly one normal card is replaced by `MALFUNCTION_REVERSE`. The total
+hand size remains unchanged. `MALFUNCTION_REVERSE` executes with the same
+movement rules as `REVERSE`.
 Only its owner may retrieve the hand. The player submits all dealt cards
-in the desired order; a submitted program is immutable.
+in the desired order; every dealt card, including a malfunction, must be
+included exactly once. A submitted program is immutable. A malfunction remains
+private during Planning because public round responses expose readiness but not
+hands or unrevealed programs.
 
 When every player is ready, the server enters `MOVEMENT_ACTIONS`. For card positions
 one through the configured card count it resolves every player's card in stable

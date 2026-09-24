@@ -91,7 +91,11 @@ public class Game {
         Map<UUID, PlayerProgram> programs = new LinkedHashMap<>();
         for (Player player : players) {
             List<MovementOrder> hand = new ArrayList<>(configuration.cardsPerRound());
-            for (int index = 0; index < configuration.cardsPerRound(); index++) {
+            VehicleState vehicle = vehicles.get(player.getId());
+            if (vehicle != null && vehicle.damage() >= 1) {
+                hand.add(MovementOrder.MALFUNCTION_REVERSE);
+            }
+            for (int index = hand.size(); index < configuration.cardsPerRound(); index++) {
                 hand.add(Objects.requireNonNull(cards.get(), "card source must not return null"));
             }
             programs.put(player.getId(), new PlayerProgram(player.getId(), hand, List.of()));

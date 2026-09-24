@@ -15,8 +15,12 @@ import se.segersten.wreckage.game.domain.Board;
 import se.segersten.wreckage.game.domain.Direction;
 import se.segersten.wreckage.game.domain.GameRepository;
 import se.segersten.wreckage.game.domain.GameStatus;
+import se.segersten.wreckage.game.domain.GameState;
+import se.segersten.wreckage.game.domain.MovementOrder;
 import se.segersten.wreckage.game.domain.Player;
+import se.segersten.wreckage.game.domain.PlayerProgram;
 import se.segersten.wreckage.game.domain.Position;
+import se.segersten.wreckage.game.domain.Round;
 import se.segersten.wreckage.game.domain.Vehicle;
 import se.segersten.wreckage.game.domain.VehicleState;
 
@@ -95,5 +99,29 @@ class InMemoryProfileIntegrationTest {
         assertThat(retrieved.getRound().phase()).isEqualTo(RoundPhase.PLAYBACK);
         assertThat(retrieved.getRound().playback()).extracting(event -> event.type())
                 .contains(se.segersten.wreckage.game.domain.RoundEventType.PIT);
+    }
+
+    @Test
+    void persistsMalfunctionCardsUsingInMemoryDatabase() {
+        var now = java.time.Instant.parse("2026-01-01T12:00:00Z");
+        var playerId = java.util.UUID.randomUUID();
+        var vehicle = new Vehicle(java.util.UUID.randomUUID(), playerId);
+        var state = new VehicleState(vehicle, new Position(2, 2), Direction.NORTH, 1);
+        var board = new Board(5, 5);
+        var program = new PlayerProgram(playerId,
+                java.util.List.of(MovementOrder.MALFUNCTION_REVERSE, MovementOrder.FORWARD),
+                java.util.List.of());
+        var round = new Round(2, java.util.Map.of(playerId, program),
+                new GameState(board, java.util.List.of(state)));
+        var game = new Game(java.util.UUID.randomUUID(),
+                java.util.List.of(Player.create(playerId, "Per", "token")),
+                board, GameStatus.RUNNING, java.util.Map.of(playerId, state), round,
+                GameConfiguration.defaults(), now, now.plusSeconds(60));
+
+        gameRepository.save(game);
+        Game retrieved = gameService.getGame(game.getId());
+
+        assertThat(retrieved.getRound().programs().get(playerId).hand()).containsExactly(
+                MovementOrder.MALFUNCTION_REVERSE, MovementOrder.FORWARD);
     }
 }

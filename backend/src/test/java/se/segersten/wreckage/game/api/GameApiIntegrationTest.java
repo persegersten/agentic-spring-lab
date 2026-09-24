@@ -7,6 +7,9 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
@@ -16,8 +19,16 @@ import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpStatus;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import se.segersten.wreckage.TestcontainersConfiguration;
+import se.segersten.wreckage.game.domain.Game;
+import se.segersten.wreckage.game.domain.GameRepository;
+import se.segersten.wreckage.game.domain.GameState;
+import se.segersten.wreckage.game.domain.Round;
+import se.segersten.wreckage.game.domain.RoundPhase;
+import se.segersten.wreckage.game.domain.VehicleState;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
@@ -32,6 +43,12 @@ class GameApiIntegrationTest {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @Autowired
+    private GameRepository gameRepository;
+
+    @Autowired
+    private PlatformTransactionManager transactionManager;
 
     @Test
     void createGame() throws Exception {
@@ -202,6 +219,44 @@ class GameApiIntegrationTest {
         assertThat(aliceResolved.path("round").path("state").path("playback"))
                 .isEqualTo(resolvedPlayback);
         assertThat(publicResolved.toString()).doesNotContain("hand", "orders");
+    }
+
+    @Test
+    void returnsMandatoryMalfunctionOnlyToTheDamagedPlayer() throws Exception {
+        HttpResponse<String> created = post("/games", """
+                {"maxPlayers":2,"joinTimeoutSeconds":90,"cardsPerRound":3,"planningTimeoutSeconds":45}
+                """);
+        String gameId = json(created).path("id").asText();
+        JsonNode per = json(post("/games/%s/players".formatted(gameId), "{\"name\":\"Per\"}"));
+        JsonNode alice = json(post("/games/%s/players".formatted(gameId), "{\"name\":\"Alice\"}"));
+
+        TransactionTemplate transaction = new TransactionTemplate(transactionManager);
+        Game current = transaction.execute(status ->
+                gameRepository.findById(UUID.fromString(gameId)).orElseThrow());
+        UUID perId = UUID.fromString(per.path("id").asText());
+        List<VehicleState> damagedStates = current.getVehicleStates().stream()
+                .map(state -> state.vehicle().playerId().equals(perId)
+                        ? new VehicleState(state.vehicle(), state.position(), state.orientation(), 1)
+                        : state)
+                .toList();
+        Map<UUID, VehicleState> vehicles = new LinkedHashMap<>();
+        damagedStates.forEach(state -> vehicles.put(state.vehicle().playerId(), state));
+        Round completedRound = new Round(current.getRound().number(), RoundPhase.PLAYBACK,
+                current.getRound().programs(), new GameState(current.getBoard(), damagedStates), List.of());
+        transaction.executeWithoutResult(status -> gameRepository.save(new Game(current.getId(),
+                current.getPlayers(), current.getBoard(), current.getStatus(), vehicles, completedRound,
+                current.getConfiguration(), current.getCreatedAt(), current.getJoinDeadline())));
+
+        HttpResponse<String> nextRound = postPlayer("/games/%s/rounds".formatted(gameId), per, "");
+
+        assertThat(nextRound.statusCode()).isEqualTo(HttpStatus.CREATED.value());
+        JsonNode perGame = json(nextRound);
+        JsonNode aliceGame = json(getPlayerGame(gameId, alice));
+        JsonNode publicGame = json(get("/games/" + gameId));
+        assertThat(perGame.path("round").path("hand").valueStream()
+                .map(JsonNode::asText)).contains("MALFUNCTION_REVERSE");
+        assertThat(aliceGame.toString()).doesNotContain("MALFUNCTION_REVERSE");
+        assertThat(publicGame.toString()).doesNotContain("MALFUNCTION_REVERSE", "hand", "orders");
     }
 
     @Test

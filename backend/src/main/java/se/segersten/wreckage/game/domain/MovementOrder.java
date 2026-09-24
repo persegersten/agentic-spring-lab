@@ -4,5 +4,6 @@ public enum MovementOrder {
     FORWARD,
     REVERSE,
     TURN_LEFT,
-    TURN_RIGHT;
+    TURN_RIGHT,
+    MALFUNCTION_REVERSE;
 }

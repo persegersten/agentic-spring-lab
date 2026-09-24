@@ -46,7 +46,8 @@ public class MovementEngine {
         VehicleState state = currentStates.get(vehicleIndex);
         return switch (vehicleTurn.movementOrder()) {
             case FORWARD -> applyTranslation(gameState, vehicleIndex, state.orientation());
-            case REVERSE -> applyTranslation(gameState, vehicleIndex, state.orientation().reverse());
+            case REVERSE, MALFUNCTION_REVERSE ->
+                    applyTranslation(gameState, vehicleIndex, state.orientation().reverse());
             case TURN_LEFT -> applyTurn(gameState, vehicleIndex, state.orientation().turnLeft());
             case TURN_RIGHT -> applyTurn(gameState, vehicleIndex, state.orientation().turnRight());
         };

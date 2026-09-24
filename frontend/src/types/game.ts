@@ -1,4 +1,4 @@
-export type MovementOrder = 'FORWARD' | 'REVERSE' | 'TURN_LEFT' | 'TURN_RIGHT'
+export type MovementOrder = 'FORWARD' | 'REVERSE' | 'TURN_LEFT' | 'TURN_RIGHT' | 'MALFUNCTION_REVERSE'
 export type Direction = 'NORTH' | 'EAST' | 'SOUTH' | 'WEST'
 export type RoundPhase = 'PLANNING' | 'MOVEMENT_ACTIONS' | 'BOARD_EFFECTS' | 'PLAYBACK'
 export type Player = { id: string; name: string }
