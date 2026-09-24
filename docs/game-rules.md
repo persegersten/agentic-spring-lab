@@ -312,25 +312,39 @@ Resolution always follows the stable player order recorded by the round.
 
 ---
 
-## 12. Out of Scope
+## 12. Automatic cannons and damage
+
+After every programmed command has been resolved, each vehicle fires its
+forward-facing cannon once in the stable vehicle order recorded by the round.
+The server follows the shot one board position at a time. The shot stops at the
+first vehicle, wall, or board boundary. A wall blocks the shot and the first
+vehicle shields any vehicles behind it.
+
+Every shot produces a `FIRE` event. A vehicle hit additionally produces `HIT`
+and `DAMAGE` events in that order. Damage is deliberately minimal: every hit
+increments the target vehicle's non-negative damage counter by one. Damage does
+not currently destroy a vehicle or change its commands. The authoritative
+event stream contains the source, target, shot endpoints, and damage before and
+after the event so clients only visualize the computed result.
+
+## 13. Out of Scope
 
 The following rules are intentionally **not part of the movement engine yet**:
 
-* weapons
-* combat
 * board effects
-* damage
 * vehicle destruction
 * vehicle segment destruction
 * acceleration
 * movement distances greater than one grid position
 * terrain
-* obstacles
+* obstacle effects other than walls blocking cannon shots
 * movement costs
 * initiative
 * AI-controlled players
 
-## 13. Rounds and command cards
+* malfunction and other advanced damage effects
+
+## 14. Rounds and command cards
 
 Each round has three phases. In `PLANNING`, the server randomly deals the
 configured number of cards to every participating player. A card is one of the

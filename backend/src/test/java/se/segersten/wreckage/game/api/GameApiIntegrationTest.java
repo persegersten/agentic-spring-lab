@@ -190,6 +190,8 @@ class GameApiIntegrationTest {
                 .isEqualTo("PLAYBACK");
         JsonNode resolvedPlayback = json(resolved).path("round").path("state").path("playback");
         assertThat(resolvedPlayback.isArray()).isTrue();
+        assertThat(resolvedPlayback.valueStream().map(event -> event.path("type").asText()))
+                .contains("FIRE");
         JsonNode publicResolved = json(get("/games/" + gameId));
         assertThat(publicResolved.path("round").path("phase").asText()).isEqualTo("PLAYBACK");
         assertThat(publicResolved.path("round").path("playback")).isEqualTo(resolvedPlayback);

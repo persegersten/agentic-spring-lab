@@ -25,6 +25,7 @@ test('players receive and play the same server ordered event sequence', async ({
     const perEvents = await per.getByTestId('round-event').allTextContents()
     const aliceEvents = await alice.getByTestId('round-event').allTextContents()
     expect(aliceEvents).toEqual(perEvents)
+    expect(perEvents.some(event => event.includes('FIRE'))).toBe(true)
     const sequences = await per.getByTestId('round-event').evaluateAll(events =>
       events.map(event => Number(event.getAttribute('data-sequence'))))
     expect(sequences).toEqual(sequences.map((_, index) => index + 1))

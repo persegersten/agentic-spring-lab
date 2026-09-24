@@ -66,8 +66,9 @@ class GameRoundTest {
         Game game=configuredGame(5); Player player=game.addPlayer("Alice","a");
         Round round=game.startRound(()->MovementOrder.REVERSE);
         round.lock(player.getId(),round.programs().get(player.getId()).hand()); round.resolve(new MovementEngine());
-        assertThat(round.phase()).isEqualTo(RoundPhase.PLAYBACK); assertThat(round.playback()).hasSize(4);
-        assertThat(round.playback()).extracting(RoundEvent::sequence).containsExactly(1,2,3,4);
+        assertThat(round.phase()).isEqualTo(RoundPhase.PLAYBACK); assertThat(round.playback()).hasSize(5);
+        assertThat(round.playback()).extracting(RoundEvent::sequence).containsExactly(1,2,3,4,5);
+        assertThat(round.playback().getLast().type()).isEqualTo(RoundEventType.FIRE);
         assertThat(round.initialState().vehicleStates().getFirst().position()).isEqualTo(new Position(0,0));
         assertThat(round.finalVehicleStates().getFirst().position()).isEqualTo(new Position(0,4));
     }
@@ -85,13 +86,13 @@ class GameRoundTest {
 
         round.resolve(new MovementEngine());
 
-        assertThat(round.playback()).hasSize(5);
+        assertThat(round.playback()).hasSize(7);
         assertThat(round.playback()).extracting(RoundEvent::type)
                 .containsExactly(RoundEventType.PUSH, RoundEventType.RAM, RoundEventType.MOVE,
-                        RoundEventType.TURN, RoundEventType.MOVE);
+                        RoundEventType.TURN, RoundEventType.MOVE, RoundEventType.FIRE, RoundEventType.FIRE);
         assertThat(round.playback()).extracting(RoundEvent::playerId)
-                .containsExactly(bobId, aliceId, bobId, aliceId, bobId);
-        assertThat(round.playback()).extracting(RoundEvent::sequence).containsExactly(1, 2, 3, 4, 5);
+                .containsExactly(bobId, aliceId, bobId, aliceId, bobId, aliceId, bobId);
+        assertThat(round.playback()).extracting(RoundEvent::sequence).containsExactly(1, 2, 3, 4, 5, 6, 7);
         assertThat(round.finalVehicleStates()).containsExactly(
                 new VehicleState(aliceVehicle, new Position(0, 1), Direction.EAST),
                 new VehicleState(bobVehicle, new Position(0, 4), Direction.NORTH));

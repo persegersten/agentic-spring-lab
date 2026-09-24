@@ -55,7 +55,7 @@ public class MovementEngine {
     private MovementResult applyTurn(GameState gameState, int vehicleIndex, Direction orientation) {
         List<VehicleState> result = new ArrayList<>(gameState.vehicleStates());
         VehicleState state = result.get(vehicleIndex);
-        VehicleState updated = new VehicleState(state.vehicle(), state.position(), orientation);
+        VehicleState updated = new VehicleState(state.vehicle(), state.position(), orientation, state.damage());
         result.set(vehicleIndex, updated);
         return new MovementResult(new GameState(gameState.board(), List.copyOf(result)),
                 List.of(event(RoundEventType.TURN, state, updated)));
@@ -87,13 +87,13 @@ public class MovementEngine {
             int pushedIndex = pushedIndexes.get(index);
             VehicleState pushed = currentStates.get(pushedIndex);
             VehicleState updated = new VehicleState(pushed.vehicle(),
-                    pushed.position().move(movementDirection), pushed.orientation());
+                    pushed.position().move(movementDirection), pushed.orientation(), pushed.damage());
             result.set(pushedIndex, updated);
             events.add(event(RoundEventType.PUSH, pushed, updated));
         }
 
         VehicleState updatedMoving = new VehicleState(moving.vehicle(),
-                moving.position().move(movementDirection), moving.orientation());
+                moving.position().move(movementDirection), moving.orientation(), moving.damage());
         result.set(vehicleIndex, updatedMoving);
         RoundEventType type = pushedIndexes.isEmpty() ? RoundEventType.MOVE : RoundEventType.RAM;
         events.add(event(type, moving, updatedMoving));
@@ -103,7 +103,8 @@ public class MovementEngine {
     private RoundEvent event(RoundEventType type, VehicleState oldState, VehicleState newState) {
         Vehicle vehicle = oldState.vehicle();
         return new RoundEvent(0, type, vehicle.playerId(), vehicle.id(),
-                oldState.position(), newState.position(), oldState.orientation(), newState.orientation());
+                vehicle.playerId(), vehicle.id(), oldState.position(), newState.position(),
+                oldState.orientation(), newState.orientation(), oldState.damage(), newState.damage());
     }
 
     private int indexOf(List<VehicleState> states, Vehicle vehicle) {
