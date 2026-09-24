@@ -42,9 +42,11 @@ The aggregate persists the current round, programs and an authoritative ordered
 event stream. After all programs are locked, `MovementEngine` resolves the
 configured card positions in stable player order. `CannonEngine` then fires
 every vehicle once, tracing each shot until the first vehicle, wall, or board
-boundary. Hits increment a minimal persisted damage counter. The engines emit
-MOVE, TURN, FIRE, HIT and DAMAGE events with enough before/after state for React
-to visualize the persisted events in server order without predicting a result.
+boundary. Hits increment a minimal persisted damage counter. The round then
+enters `BOARD_EFFECTS`, where `BoardEffectEngine` emits a PIT event for every
+vehicle on a persisted PIT position. The engines emit MOVE, TURN, FIRE, HIT,
+DAMAGE and PIT events with enough state for React to visualize the persisted
+events in server order without predicting a result.
 The same event stream is returned to every client and also drives the
 development debug view.
 

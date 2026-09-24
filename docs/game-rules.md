@@ -327,11 +327,26 @@ not currently destroy a vehicle or change its commands. The authoritative
 event stream contains the source, target, shot endpoints, and damage before and
 after the event so clients only visualize the computed result.
 
-## 13. Out of Scope
+## 13. Board effects
+
+After all programmed movement and automatic cannon actions have completed, the
+round enters `BOARD_EFFECTS`. Board effects observe the resulting game state and
+are resolved in the stable vehicle order recorded by the round.
+
+The only currently supported board effect is `PIT`. A vehicle ending
+Movement/Actions on a PIT position produces one `PIT` event. The event identifies
+the affected player and vehicle and retains its position and orientation. PIT
+does not yet destroy, move, damage, or respawn the vehicle because those rules
+have not been defined.
+
+PIT events are appended after every movement and cannon event and before the
+round enters `PLAYBACK`.
+
+## 14. Out of Scope
 
 The following rules are intentionally **not part of the movement engine yet**:
 
-* board effects
+* board effects other than PIT
 * vehicle destruction
 * vehicle segment destruction
 * acceleration
@@ -344,19 +359,20 @@ The following rules are intentionally **not part of the movement engine yet**:
 
 * malfunction and other advanced damage effects
 
-## 14. Rounds and command cards
+## 15. Rounds and command cards
 
-Each round has three phases. In `PLANNING`, the server randomly deals the
+Each round has four phases: `PLANNING`, `MOVEMENT_ACTIONS`, `BOARD_EFFECTS`, and
+`PLAYBACK`. In `PLANNING`, the server randomly deals the
 configured number of cards to every participating player. A card is one of the
 four movement orders.
 Only its owner may retrieve the hand. The player submits all dealt cards
 in the desired order; a submitted program is immutable.
 
-When every player is ready, the server enters `RESOLVING`. For card positions
+When every player is ready, the server enters `MOVEMENT_ACTIONS`. For card positions
 one through the configured card count it resolves every player's card in stable
-player order. The initial state and the resulting state after every complete
-card position are retained. Resolution completes atomically and exposes no
-partial result.
+player order, then resolves automatic cannons. It next enters `BOARD_EFFECTS`
+and resolves PIT positions. The initial state and authoritative event stream are
+retained. Resolution completes atomically and exposes no partial result.
 
 In `PLAYBACK`, all commands and the resulting states are public so every
 client can reproduce the same animation. A new round may start only after the
@@ -366,7 +382,7 @@ These rules must not be introduced implicitly by the movement implementation.
 
 ---
 
-## 14. Rule Authority
+## 16. Rule Authority
 
 This document defines the intended behaviour of the current movement engine.
 
