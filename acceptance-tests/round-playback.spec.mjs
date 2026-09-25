@@ -3,6 +3,7 @@ import { joinGame, withPlayerPages } from './player-pages.mjs'
 
 test('players receive and play the same server ordered event sequence', async ({ browser }) => {
   await withPlayerPages(browser, ['per', 'alice'], async ({ per, alice }) => {
+    await per.context().grantPermissions(['clipboard-read', 'clipboard-write'], { origin: 'http://127.0.0.1:5173' })
     await per.goto('/')
     await per.getByLabel('Max spelare', { exact: true }).fill('2')
     await per.getByRole('button', { name: 'Skapa spel', exact: true }).click()
@@ -29,5 +30,14 @@ test('players receive and play the same server ordered event sequence', async ({
     const sequences = await per.getByTestId('round-event').evaluateAll(events =>
       events.map(event => Number(event.getAttribute('data-sequence'))))
     expect(sequences).toEqual(sequences.map((_, index) => index + 1))
+
+    const displayedState = JSON.parse(await per.getByTestId('initial-game-state').textContent())
+    expect(displayedState.board).toMatchObject({ width: 20, height: 20 })
+    expect(displayedState.vehicles).toHaveLength(2)
+
+    await per.getByRole('button', { name: 'Kopiera game-state', exact: true }).click()
+    await expect(per.getByText('Game-state kopierat', { exact: true })).toBeVisible()
+    const copiedState = await per.evaluate(() => navigator.clipboard.readText())
+    expect(JSON.parse(copiedState)).toEqual(displayedState)
   })
 })

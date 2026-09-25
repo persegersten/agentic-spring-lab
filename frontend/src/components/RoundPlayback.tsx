@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
-import type { Player, PublicRound, RoundEvent, Vehicle } from '../types/game'
+import type { Board, Player, PublicRound, RoundEvent, Vehicle } from '../types/game'
 import { RoundEventDebugView } from './RoundEventDebugView'
 
-export function RoundPlayback({round,players,onVehicles,onEvent,onFinished}:{round:PublicRound;players:Player[];onVehicles:(v:Vehicle[])=>void;onEvent:(event?:RoundEvent)=>void;onFinished:()=>void}){
+export function RoundPlayback({board,round,players,onVehicles,onEvent,onFinished}:{board:Board;round:PublicRound;players:Player[];onVehicles:(v:Vehicle[])=>void;onEvent:(event?:RoundEvent)=>void;onFinished:()=>void}){
  const [eventIndex,setEventIndex]=useState(0),[playing,setPlaying]=useState(true)
  useEffect(()=>{ setEventIndex(0); setPlaying(true); onVehicles(round.initialVehicles); onEvent(undefined) },[round.number, round.initialVehicles, onVehicles, onEvent])
  useEffect(()=>{
@@ -18,5 +18,5 @@ export function RoundPlayback({round,players,onVehicles,onEvent,onFinished}:{rou
  useEffect(()=>{if(!playing)return;if(eventIndex>=round.playback.length){onFinished();return}const id=window.setTimeout(()=>setEventIndex(value=>value+1),900);return()=>clearTimeout(id)},[eventIndex,playing,round.playback.length,onFinished])
  const current=round.playback[eventIndex-1]
  const player=current&&players.find(candidate=>candidate.id===current.playerId)
- return <section className="panel playback"><p className="eyebrow">Uppspelning</p><h2>{eventIndex===0?'Startposition':`Event ${eventIndex} av ${round.playback.length}`}</h2>{current&&<p data-testid="current-playback-event" data-event-type={current.type} data-sequence={current.sequence}><b>{player?.name}</b> {current.type}</p>}<div className="actions"><button onClick={()=>setPlaying(value=>!value)}>{playing?'Pausa':'Fortsätt'}</button><button className="secondary" onClick={()=>{setPlaying(false);setEventIndex(0)}}>Spela om</button></div><RoundEventDebugView events={round.playback} players={players}/></section>
+ return <section className="panel playback"><p className="eyebrow">Uppspelning</p><h2>{eventIndex===0?'Startposition':`Event ${eventIndex} av ${round.playback.length}`}</h2>{current&&<p data-testid="current-playback-event" data-event-type={current.type} data-sequence={current.sequence}><b>{player?.name}</b> {current.type}</p>}<div className="actions"><button onClick={()=>setPlaying(value=>!value)}>{playing?'Pausa':'Fortsätt'}</button><button className="secondary" onClick={()=>{setPlaying(false);setEventIndex(0)}}>Spela om</button></div><RoundEventDebugView board={board} events={round.playback} initialVehicles={round.initialVehicles} players={players}/></section>
 }
