@@ -357,7 +357,8 @@ The following rules are intentionally **not part of the movement engine yet**:
 * obstacle effects other than walls blocking cannon shots
 * movement costs
 * initiative
-* AI-controlled players
+* AI strategies in normal multiplayer games; the optional `headless-players`
+  Spring profile only supplies deterministic local test opponents
 
 * malfunction types other than `MALFUNCTION_REVERSE`
 * repair or removal of malfunction cards while damage remains
@@ -376,6 +377,13 @@ in the desired order; every dealt card, including a malfunction, must be
 included exactly once. A submitted program is immutable. A malfunction remains
 private during Planning because public round responses expose readiness but not
 hands or unrevealed programs.
+
+When the optional `headless-players` Spring profile is active, the first player
+is the only browser-controlled player. All later players are created by the
+server up to the configured `maxPlayers` value. Their deterministic test
+strategy locks every dealt card immediately in its original order, including a
+mandatory malfunction card. Without this profile every player remains
+client-controlled.
 
 When every player is ready, the server enters `MOVEMENT_ACTIONS`. For card positions
 one through the configured card count it resolves every player's card in stable

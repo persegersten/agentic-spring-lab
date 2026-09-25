@@ -28,6 +28,19 @@ Start both services with one database profile argument:
 ./start.sh in-memory
 ```
 
+For manual testing from a single browser, add the `headless-players` Spring
+profile:
+
+```bash
+./start.sh in-memory headless-players
+```
+
+The first player joining a game is controlled by the browser. The profile
+immediately fills every remaining slot up to `maxPlayers` with headless players,
+starts the game, and locks each headless player's cards in the order they were
+dealt. The first player remains the only participant requiring input. Omit the
+optional profile for normal multiplayer games.
+
 For PostgreSQL, start the database first:
 
 ```bash
@@ -57,6 +70,12 @@ use the `in-memory` profile:
 
 ```bash
 ./start-server.sh in-memory
+```
+
+The backend-only equivalent for single-browser testing is:
+
+```bash
+./start-server.sh in-memory headless-players
 ```
 
 The `in-memory` profile uses an H2 database that is discarded when the backend

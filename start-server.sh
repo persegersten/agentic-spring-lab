@@ -3,10 +3,10 @@
 set -euo pipefail
 
 usage() {
-    echo "Usage: $0 <postgres|in-memory>" >&2
+    echo "Usage: $0 <postgres|in-memory> [headless-players]" >&2
 }
 
-if [[ $# -ne 1 ]]; then
+if [[ $# -lt 1 || $# -gt 2 ]]; then
     usage
     exit 1
 fi
@@ -22,6 +22,16 @@ case "$profile" in
         ;;
 esac
 
+profiles=$profile
+if [[ $# -eq 2 ]]; then
+    if [[ $2 != "headless-players" ]]; then
+        echo "Unknown optional profile: $2" >&2
+        usage
+        exit 1
+    fi
+    profiles="$profiles,$2"
+fi
+
 script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 cd "$script_dir/backend"
-exec ./mvnw spring-boot:run "-Dspring-boot.run.profiles=$profile"
+exec ./mvnw spring-boot:run "-Dspring-boot.run.profiles=$profiles"

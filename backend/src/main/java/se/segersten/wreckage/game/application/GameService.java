@@ -36,20 +36,31 @@ public class GameService {
     private final GameRepository gameRepository;
     private final Clock clock;
     private final Supplier<MovementOrder> cardSource;
+    private final PlayerAutomation playerAutomation;
 
     @Autowired
+    public GameService(GameRepository gameRepository, PlayerAutomation playerAutomation) {
+        this(gameRepository, Clock.systemUTC(), GameService::randomCard, playerAutomation);
+    }
+
     public GameService(GameRepository gameRepository) {
-        this(gameRepository, Clock.systemUTC(), GameService::randomCard);
+        this(gameRepository, Clock.systemUTC(), GameService::randomCard, new NoOpPlayerAutomation());
     }
 
     GameService(GameRepository gameRepository, Clock clock) {
-        this(gameRepository, clock, GameService::randomCard);
+        this(gameRepository, clock, GameService::randomCard, new NoOpPlayerAutomation());
     }
 
     GameService(GameRepository gameRepository, Clock clock, Supplier<MovementOrder> cardSource) {
+        this(gameRepository, clock, cardSource, new NoOpPlayerAutomation());
+    }
+
+    GameService(GameRepository gameRepository, Clock clock, Supplier<MovementOrder> cardSource,
+                PlayerAutomation playerAutomation) {
         this.gameRepository = gameRepository;
         this.clock = clock;
         this.cardSource = java.util.Objects.requireNonNull(cardSource);
+        this.playerAutomation = java.util.Objects.requireNonNull(playerAutomation);
     }
 
     public Game createGame() {
@@ -68,8 +79,11 @@ public class GameService {
     public PlayerJoin addPlayer(UUID gameId, String name) {
         Game game = findGameForUpdate(gameId);
         String token = UUID.randomUUID().toString() + UUID.randomUUID();
-        Player player = game.addPlayer(name, hash(token), clock.instant());
-        game.startIfReady(clock.instant(), cardSource);
+        Instant now = clock.instant();
+        Player player = game.addPlayer(name, hash(token), now);
+        playerAutomation.fillLobby(game, now);
+        game.startIfReady(now, cardSource);
+        playerAutomation.lockHeadlessPrograms(game);
         gameRepository.save(game);
         return new PlayerJoin(player, token);
     }
@@ -79,6 +93,7 @@ public class GameService {
         if (game.getRound() == null)
             throw new IllegalStateException("The first round starts automatically");
         Round round = game.startRound(cardSource);
+        playerAutomation.lockHeadlessPrograms(game);
         gameRepository.save(game);
         return round;
     }

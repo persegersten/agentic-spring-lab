@@ -21,6 +21,16 @@ npm test
 This runs both game creation and planning scenarios. The planning scenario checks
 private five-card hands, ordering a hand, locking a program, and shared readiness.
 
+Run the single-browser scenario separately:
+
+```bash
+npm run test:headless
+```
+
+This configuration starts the backend with both `in-memory` and
+`headless-players`, then verifies that the first player can complete rounds while
+all remaining players join and accept their dealt card order without browsers.
+
 Playwright starts the Spring Boot backend with the disposable `in-memory`
 profile and starts the Vite development server automatically. If compatible
 servers are already running locally, Playwright reuses them. Set `BASE_URL` to

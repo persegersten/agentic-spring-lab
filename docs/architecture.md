@@ -82,6 +82,15 @@ Dependencies point inward: API and infrastructure may use application or
 domain types, while the domain does not know about outer layers. New game rules
 should normally enter the domain model rather than controllers or JPA entities.
 
+`PlayerAutomation` is an application-layer profile seam used only for local
+manual testing. The default implementation is a no-op. With the
+`headless-players` Spring profile, the first player remains browser-controlled,
+the lobby is filled to `maxPlayers`, and every later player's program is locked
+using its dealt hand without reordering. The stable aggregate player order
+identifies the first player, so no client session or additional persistence
+field is needed for automated players. `GameService` invokes the automation
+after joining and after starting each later round, before saving the aggregate.
+
 A typical request follows this path:
 
 ```text
@@ -192,3 +201,7 @@ integration tests protect technical wiring, and Playwright tests state what the
 system does from a user's point of view. The Playwright configuration starts the
 backend with the in-memory profile and the Vite frontend for repeatable local
 end-to-end runs.
+
+The separate `playwright.headless.config.mjs` configuration additionally
+activates the `headless-players` profile and verifies the complete flow using
+one browser.
