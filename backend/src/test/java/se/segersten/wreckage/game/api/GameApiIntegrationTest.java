@@ -282,9 +282,9 @@ class GameApiIntegrationTest {
         JsonNode aliceGame = json(getPlayerGame(gameId, alice));
         JsonNode publicGame = json(get("/games/" + gameId));
         assertThat(perGame.path("round").path("hand").valueStream()
-                .map(JsonNode::asText)).contains("MALFUNCTION_REVERSE");
-        assertThat(aliceGame.toString()).doesNotContain("MALFUNCTION_REVERSE");
-        assertThat(publicGame.toString()).doesNotContain("MALFUNCTION_REVERSE", "hand", "orders");
+                .map(JsonNode::asText)).contains("MALFUNCTION_NO_OP");
+        assertThat(aliceGame.toString()).doesNotContain("MALFUNCTION_NO_OP");
+        assertThat(publicGame.toString()).doesNotContain("MALFUNCTION_NO_OP", "hand", "orders");
     }
 
     @Test

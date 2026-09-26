@@ -15,7 +15,7 @@ export function RoundEventDebugView({ board, events, initialVehicles, players }:
     }
   }
 
-  return <details className="event-debug" data-testid="event-debug-view" open>
+  return <details className="event-debug" data-testid="event-debug-view">
     <summary>Eventsekvens (debug)</summary>
     <div className="debug-state-heading">
       <h3>Game-state före sekvensen</h3>

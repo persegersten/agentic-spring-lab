@@ -323,8 +323,8 @@ vehicle shields any vehicles behind it.
 Every shot produces a `FIRE` event. A vehicle hit additionally produces `HIT`
 and `DAMAGE` events in that order. Damage is deliberately minimal: every hit
 increments the target vehicle's non-negative damage counter by one. Damage does
-not currently destroy a vehicle. A vehicle with damage of at least one receives
-one mandatory `MALFUNCTION_REVERSE` card when its next Planning phase starts.
+not currently destroy a vehicle. Each damage point replaces one normal card with a mandatory `MALFUNCTION_NO_OP`
+at the next Planning phase, up to the configured hand size.
 The authoritative event stream contains the source, target, shot endpoints,
 and damage before and after the event so clients only visualize the computed
 result.
@@ -357,9 +357,10 @@ The following rules are intentionally **not part of the movement engine yet**:
 * obstacle effects other than walls blocking cannon shots
 * movement costs
 * initiative
-* AI-controlled players
+* AI strategies in normal multiplayer games; the optional `headless-players`
+  Spring profile only supplies deterministic local test opponents
 
-* malfunction types other than `MALFUNCTION_REVERSE`
+* malfunction types other than `MALFUNCTION_NO_OP`
 * repair or removal of malfunction cards while damage remains
 
 ## 15. Rounds and command cards
@@ -367,15 +368,23 @@ The following rules are intentionally **not part of the movement engine yet**:
 Each round has four phases: `PLANNING`, `MOVEMENT_ACTIONS`, `BOARD_EFFECTS`, and
 `PLAYBACK`. In `PLANNING`, the server randomly deals the
 configured number of cards to every participating player. A normal card is one
-of the four movement orders. For a vehicle whose persisted damage is at least
-one, exactly one normal card is replaced by `MALFUNCTION_REVERSE`. The total
-hand size remains unchanged. `MALFUNCTION_REVERSE` executes with the same
-movement rules as `REVERSE`.
+of the four movement orders. Each damage point replaces one normal card with `MALFUNCTION_NO_OP`, capped at
+the hand size. This card does nothing and produces no movement events.
+A hand containing only no-op cards locks automatically every round, making the
+player effectively out. The vehicle remains on the board; automatic cannon and
+board effects still apply. If everyone is ready, the server resolves the round.
 Only its owner may retrieve the hand. The player submits all dealt cards
 in the desired order; every dealt card, including a malfunction, must be
 included exactly once. A submitted program is immutable. A malfunction remains
 private during Planning because public round responses expose readiness but not
 hands or unrevealed programs.
+
+When the optional `headless-players` Spring profile is active, the first player
+is the only browser-controlled player. All later players are created by the
+server up to the configured `maxPlayers` value. Their deterministic test
+strategy locks every dealt card immediately in its original order, including a
+mandatory malfunction card. Without this profile every player remains
+client-controlled.
 
 When every player is ready, the server enters `MOVEMENT_ACTIONS`. For card positions
 one through the configured card count it resolves every player's card in stable

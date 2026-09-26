@@ -27,3 +27,5 @@ replay_pid*
 acceptance-tests/playwright-report/
 acceptance-tests/test-results/
 acceptance-tests/blob-report/
+
+acceptance-tests/node_modules/

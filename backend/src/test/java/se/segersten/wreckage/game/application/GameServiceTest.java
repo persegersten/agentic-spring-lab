@@ -203,6 +203,107 @@ class GameServiceTest {
     }
 
     @Test
+    void shouldFillLobbyAndLockHeadlessProgramsInDealtOrder() {
+        InMemoryGameRepository repository = new InMemoryGameRepository();
+        GameService service = new GameService(repository, Clock.systemUTC(),
+                () -> MovementOrder.TURN_LEFT, new HeadlessPlayerAutomation());
+        Game game = service.createGame(new GameConfiguration(4, 60, 3, 30));
+
+        var human = service.addPlayer(game.getId(), "Headless 1");
+
+        assertThat(game.getPlayers()).extracting(Player::getName)
+                .containsExactly("Headless 1", "Headless 2", "Headless 3", "Headless 4");
+        assertThat(game.getRound().phase()).isEqualTo(RoundPhase.PLANNING);
+        assertThat(game.getRound().programs().get(human.player().getId()).ready()).isFalse();
+        game.getPlayers().stream().skip(1).forEach(player -> {
+            var program = game.getRound().programs().get(player.getId());
+            assertThat(program.ready()).isTrue();
+            assertThat(program.orders()).containsExactlyElementsOf(program.hand());
+        });
+    }
+
+    @Test
+    void shouldResolveAndPrepareHeadlessPlayersForTheNextRound() {
+        InMemoryGameRepository repository = new InMemoryGameRepository();
+        GameService service = new GameService(repository, Clock.systemUTC(),
+                () -> MovementOrder.FORWARD, new HeadlessPlayerAutomation());
+        Game game = service.createGame(new GameConfiguration(3, 60, 3, 30));
+        var human = service.addPlayer(game.getId(), "Alice");
+        var humanProgram = game.getRound().programs().get(human.player().getId());
+
+        service.submitProgram(game.getId(), human.player().getId(), human.token(), humanProgram.hand());
+
+        assertThat(game.getRound().phase()).isEqualTo(RoundPhase.PLAYBACK);
+
+        service.startRound(game.getId(), human.player().getId(), human.token());
+
+        assertThat(game.getRound().number()).isEqualTo(2);
+        assertThat(game.getRound().phase()).isEqualTo(RoundPhase.PLANNING);
+        assertThat(game.getRound().programs().get(human.player().getId()).ready()).isFalse();
+        game.getPlayers().stream().skip(1).forEach(player -> {
+            var program = game.getRound().programs().get(player.getId());
+            assertThat(program.ready()).isTrue();
+            assertThat(program.orders()).containsExactlyElementsOf(program.hand());
+        });
+    }
+
+    @Test
+    void shouldResolveNextRoundWhenEveryHandIsAutomaticallyLocked() {
+        InMemoryGameRepository repository = new InMemoryGameRepository();
+        GameService service = new GameService(repository, Clock.systemUTC(), () -> MovementOrder.TURN_LEFT);
+        Game game = service.createGame(new GameConfiguration(2, 60, 3, 30));
+        var alice = service.addPlayer(game.getId(), "Alice");
+        service.addPlayer(game.getId(), "Bob");
+        game = repository.findById(game.getId()).orElseThrow();
+        var damaged = game.getVehicleStates().stream().map(state ->
+                new se.segersten.wreckage.game.domain.VehicleState(state.vehicle(), state.position(),
+                        state.orientation(), 3)).toList();
+        var previous = new se.segersten.wreckage.game.domain.Round(1, RoundPhase.PLAYBACK,
+                game.getRound().programs(), new se.segersten.wreckage.game.domain.GameState(game.getBoard(), damaged),
+                List.of());
+        repository.save(new Game(game.getId(), game.getPlayers(), game.getBoard(), GameStatus.RUNNING,
+                Map.of(), previous, game.getConfiguration(), game.getCreatedAt(), game.getJoinDeadline()));
+
+        var round = service.startRound(game.getId(), alice.player().getId(), alice.token());
+
+        assertThat(round.phase()).isEqualTo(RoundPhase.PLAYBACK);
+        assertThat(round.programs().values()).allSatisfy(program -> {
+            assertThat(program.ready()).isTrue();
+            assertThat(program.orders()).containsOnly(MovementOrder.MALFUNCTION_NO_OP);
+        });
+    }
+
+    @Test
+    void shouldLockHeadlessMalfunctionInItsDealtPosition() {
+        UUID humanId = UUID.randomUUID();
+        UUID headlessId = UUID.randomUUID();
+        Player human = Player.create(humanId, "Alice", "human-token-hash");
+        Player headless = Player.create(headlessId, "Headless 1", "headless-token-hash");
+        Board board = new Board(5, 5);
+        var humanVehicle = new se.segersten.wreckage.game.domain.Vehicle(UUID.randomUUID(), humanId);
+        var headlessVehicle = new se.segersten.wreckage.game.domain.Vehicle(UUID.randomUUID(), headlessId);
+        var vehicles = Map.of(
+                humanId, new se.segersten.wreckage.game.domain.VehicleState(humanVehicle,
+                        new se.segersten.wreckage.game.domain.Position(0, 0),
+                        se.segersten.wreckage.game.domain.Direction.SOUTH, 0),
+                headlessId, new se.segersten.wreckage.game.domain.VehicleState(headlessVehicle,
+                        new se.segersten.wreckage.game.domain.Position(1, 0),
+                        se.segersten.wreckage.game.domain.Direction.SOUTH, 1));
+        Instant now = Instant.parse("2026-01-01T12:00:00Z");
+        Game game = new Game(UUID.randomUUID(), List.of(human, headless), board,
+                GameStatus.RUNNING, vehicles, null, new GameConfiguration(2, 60, 3, 30),
+                now, now.plusSeconds(60));
+        game.startRound(() -> MovementOrder.FORWARD);
+
+        new HeadlessPlayerAutomation().lockHeadlessPrograms(game);
+
+        var program = game.getRound().programs().get(headlessId);
+        assertThat(program.hand()).containsExactly(MovementOrder.MALFUNCTION_NO_OP,
+                MovementOrder.FORWARD, MovementOrder.FORWARD);
+        assertThat(program.orders()).containsExactlyElementsOf(program.hand());
+    }
+
+    @Test
     void shouldPersistAnAuthenticatedProgramDraftForRecovery() {
         InMemoryGameRepository repository = new InMemoryGameRepository();
         GameService service = new GameService(repository, Clock.systemUTC(),

@@ -109,7 +109,7 @@ class InMemoryProfileIntegrationTest {
         var state = new VehicleState(vehicle, new Position(2, 2), Direction.NORTH, 1);
         var board = new Board(5, 5);
         var program = new PlayerProgram(playerId,
-                java.util.List.of(MovementOrder.MALFUNCTION_REVERSE, MovementOrder.FORWARD),
+                java.util.List.of(MovementOrder.MALFUNCTION_NO_OP, MovementOrder.FORWARD),
                 java.util.List.of());
         var round = new Round(2, java.util.Map.of(playerId, program),
                 new GameState(board, java.util.List.of(state)));
@@ -122,6 +122,6 @@ class InMemoryProfileIntegrationTest {
         Game retrieved = gameService.getGame(game.getId());
 
         assertThat(retrieved.getRound().programs().get(playerId).hand()).containsExactly(
-                MovementOrder.MALFUNCTION_REVERSE, MovementOrder.FORWARD);
+                MovementOrder.MALFUNCTION_NO_OP, MovementOrder.FORWARD);
     }
 }

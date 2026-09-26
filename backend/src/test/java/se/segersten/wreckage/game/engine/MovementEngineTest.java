@@ -92,19 +92,16 @@ class MovementEngineTest {
     }
 
     @Test
-    void malfunctionReverseUsesTheReverseMovementAndRammingRules() {
+    void malfunctionNoOpLeavesAllVehiclesUnchangedWithoutEvents() {
         VehicleState moving = state(3, 2, Direction.EAST);
         VehicleState pushed = state(2, 2, Direction.SOUTH);
 
         var result = engine.resolveTurnWithEvents(
-                new Turn(List.of(order(moving, MovementOrder.MALFUNCTION_REVERSE))),
+                new Turn(List.of(order(moving, MovementOrder.MALFUNCTION_NO_OP))),
                 new GameState(board, List.of(moving, pushed)));
 
-        assertThat(result.state().vehicleStates()).containsExactly(
-                new VehicleState(moving.vehicle(), new Position(2, 2), Direction.EAST),
-                new VehicleState(pushed.vehicle(), new Position(1, 2), Direction.SOUTH));
-        assertThat(result.events()).extracting(event -> event.type())
-                .containsExactly(RoundEventType.PUSH, RoundEventType.RAM);
+        assertThat(result.state().vehicleStates()).containsExactly(moving, pushed);
+        assertThat(result.events()).isEmpty();
     }
 
     @Test

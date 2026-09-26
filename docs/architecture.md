@@ -58,7 +58,7 @@ vehicle on a persisted PIT position. The engines emit MOVE, TURN, FIRE, HIT,
 DAMAGE and PIT events with enough state for React to visualize the persisted
 events in server order without predicting a result.
 When the next round starts, a damaged vehicle receives one mandatory private
-`MALFUNCTION_REVERSE` card in place of one normal card; the existing hand
+`MALFUNCTION_NO_OP` card per damage point, capped at the hand size; the existing hand
 validation ensures it is included in the submitted program.
 The same event stream is returned to every client and also drives the
 development debug view.
@@ -81,6 +81,15 @@ Backend code is grouped by the `game` feature and then by responsibility:
 Dependencies point inward: API and infrastructure may use application or
 domain types, while the domain does not know about outer layers. New game rules
 should normally enter the domain model rather than controllers or JPA entities.
+
+`PlayerAutomation` is an application-layer profile seam used only for local
+manual testing. The default implementation is a no-op. With the
+`headless-players` Spring profile, the first player remains browser-controlled,
+the lobby is filled to `maxPlayers`, and every later player's program is locked
+using its dealt hand without reordering. The stable aggregate player order
+identifies the first player, so no client session or additional persistence
+field is needed for automated players. `GameService` invokes the automation
+after joining and after starting each later round, before saving the aggregate.
 
 A typical request follows this path:
 
@@ -192,3 +201,7 @@ integration tests protect technical wiring, and Playwright tests state what the
 system does from a user's point of view. The Playwright configuration starts the
 backend with the in-memory profile and the Vite frontend for repeatable local
 end-to-end runs.
+
+The separate `playwright.headless.config.mjs` configuration additionally
+activates the `headless-players` profile and verifies the complete flow using
+one browser.

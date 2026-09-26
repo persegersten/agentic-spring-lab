@@ -67,7 +67,7 @@ test('a malfunction card is shown only in its owners planning hand', async ({ br
       round: { state, hand },
     })
     for (const [page, playerId, hand] of [
-      [per, perId, ['MALFUNCTION_REVERSE', 'FORWARD', 'TURN_LEFT']],
+      [per, perId, ['MALFUNCTION_NO_OP', 'FORWARD', 'TURN_LEFT']],
       [alice, aliceId, ['FORWARD', 'REVERSE', 'TURN_RIGHT']],
     ]) {
       await page.addInitScript(session => sessionStorage.setItem('wreckage-session', JSON.stringify(session)),
@@ -78,13 +78,13 @@ test('a malfunction card is shown only in its owners planning hand', async ({ br
     }
 
     await expect(per.getByRole('heading', { name: 'Planering', exact: true })).toBeVisible()
-    await expect(per.getByText('Felfunktion: backa', { exact: true })).toHaveCount(1)
-    await expect(alice.getByText('Felfunktion: backa', { exact: true })).toHaveCount(0)
+    await expect(per.getByText('Felfunktion: no-op', { exact: true })).toHaveCount(1)
+    await expect(alice.getByText('Felfunktion: no-op', { exact: true })).toHaveCount(0)
 
     const perCards = per.locator('.cards').getByRole('listitem')
     await expect(perCards).toHaveCount(3)
-    await per.getByRole('button', { name: 'Flytta Felfunktion: backa senare' }).click()
-    await expect(perCards.nth(1)).toContainText('Felfunktion: backa')
-    await expect(per.getByText('Felfunktion: backa', { exact: true })).toHaveCount(1)
+    await per.getByRole('button', { name: 'Flytta Felfunktion: no-op senare' }).click()
+    await expect(perCards.nth(1)).toContainText('Felfunktion: no-op')
+    await expect(per.getByText('Felfunktion: no-op', { exact: true })).toHaveCount(1)
   })
 })
