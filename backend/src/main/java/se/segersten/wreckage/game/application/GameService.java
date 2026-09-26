@@ -84,6 +84,7 @@ public class GameService {
         playerAutomation.fillLobby(game, now);
         game.startIfReady(now, cardSource);
         playerAutomation.lockHeadlessPrograms(game);
+        resolveIfReady(game);
         gameRepository.save(game);
         return new PlayerJoin(player, token);
     }
@@ -94,6 +95,7 @@ public class GameService {
             throw new IllegalStateException("The first round starts automatically");
         Round round = game.startRound(cardSource);
         playerAutomation.lockHeadlessPrograms(game);
+        resolveIfReady(game);
         gameRepository.save(game);
         return round;
     }
@@ -141,6 +143,12 @@ public class GameService {
     @Transactional(readOnly = true)
     public List<Game> getFinishedGames() {
         return gameRepository.findAllByStatus(GameStatus.FINISHED);
+    }
+
+    private void resolveIfReady(Game game) {
+        Round round = game.getRound();
+        if (round != null && round.phase() == se.segersten.wreckage.game.domain.RoundPhase.PLANNING
+                && round.allReady()) round.resolve(new MovementEngine());
     }
 
     private Game findGame(UUID gameId) {

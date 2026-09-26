@@ -5,5 +5,5 @@ public enum MovementOrder {
     REVERSE,
     TURN_LEFT,
     TURN_RIGHT,
-    MALFUNCTION_REVERSE;
+    MALFUNCTION_NO_OP;
 }

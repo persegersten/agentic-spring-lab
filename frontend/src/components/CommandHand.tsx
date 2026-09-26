@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { MovementOrder } from '../types/game'
-const labels:Record<MovementOrder,string>={FORWARD:'Framåt',REVERSE:'Backa',TURN_LEFT:'Sväng vänster',TURN_RIGHT:'Sväng höger',MALFUNCTION_REVERSE:'Felfunktion: backa'}
+const labels:Record<MovementOrder,string>={FORWARD:'Framåt',REVERSE:'Backa',TURN_LEFT:'Sväng vänster',TURN_RIGHT:'Sväng höger',MALFUNCTION_NO_OP:'Felfunktion: no-op'}
 export function CommandHand({hand,locked,onReorder,onSubmit}:{hand:MovementOrder[];locked:boolean;onReorder:(orders:MovementOrder[])=>Promise<void>;onSubmit:(orders:MovementOrder[])=>Promise<void>}){
  const [orders,setOrders]=useState(hand),[saving,setSaving]=useState(false); useEffect(()=>{if(!saving)setOrders(hand)},[hand,saving]);
  async function save(next:MovementOrder[]){setOrders(next);setSaving(true);try{await onReorder(next)}finally{setSaving(false)}}

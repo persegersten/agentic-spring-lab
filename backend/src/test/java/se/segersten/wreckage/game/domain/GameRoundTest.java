@@ -38,7 +38,7 @@ class GameRoundTest {
             assertThat(round.programs().get(alice.getId()).hand()).hasSize(cardsPerRound);
             assertThat(round.programs().get(bob.getId()).hand()).hasSize(cardsPerRound);
             assertThat(round.programs().values()).allSatisfy(program ->
-                    assertThat(program.hand()).doesNotContain(MovementOrder.MALFUNCTION_REVERSE));
+                    assertThat(program.hand()).doesNotContain(MovementOrder.MALFUNCTION_NO_OP));
         }
     }
 
@@ -59,17 +59,44 @@ class GameRoundTest {
         Round round = game.startRound(() -> MovementOrder.FORWARD);
         List<MovementOrder> hand = round.programs().get(playerId).hand();
 
-        assertThat(hand).containsExactly(MovementOrder.MALFUNCTION_REVERSE,
+        assertThat(hand).containsExactly(MovementOrder.MALFUNCTION_NO_OP,
                 MovementOrder.FORWARD, MovementOrder.FORWARD);
         assertThatThrownBy(() -> round.lock(playerId, List.of(MovementOrder.FORWARD,
                 MovementOrder.FORWARD, MovementOrder.FORWARD)))
                 .isInstanceOf(IllegalArgumentException.class);
 
         round.lock(playerId, List.of(MovementOrder.FORWARD,
-                MovementOrder.MALFUNCTION_REVERSE, MovementOrder.FORWARD));
+                MovementOrder.MALFUNCTION_NO_OP, MovementOrder.FORWARD));
 
         assertThat(round.programs().get(playerId).orders()).containsExactly(
-                MovementOrder.FORWARD, MovementOrder.MALFUNCTION_REVERSE, MovementOrder.FORWARD);
+                MovementOrder.FORWARD, MovementOrder.MALFUNCTION_NO_OP, MovementOrder.FORWARD);
+    }
+
+    @Test void damageReplacesCardsAndFullyDisabledHandsLockEveryRound() {
+        for (int damage : List.of(2, 3, 7)) {
+            UUID playerId = UUID.randomUUID();
+            Player player = Player.create(playerId, "Per", "token");
+            VehicleState state = new VehicleState(new Vehicle(UUID.randomUUID(), playerId),
+                    new Position(2, 2), Direction.NORTH, damage);
+            var now = java.time.Instant.parse("2099-01-01T12:00:00Z");
+            Game game = new Game(UUID.randomUUID(), List.of(player), new Board(5, 5),
+                    GameStatus.RUNNING, Map.of(playerId, state), null,
+                    new GameConfiguration(12, 60, 3, 30), now, now.plusSeconds(60));
+
+            Round round = game.startRound(() -> MovementOrder.FORWARD);
+            PlayerProgram program = round.programs().get(playerId);
+            assertThat(program.hand()).hasSize(3);
+            assertThat(program.hand().stream().filter(card -> card == MovementOrder.MALFUNCTION_NO_OP).count())
+                    .isEqualTo(Math.min(damage, 3));
+            assertThat(program.ready()).isEqualTo(damage >= 3);
+            if (damage >= 3) {
+                assertThat(program.orders()).containsExactlyElementsOf(program.hand());
+                assertThatThrownBy(() -> round.reorder(playerId, program.hand()))
+                        .isInstanceOf(IllegalStateException.class);
+                round.resolve(new MovementEngine());
+                assertThat(game.startRound(() -> MovementOrder.FORWARD).programs().get(playerId).ready()).isTrue();
+            }
+        }
     }
 
     @Test void validatesDuplicateCardsAndLocksAProgramOnlyOnce() {

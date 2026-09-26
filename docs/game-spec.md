@@ -140,21 +140,14 @@ Miljön är därmed en del av stridssystemet. En spelare kan exempelvis ramma en
 
 Skada ska kunna påverka spelarens kontroll över sitt fordon.
 
-En skadad spelare kan få `MALFUNCTION`-kort.
+Varje skadepoäng ersätter ett normalt kort med `MALFUNCTION_NO_OP` inför nästa
+Planning-fas, upp till hela handen. Kortet gör ingenting.
 
-Exempel:
+När alla kort är no-op låses handen automatiskt varje runda. Spelaren är därmed
+i praktiken ute ur spelet och blockerar inte övriga spelares planering. Fordonet
+står kvar och omfattas fortfarande av automatisk eldgivning och brädeffekter.
 
-* `MALFUNCTION: REVERSE`
-* `MALFUNCTION: TURN_LEFT`
-* `MALFUNCTION: FORWARD`
-* `WEAPON_FAILURE`
-* `STUCK`
-
-Vissa malfunction-kort kan vara obligatoriska att använda under nästa Planning-fas och ersätter därmed ett normalt val.
-
-Mer skada kan därför innebära mindre kontroll över fordonet snarare än enbart minskade hit points.
-
-Exakta regler för skada, reparation och malfunction specificeras separat.
+Exakta regler för skada och reparation specificeras separat.
 
 ---
 

@@ -58,7 +58,7 @@ vehicle on a persisted PIT position. The engines emit MOVE, TURN, FIRE, HIT,
 DAMAGE and PIT events with enough state for React to visualize the persisted
 events in server order without predicting a result.
 When the next round starts, a damaged vehicle receives one mandatory private
-`MALFUNCTION_REVERSE` card in place of one normal card; the existing hand
+`MALFUNCTION_NO_OP` card per damage point, capped at the hand size; the existing hand
 validation ensures it is included in the submitted program.
 The same event stream is returned to every client and also drives the
 development debug view.

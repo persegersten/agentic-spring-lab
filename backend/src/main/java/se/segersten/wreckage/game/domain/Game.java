@@ -92,13 +92,15 @@ public class Game {
         for (Player player : players) {
             List<MovementOrder> hand = new ArrayList<>(configuration.cardsPerRound());
             VehicleState vehicle = vehicles.get(player.getId());
-            if (vehicle != null && vehicle.damage() >= 1) {
-                hand.add(MovementOrder.MALFUNCTION_REVERSE);
+            int malfunctionCount = vehicle == null ? 0 : Math.min(vehicle.damage(), configuration.cardsPerRound());
+            for (int index = 0; index < malfunctionCount; index++) {
+                hand.add(MovementOrder.MALFUNCTION_NO_OP);
             }
             for (int index = hand.size(); index < configuration.cardsPerRound(); index++) {
                 hand.add(Objects.requireNonNull(cards.get(), "card source must not return null"));
             }
-            programs.put(player.getId(), new PlayerProgram(player.getId(), hand, List.of()));
+            programs.put(player.getId(), new PlayerProgram(player.getId(), hand,
+                    hand.stream().allMatch(card -> card == MovementOrder.MALFUNCTION_NO_OP) ? hand : List.of()));
         }
         round = new Round(round == null ? 1 : round.number() + 1, programs,
                 new GameState(board, getVehicleStates()));

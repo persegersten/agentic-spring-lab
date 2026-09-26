@@ -248,6 +248,32 @@ class GameServiceTest {
     }
 
     @Test
+    void shouldResolveNextRoundWhenEveryHandIsAutomaticallyLocked() {
+        InMemoryGameRepository repository = new InMemoryGameRepository();
+        GameService service = new GameService(repository, Clock.systemUTC(), () -> MovementOrder.TURN_LEFT);
+        Game game = service.createGame(new GameConfiguration(2, 60, 3, 30));
+        var alice = service.addPlayer(game.getId(), "Alice");
+        service.addPlayer(game.getId(), "Bob");
+        game = repository.findById(game.getId()).orElseThrow();
+        var damaged = game.getVehicleStates().stream().map(state ->
+                new se.segersten.wreckage.game.domain.VehicleState(state.vehicle(), state.position(),
+                        state.orientation(), 3)).toList();
+        var previous = new se.segersten.wreckage.game.domain.Round(1, RoundPhase.PLAYBACK,
+                game.getRound().programs(), new se.segersten.wreckage.game.domain.GameState(game.getBoard(), damaged),
+                List.of());
+        repository.save(new Game(game.getId(), game.getPlayers(), game.getBoard(), GameStatus.RUNNING,
+                Map.of(), previous, game.getConfiguration(), game.getCreatedAt(), game.getJoinDeadline()));
+
+        var round = service.startRound(game.getId(), alice.player().getId(), alice.token());
+
+        assertThat(round.phase()).isEqualTo(RoundPhase.PLAYBACK);
+        assertThat(round.programs().values()).allSatisfy(program -> {
+            assertThat(program.ready()).isTrue();
+            assertThat(program.orders()).containsOnly(MovementOrder.MALFUNCTION_NO_OP);
+        });
+    }
+
+    @Test
     void shouldLockHeadlessMalfunctionInItsDealtPosition() {
         UUID humanId = UUID.randomUUID();
         UUID headlessId = UUID.randomUUID();
@@ -272,7 +298,7 @@ class GameServiceTest {
         new HeadlessPlayerAutomation().lockHeadlessPrograms(game);
 
         var program = game.getRound().programs().get(headlessId);
-        assertThat(program.hand()).containsExactly(MovementOrder.MALFUNCTION_REVERSE,
+        assertThat(program.hand()).containsExactly(MovementOrder.MALFUNCTION_NO_OP,
                 MovementOrder.FORWARD, MovementOrder.FORWARD);
         assertThat(program.orders()).containsExactlyElementsOf(program.hand());
     }
