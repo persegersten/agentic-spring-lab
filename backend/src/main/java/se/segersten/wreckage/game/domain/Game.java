@@ -82,6 +82,7 @@ public class Game {
     }
 
     public Round startRound(Supplier<MovementOrder> cards) {
+        if (status == GameStatus.FINISHED) throw new IllegalStateException("The game is finished");
         if (players.isEmpty()) throw new IllegalStateException("A round needs at least one player");
         if (round != null && round.phase() != RoundPhase.PLAYBACK)
             throw new IllegalStateException("The current round is not finished");
@@ -90,6 +91,7 @@ public class Game {
         }
         Map<UUID, PlayerProgram> programs = new LinkedHashMap<>();
         for (Player player : players) {
+            if (isEliminated(player.getId())) continue;
             List<MovementOrder> hand = new ArrayList<>(configuration.cardsPerRound());
             VehicleState vehicle = vehicles.get(player.getId());
             int malfunctionCount = vehicle == null ? 0 : Math.min(vehicle.damage(), configuration.cardsPerRound());
@@ -103,9 +105,28 @@ public class Game {
                     hand.stream().allMatch(card -> card == MovementOrder.MALFUNCTION_NO_OP) ? hand : List.of()));
         }
         round = new Round(round == null ? 1 : round.number() + 1, programs,
-                new GameState(board, getVehicleStates()));
+                new GameState(board, getVehicleStates().stream()
+                        .filter(v -> !isEliminated(v.vehicle().playerId())).toList()));
         status = GameStatus.RUNNING;
+        if (programs.isEmpty()) {
+            round = new Round(round.number(), RoundPhase.PLAYBACK, programs, round.initialState(), List.of());
+            completeRound();
+        }
         return round;
+    }
+
+    public boolean isEliminated(UUID playerId) {
+        VehicleState vehicle = vehicles.get(playerId);
+        return vehicle != null && vehicle.damage() >= configuration.cardsPerRound();
+    }
+
+    public void completeRound() {
+        if (round == null || round.phase() != RoundPhase.PLAYBACK) return;
+        round.finalVehicleStates().forEach(s -> vehicles.put(s.vehicle().playerId(), s));
+        long survivors = players.stream().filter(p -> !isEliminated(p.getId())).count();
+        // A solo game may continue until its player is eliminated.
+        if (survivors == 0 || (players.size() > 1 && survivors == 1))
+            status = GameStatus.FINISHED;
     }
 
     public Player requirePlayer(UUID playerId) {

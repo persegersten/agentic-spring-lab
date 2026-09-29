@@ -72,30 +72,55 @@ class GameRoundTest {
                 MovementOrder.FORWARD, MovementOrder.MALFUNCTION_NO_OP, MovementOrder.FORWARD);
     }
 
-    @Test void damageReplacesCardsAndFullyDisabledHandsLockEveryRound() {
-        for (int damage : List.of(2, 3, 7)) {
-            UUID playerId = UUID.randomUUID();
-            Player player = Player.create(playerId, "Per", "token");
-            VehicleState state = new VehicleState(new Vehicle(UUID.randomUUID(), playerId),
-                    new Position(2, 2), Direction.NORTH, damage);
-            var now = java.time.Instant.parse("2099-01-01T12:00:00Z");
-            Game game = new Game(UUID.randomUUID(), List.of(player), new Board(5, 5),
-                    GameStatus.RUNNING, Map.of(playerId, state), null,
-                    new GameConfiguration(12, 60, 3, 30), now, now.plusSeconds(60));
+    @Test void eliminatedPlayersHaveNoProgramOrVehicleInNextRound() {
+        for (int damage : List.of(3, 7)) {
+            Game original = configuredGame(3);
+            Player out = original.addPlayer("Out", "a");
+            original.addPlayer("Alice", "b");
+            original.addPlayer("Bob", "c");
+            Map<UUID, VehicleState> states = new java.util.LinkedHashMap<>();
+            original.getVehicleStates().forEach(v -> states.put(v.vehicle().playerId(),
+                    new VehicleState(v.vehicle(), v.position(), v.orientation(),
+                            v.vehicle().playerId().equals(out.getId()) ? damage : 0)));
+            Game game = new Game(original.getId(), original.getPlayers(), original.getBoard(),
+                    GameStatus.RUNNING, states, null, original.getConfiguration(),
+                    original.getCreatedAt(), original.getJoinDeadline());
+            Round round = game.startRound(() -> MovementOrder.TURN_LEFT);
+            assertThat(round.programs()).doesNotContainKey(out.getId());
+            assertThat(round.initialState().vehicleStates()).hasSize(2);
+            assertThatThrownBy(() -> round.lock(out.getId(), List.of()))
+                    .isInstanceOf(IllegalArgumentException.class);
+            round.programs().forEach((id, program) -> round.lock(id, program.hand()));
+            assertThat(round.allReady()).isTrue();
+            round.resolve(new MovementEngine());
+            game.completeRound();
+            assertThat(round.playback()).noneMatch(e -> e.playerId().equals(out.getId()));
+            assertThat(game.getStatus()).isEqualTo(GameStatus.RUNNING);
+            assertThat(game.startRound(() -> MovementOrder.FORWARD).programs()).doesNotContainKey(out.getId());
+        }
+    }
 
-            Round round = game.startRound(() -> MovementOrder.FORWARD);
-            PlayerProgram program = round.programs().get(playerId);
-            assertThat(program.hand()).hasSize(3);
-            assertThat(program.hand().stream().filter(card -> card == MovementOrder.MALFUNCTION_NO_OP).count())
-                    .isEqualTo(Math.min(damage, 3));
-            assertThat(program.ready()).isEqualTo(damage >= 3);
-            if (damage >= 3) {
-                assertThat(program.orders()).containsExactlyElementsOf(program.hand());
-                assertThatThrownBy(() -> round.reorder(playerId, program.hand()))
-                        .isInstanceOf(IllegalStateException.class);
-                round.resolve(new MovementEngine());
-                assertThat(game.startRound(() -> MovementOrder.FORWARD).programs().get(playerId).ready()).isTrue();
+    @Test void finishesWithOneOrNoSurvivorsAndRejectsAnotherRound() {
+        for (int survivors : List.of(0, 1)) {
+            Game original = configuredGame(3);
+            original.addPlayer("Alice", "a");
+            original.addPlayer("Bob", "b");
+            Map<UUID, VehicleState> states = new java.util.LinkedHashMap<>();
+            var vehicles = original.getVehicleStates();
+            for (int i = 0; i < vehicles.size(); i++) {
+                var v = vehicles.get(i);
+                states.put(v.vehicle().playerId(), new VehicleState(v.vehicle(), v.position(),
+                        v.orientation(), i < survivors ? 0 : 3));
             }
+            Round previous = new Round(1, RoundPhase.PLAYBACK, Map.of(),
+                    new GameState(original.getBoard(), List.copyOf(states.values())), List.of());
+            Game game = new Game(original.getId(), original.getPlayers(), original.getBoard(),
+                    GameStatus.RUNNING, states, previous, original.getConfiguration(),
+                    original.getCreatedAt(), original.getJoinDeadline());
+            game.completeRound();
+            assertThat(game.getStatus()).isEqualTo(GameStatus.FINISHED);
+            assertThatThrownBy(() -> game.startRound(() -> MovementOrder.FORWARD))
+                    .isInstanceOf(IllegalStateException.class);
         }
     }
 

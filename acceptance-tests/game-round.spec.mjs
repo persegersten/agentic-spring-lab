@@ -30,6 +30,17 @@ test('players receive private five-card hands and share readiness only', async (
     await aliceCards.nth(0).getByRole('button', { name: /senare$/ }).click()
     await expect(aliceCards.nth(0).locator('span')).toHaveText(secondCard ?? '')
     await expect(aliceCards.nth(1).locator('span')).toHaveText(firstCard ?? '')
+    await expect(alice.getByRole('status')).toHaveCount(0)
+
+    const orderBeforeDrag = await aliceCards.locator('span').allTextContents()
+    await aliceCards.nth(0).dragTo(aliceCards.nth(2))
+    await expect(alice.getByRole('status')).toHaveCount(0)
+    await expect(aliceCards.locator('span')).toHaveText([
+      orderBeforeDrag[1],
+      orderBeforeDrag[2],
+      orderBeforeDrag[0],
+      ...orderBeforeDrag.slice(3),
+    ])
 
     await alice.getByRole('button', { name: 'Lås program', exact: true }).click()
     await expect(alice.getByRole('button', { name: 'Program låst', exact: true })).toBeDisabled()
@@ -47,11 +58,15 @@ test('a malfunction card is shown only in its owners planning hand', async ({ br
     const perId = '20000000-0000-0000-0000-000000000001'
     const aliceId = '20000000-0000-0000-0000-000000000002'
     const players = [{ id: perId, name: 'Per' }, { id: aliceId, name: 'Alice' }]
+    const vehicles = [
+      { id: '30000000-0000-0000-0000-000000000001', playerId: perId, x: 1, y: 1, direction: 'NORTH', damage: 1 },
+      { id: '30000000-0000-0000-0000-000000000002', playerId: aliceId, x: 3, y: 3, direction: 'SOUTH', damage: 0 },
+    ]
     const state = {
       number: 2,
       phase: 'PLANNING',
       ready: { [perId]: false, [aliceId]: false },
-      initialVehicles: [],
+      initialVehicles: vehicles,
       playback: [],
     }
     const playerGame = (playerId, hand) => ({
@@ -63,7 +78,7 @@ test('a malfunction card is shown only in its owners planning hand', async ({ br
       joinDeadline: '2099-01-01T12:00:00Z',
       players,
       board: { width: 5, height: 5, walls: [], pits: [] },
-      vehicles: [],
+      vehicles,
       round: { state, hand },
     })
     for (const [page, playerId, hand] of [

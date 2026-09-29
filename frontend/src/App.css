@@ -6,3 +6,8 @@
 
 .vehicle{transition:left .2s ease-out,top .2s ease-out}.vehicle-direction{transition:transform .2s ease-out}
 @media(prefers-reduced-motion:reduce){.impact{animation:none}}
+
+.eliminated-status { color: #f4b8a4; }
+.card[draggable="true"] { cursor: grab; }
+.card-dragging { cursor: grabbing; opacity: .45; }
+.card-drop-target { outline: 3px solid #71d69c; outline-offset: 2px; }

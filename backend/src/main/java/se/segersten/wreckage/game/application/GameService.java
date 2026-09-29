@@ -123,7 +123,7 @@ public class GameService {
         Game game = authenticatedGameForUpdate(gameId, playerId, token);
         if (game.getRound() == null) throw new IllegalStateException("No round has started");
         game.getRound().lock(playerId, orders);
-        if (game.getRound().allReady()) game.getRound().resolve(new MovementEngine());
+        resolveIfReady(game);
         gameRepository.save(game);
         return game.getRound();
     }
@@ -149,6 +149,7 @@ public class GameService {
         Round round = game.getRound();
         if (round != null && round.phase() == se.segersten.wreckage.game.domain.RoundPhase.PLANNING
                 && round.allReady()) round.resolve(new MovementEngine());
+        game.completeRound();
     }
 
     private Game findGame(UUID gameId) {

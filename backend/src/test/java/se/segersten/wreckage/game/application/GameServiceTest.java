@@ -248,7 +248,7 @@ class GameServiceTest {
     }
 
     @Test
-    void shouldResolveNextRoundWhenEveryHandIsAutomaticallyLocked() {
+    void shouldFinishWithoutProgramsWhenEveryPlayerIsEliminated() {
         InMemoryGameRepository repository = new InMemoryGameRepository();
         GameService service = new GameService(repository, Clock.systemUTC(), () -> MovementOrder.TURN_LEFT);
         Game game = service.createGame(new GameConfiguration(2, 60, 3, 30));
@@ -267,10 +267,10 @@ class GameServiceTest {
         var round = service.startRound(game.getId(), alice.player().getId(), alice.token());
 
         assertThat(round.phase()).isEqualTo(RoundPhase.PLAYBACK);
-        assertThat(round.programs().values()).allSatisfy(program -> {
-            assertThat(program.ready()).isTrue();
-            assertThat(program.orders()).containsOnly(MovementOrder.MALFUNCTION_NO_OP);
-        });
+        assertThat(round.programs()).isEmpty();
+        assertThat(round.initialState().vehicleStates()).isEmpty();
+        assertThat(service.getGame(game.getId()).getStatus()).isEqualTo(GameStatus.FINISHED);
+        assertThat(service.getPlayerGame(game.getId(), alice.player().getId(), alice.token())).isNotNull();
     }
 
     @Test
