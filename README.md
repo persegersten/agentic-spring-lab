@@ -54,6 +54,36 @@ can use your computer's IP address. Press Ctrl+C to stop both services; if
 either service exits, the script stops the other as well. PostgreSQL remains
 running independently.
 
+## Heroku
+
+Heroku builds the root `Dockerfile` using `heroku.yml`. The build installs
+Node.js 24, npm and frontend dependencies (including Vite), builds the frontend,
+and packages it inside the Spring Boot JAR using Java 25 and the Maven wrapper.
+The runtime image contains Java 25 and the JAR; Spring Boot serves both the
+frontend and API on Heroku's `PORT` with `in-memory,headless-players` enabled.
+No Vite development server or Maven runs in production.
+
+Set the existing Heroku app to the container stack once before deploying:
+
+```bash
+heroku stack:set container --app YOUR_APP_NAME
+```
+
+Then deploy this repository using your normal Heroku Git/GitHub workflow.
+Heroku uses the Dockerfile's `CMD`; no buildpacks or `Procfile` are required.
+See [Heroku's container build documentation](https://devcenter.heroku.com/articles/build-docker-images-heroku-yml).
+
+To build and run the same image locally:
+
+```bash
+docker build --platform linux/amd64 -t wreckage .
+docker run --rm -p 8080:8080 -e PORT=8080 wreckage
+```
+
+Open <http://localhost:8080>. In-memory game data is lost whenever the container
+or dyno restarts. Local development still uses `./start.sh in-memory headless-players`
+with Vite and the backend as separate processes.
+
 ## Run the backend only
 
 The startup script requires a database profile. To run with PostgreSQL, first
