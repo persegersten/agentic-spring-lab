@@ -370,9 +370,17 @@ Each round has four phases: `PLANNING`, `MOVEMENT_ACTIONS`, `BOARD_EFFECTS`, and
 configured number of cards to every participating player. A normal card is one
 of the four movement orders. Each damage point replaces one normal card with `MALFUNCTION_NO_OP`, capped at
 the hand size. This card does nothing and produces no movement events.
-A hand containing only no-op cards locks automatically every round, making the
-player effectively out. The vehicle remains on the board; automatic cannon and
-board effects still apply. If everyone is ready, the server resolves the round.
+At the end of a round, a player whose damage is at least the configured card
+count is eliminated: they would have zero active cards in the next round.
+The current round finishes normally, including cannons and board effects.
+Eliminated players receive no further programs and their vehicles are excluded
+from subsequent rounds, including collisions, shooting and board effects.
+They remain authenticated spectators and never block readiness.
+The UI labels them “Utslagen” after playback finishes, without a modal or pause.
+When at most one player survives, a multiplayer game is FINISHED; one survivor
+wins and zero survivors means no winner. Solo games end when the player is
+eliminated. Finished games retain playback and reject new rounds.
+If every remaining participant is ready, the server resolves the round.
 Only its owner may retrieve the hand. The player submits all dealt cards
 in the desired order; every dealt card, including a malfunction, must be
 included exactly once. A submitted program is immutable. A malfunction remains

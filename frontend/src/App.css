@@ -6,3 +6,5 @@
 
 .vehicle{transition:left .2s ease-out,top .2s ease-out}.vehicle-direction{transition:transform .2s ease-out}
 @media(prefers-reduced-motion:reduce){.impact{animation:none}}
+
+.eliminated-status { color: #f4b8a4; }
