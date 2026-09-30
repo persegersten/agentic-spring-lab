@@ -53,7 +53,7 @@ test('players receive and play the same server ordered event sequence', async ({
 test('playback finishes quickly across polling, stays paused and can replay', async ({ page }) => {
   const gameId = '10000000-0000-0000-0000-000000000001'
   const playerId = '20000000-0000-0000-0000-000000000001'
-  const vehicle = { id: 'vehicle-1', playerId, x: 0, y: 0, direction: 'EAST', damage: 0 }
+  const vehicle = { id: 'vehicle-1', playerId, x: 0, y: 0, direction: 'EAST', damage: 0, status: 'ACTIVE' }
   const playback = Array.from({ length: 12 }, (_, index) => ({
     sequence: index + 1, type: 'MOVE', playerId, vehicleId: vehicle.id,
     sourcePlayerId: playerId, sourceVehicleId: vehicle.id,
@@ -96,4 +96,48 @@ test('playback finishes quickly across polling, stays paused and can replay', as
   await expect(page.getByRole('button', { name: 'Pausa', exact: true })).toBeVisible()
   await page.clock.runFor(3200)
   await expect(page.getByRole('heading', { name: 'Uppspelningen är klar' })).toBeVisible()
+})
+
+test('playback removes a vehicle exactly when its crash event is reached', async ({ page }) => {
+  const gameId = '10000000-0000-0000-0000-000000000002'
+  const playerId = '20000000-0000-0000-0000-000000000002'
+  const vehicle = { id: 'vehicle-crash', playerId, x: 0, y: 0, direction: 'EAST', damage: 0, status: 'ACTIVE' }
+  const playback = [
+    {
+      sequence: 1, type: 'MOVE', playerId, vehicleId: vehicle.id,
+      sourcePlayerId: playerId, sourceVehicleId: vehicle.id,
+      oldPosition: { x: 0, y: 0 }, newPosition: { x: 1, y: 0 },
+      oldDirection: 'EAST', newDirection: 'EAST', oldDamage: 0, newDamage: 0,
+    },
+    {
+      sequence: 2, type: 'CRASH', playerId, vehicleId: vehicle.id,
+      sourcePlayerId: playerId, sourceVehicleId: vehicle.id,
+      oldPosition: { x: 1, y: 0 }, newPosition: { x: 2, y: 0 },
+      oldDirection: 'EAST', newDirection: 'EAST', oldDamage: 0, newDamage: 0,
+    },
+  ]
+  const state = {
+    id: gameId, playerId, status: 'RUNNING',
+    configuration: { maxPlayers: 1, programSize: 3, planningTimeoutSeconds: 120, joinTimeoutSeconds: 300 },
+    players: [{ id: playerId, name: 'Per' }],
+    board: { width: 2, height: 2, walls: [], pits: [] },
+    vehicles: [{ ...vehicle, x: 2, status: 'CRASHED' }],
+    round: { state: { number: 1, phase: 'PLAYBACK', ready: { [playerId]: true }, initiative: [playerId], initialVehicles: [vehicle], playback }, program: [] },
+  }
+  await page.clock.install()
+  await page.addInitScript(session => sessionStorage.setItem('wreckage-session', JSON.stringify(session)),
+    { gameId, playerId, token: 'test-token' })
+  await page.route(`**/games/${gameId}/players/${playerId}`, route => route.fulfill({ json: state }))
+
+  await page.goto(`/game/${gameId}`)
+  await expect(page.getByTestId('player-vehicle')).toHaveAttribute('data-x', '0')
+  await page.clock.runFor(1)
+  await expect(page.getByTestId('current-playback-event')).toHaveAttribute('data-event-type', 'MOVE')
+  await expect(page.getByTestId('player-vehicle')).toHaveAttribute('data-x', '1')
+  await page.clock.runFor(250)
+  await expect(page.getByTestId('current-playback-event')).toHaveAttribute('data-event-type', 'CRASH')
+  await expect(page.getByTestId('player-vehicle')).toHaveCount(0)
+
+  await page.getByRole('button', { name: 'Spela om' }).click()
+  await expect(page.getByTestId('player-vehicle')).toHaveAttribute('data-x', '0')
 })

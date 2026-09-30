@@ -16,6 +16,7 @@ import se.segersten.wreckage.game.domain.RoundEventType;
 import se.segersten.wreckage.game.domain.Turn;
 import se.segersten.wreckage.game.domain.Vehicle;
 import se.segersten.wreckage.game.domain.VehicleState;
+import se.segersten.wreckage.game.domain.VehicleStatus;
 import se.segersten.wreckage.game.domain.VehicleTurn;
 import se.segersten.wreckage.game.domain.Wall;
 
@@ -109,13 +110,16 @@ class MovementEngineTest {
     }
 
     @Test
-    void blockedMovementDoesNotCreateAnEvent() {
+    void openBoardEdgeCrashesTheMovingVehicleImmediately() {
         VehicleState per = state(0, 6, Direction.NORTH);
         var result = engine.resolveTurnWithEvents(
                 new Turn(List.of(order(per, MovementOrder.FORWARD_1))),
                 new GameState(board, List.of(per)));
-        assertThat(result.events()).isEmpty();
-        assertThat(result.state().vehicleStates()).containsExactly(per);
+        assertThat(result.events()).extracting(event -> event.type())
+                .containsExactly(RoundEventType.CRASH);
+        assertThat(result.events().getFirst().newPosition()).isEqualTo(new Position(0, 7));
+        assertThat(result.state().vehicleStates()).singleElement()
+                .extracting(VehicleState::status).isEqualTo(VehicleStatus.CRASHED);
     }
 
     @Test
@@ -173,17 +177,14 @@ class MovementEngineTest {
     }
 
     @Test
-    void blocksForwardAndReverseAtBoardBoundary() {
-        // Feature 4 will replace this temporary blocking behavior with crashes.
+    void forwardAndReverseCrashAtOpenBoardBoundary() {
         VehicleState northAtTop = state(0, 6, Direction.NORTH);
         VehicleState reversingSouthAtTop = state(1, 6, Direction.SOUTH);
 
-        assertThat(resolve(List.of(northAtTop),
-                order(northAtTop, MovementOrder.FORWARD_1)).vehicleStates())
-                .containsExactly(northAtTop);
-        assertThat(resolve(List.of(reversingSouthAtTop),
-                order(reversingSouthAtTop, MovementOrder.REVERSE_1)).vehicleStates())
-                .containsExactly(reversingSouthAtTop);
+        assertThat(resolve(List.of(northAtTop), order(northAtTop, MovementOrder.FORWARD_1))
+                .vehicleStates().getFirst().status()).isEqualTo(VehicleStatus.CRASHED);
+        assertThat(resolve(List.of(reversingSouthAtTop), order(reversingSouthAtTop, MovementOrder.REVERSE_1))
+                .vehicleStates().getFirst().status()).isEqualTo(VehicleStatus.CRASHED);
     }
 
     @Test
@@ -337,12 +338,82 @@ class MovementEngineTest {
     }
 
     @Test
-    void blocksWholePushChainAtEveryBoardBoundary() {
-        // Feature 4 will replace this temporary blocking behavior with crashes.
-        assertBlockedPush(state(0, 5, Direction.NORTH), state(0, 6, Direction.WEST), MovementOrder.FORWARD_1);
-        assertBlockedPush(state(5, 0, Direction.EAST), state(6, 0, Direction.NORTH), MovementOrder.FORWARD_1);
-        assertBlockedPush(state(0, 1, Direction.SOUTH), state(0, 0, Direction.EAST), MovementOrder.FORWARD_1);
-        assertBlockedPush(state(1, 0, Direction.WEST), state(0, 0, Direction.SOUTH), MovementOrder.FORWARD_1);
+    void pushedVehicleCrashesThroughEveryOpenBoardBoundary() {
+        assertPushedCrash(state(0, 5, Direction.NORTH), state(0, 6, Direction.WEST), MovementOrder.FORWARD_1);
+        assertPushedCrash(state(5, 0, Direction.EAST), state(6, 0, Direction.NORTH), MovementOrder.FORWARD_1);
+        assertPushedCrash(state(0, 1, Direction.SOUTH), state(0, 0, Direction.EAST), MovementOrder.FORWARD_1);
+        assertPushedCrash(state(1, 0, Direction.WEST), state(0, 0, Direction.SOUTH), MovementOrder.FORWARD_1);
+    }
+
+    @Test
+    void movingIntoPitCrashesImmediatelyAndForwardTwoStops() {
+        Board pitBoard = new Board(7, 7, Set.of(), Set.of(new Position(2, 3)));
+        VehicleState moving = state(2, 2, Direction.NORTH);
+
+        var result = engine.resolveTurnWithEvents(
+                new Turn(List.of(order(moving, MovementOrder.FORWARD_2))),
+                new GameState(pitBoard, List.of(moving)));
+
+        assertThat(result.events()).extracting(event -> event.type())
+                .containsExactly(RoundEventType.CRASH);
+        assertThat(result.state().vehicleStates().getFirst()).satisfies(crashed -> {
+            assertThat(crashed.position()).isEqualTo(new Position(2, 3));
+            assertThat(crashed.status()).isEqualTo(VehicleStatus.CRASHED);
+        });
+    }
+
+    @Test
+    void pushingVehicleIntoPitCrashesItAndMovesThePusher() {
+        Board pitBoard = new Board(7, 7, Set.of(), Set.of(new Position(3, 2)));
+        VehicleState moving = state(1, 2, Direction.EAST);
+        VehicleState pushed = state(2, 2, Direction.NORTH);
+
+        var result = engine.resolveTurnWithEvents(
+                new Turn(List.of(order(moving, MovementOrder.FORWARD_1))),
+                new GameState(pitBoard, List.of(moving, pushed)));
+
+        assertThat(result.events()).extracting(event -> event.type())
+                .containsExactly(RoundEventType.CRASH, RoundEventType.RAM);
+        assertThat(result.state().vehicleStates()).filteredOn(VehicleState::isActive)
+                .extracting(VehicleState::position).containsExactly(new Position(2, 2));
+        assertThat(result.state().vehicleStates()).filteredOn(state -> !state.isActive())
+                .extracting(VehicleState::position).containsExactly(new Position(3, 2));
+    }
+
+    @Test
+    void chainPushCrashesFrontVehicleAndLeavesUniqueActivePositions() {
+        Board pitBoard = new Board(7, 7, Set.of(), Set.of(new Position(4, 2)));
+        VehicleState moving = state(1, 2, Direction.EAST);
+        VehicleState middle = state(2, 2, Direction.SOUTH);
+        VehicleState front = state(3, 2, Direction.NORTH);
+
+        var result = engine.resolveTurnWithEvents(
+                new Turn(List.of(order(moving, MovementOrder.FORWARD_1))),
+                new GameState(pitBoard, List.of(moving, middle, front)));
+
+        assertThat(result.events()).extracting(event -> event.type()).containsExactly(
+                RoundEventType.CRASH, RoundEventType.PUSH, RoundEventType.RAM);
+        assertThat(result.state().vehicleStates()).filteredOn(VehicleState::isActive)
+                .extracting(VehicleState::position).containsExactlyInAnyOrder(
+                        new Position(2, 2), new Position(3, 2)).doesNotHaveDuplicates();
+        assertThat(result.state().vehicleStates().stream().filter(s -> !s.isActive()).toList())
+                .singleElement().extracting(VehicleState::position).isEqualTo(new Position(4, 2));
+    }
+
+    @Test
+    void explicitOuterWallBlocksMoveAndPushWithoutCrashing() {
+        Board walledBoard = new Board(7, 7,
+                Set.of(new Wall(new Position(0, 6), Direction.NORTH)));
+        VehicleState moving = state(0, 5, Direction.NORTH);
+        VehicleState pushed = state(0, 6, Direction.EAST);
+
+        var result = engine.resolveTurnWithEvents(
+                new Turn(List.of(order(moving, MovementOrder.FORWARD_1))),
+                new GameState(walledBoard, List.of(moving, pushed)));
+
+        assertThat(result.events()).isEmpty();
+        assertThat(result.state().vehicleStates()).containsExactly(moving, pushed);
+        assertThat(result.state().vehicleStates()).allMatch(VehicleState::isActive);
     }
 
     @Test
@@ -411,5 +482,18 @@ class MovementEngineTest {
         assertThat(result.state()).isSameAs(original);
         assertThat(result.state().vehicleStates()).containsExactly(moving, pushed);
         assertThat(result.events()).isEmpty();
+    }
+
+    private void assertPushedCrash(
+            VehicleState moving, VehicleState pushed, MovementOrder movementOrder) {
+        var result = engine.resolveTurnWithEvents(
+                new Turn(List.of(order(moving, movementOrder))),
+                new GameState(board, List.of(moving, pushed)));
+
+        assertThat(result.events()).extracting(event -> event.type())
+                .containsExactly(RoundEventType.CRASH, RoundEventType.RAM);
+        assertThat(result.state().vehicleStates()).filteredOn(state -> !state.isActive()).hasSize(1);
+        assertThat(result.state().vehicleStates()).filteredOn(VehicleState::isActive)
+                .extracting(VehicleState::position).doesNotHaveDuplicates();
     }
 }

@@ -46,7 +46,7 @@ public final class CannonEngine {
         events.add(event(RoundEventType.HIT, shooter, target, target.position(), target.position(),
                 target.damage(), target.damage()));
         VehicleState damaged = new VehicleState(target.vehicle(), target.position(), target.orientation(),
-                target.damage() + 1);
+                target.damage() + 1, target.status());
         events.add(event(RoundEventType.DAMAGE, shooter, damaged, damaged.position(), damaged.position(),
                 target.damage(), damaged.damage()));
         List<VehicleState> updated = new ArrayList<>(state.vehicleStates());

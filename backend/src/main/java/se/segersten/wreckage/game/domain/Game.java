@@ -89,12 +89,14 @@ public class Game {
         }
         Map<UUID, PlayerProgram> programs = new LinkedHashMap<>();
         for (Player player : players) {
-            if (isEliminated(player.getId())) continue;
+            VehicleState vehicle = vehicles.get(player.getId());
+            if (isEliminated(player.getId()) || vehicle == null || !vehicle.isActive()) continue;
             programs.put(player.getId(),PlayerProgram.empty(player.getId(),configuration.programSize()));
         }
         List<UUID> initiative = nextInitiative(programs);
         round = new Round(round == null ? 1 : round.number() + 1,RoundPhase.PLANNING, programs, initiative,
                 new GameState(board, getVehicleStates().stream()
+                        .filter(VehicleState::isActive)
                         .filter(v -> !isEliminated(v.vehicle().playerId())).toList()),List.of(),now.plusSeconds(configuration.planningTimeoutSeconds()));
         status = GameStatus.RUNNING;
         if (programs.isEmpty()) {

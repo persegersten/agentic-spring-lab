@@ -67,9 +67,11 @@ public final class Round {
             for (UUID playerId : initiative) {
                 VehicleState vehicle = state.vehicleStates().stream()
                         .filter(candidate -> candidate.vehicle().playerId().equals(playerId))
-                        .findFirst().orElseThrow(() -> new IllegalStateException(
-                                "Active player has no vehicle: " + playerId));
-                turns.add(new VehicleTurn(vehicle, programs.get(playerId).commands().get(index)));
+                        .filter(VehicleState::isActive)
+                        .findFirst().orElse(null);
+                if (vehicle != null) {
+                    turns.add(new VehicleTurn(vehicle, programs.get(playerId).commands().get(index)));
+                }
             }
             var result = engine.resolveTurnWithEvents(new Turn(turns), state);
             state = result.state();
@@ -88,10 +90,13 @@ public final class Round {
             if (event.type() == RoundEventType.MOVE || event.type() == RoundEventType.TURN
                     || event.type() == RoundEventType.RAM || event.type() == RoundEventType.PUSH) {
                 result.put(event.vehicleId(), new VehicleState(current.vehicle(), event.newPosition(),
-                        event.newDirection(), current.damage()));
+                        event.newDirection(), current.damage(), current.status()));
             } else if (event.type() == RoundEventType.DAMAGE) {
                 result.put(event.vehicleId(), new VehicleState(current.vehicle(), current.position(),
-                        current.orientation(), event.newDamage()));
+                        current.orientation(), event.newDamage(), current.status()));
+            } else if (event.type() == RoundEventType.CRASH) {
+                result.put(event.vehicleId(), new VehicleState(current.vehicle(), event.newPosition(),
+                        event.newDirection(), current.damage(), VehicleStatus.CRASHED));
             }
         }
         return List.copyOf(result.values());

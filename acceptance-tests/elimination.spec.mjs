@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test'
 test('elimination is revealed after playback and spectators can replay', async ({ page }) => {
   const gameId = '10000000-0000-0000-0000-000000000001'
   const playerId = '20000000-0000-0000-0000-000000000001'
-  const vehicle = { id: 'v1', playerId, x: 0, y: 0, direction: 'EAST', damage: 2 }
+  const vehicle = { id: 'v1', playerId, x: 0, y: 0, direction: 'EAST', damage: 2, status: 'ACTIVE' }
   const other = { ...vehicle, id: 'v2', playerId: 'other', x: 1, damage: 0 }
   const state = {
     id: gameId, playerId, status: 'FINISHED',
