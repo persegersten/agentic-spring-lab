@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { joinGame, withPlayerPages } from './player-pages.mjs'
+import { fillProgram, joinGame, withPlayerPages } from './player-pages.mjs'
 
 test('a player reloads the waiting lobby as the same player', async ({ page }) => {
   await page.goto('/')
@@ -30,12 +30,9 @@ test('reload during planning restores map, round and private planning state', as
     await expect(per.getByRole('heading', { name: 'Planering', exact: true })).toBeVisible()
     const perVehicle = per.getByTestId('player-vehicle').filter({ hasText: 'Per' })
     const playerId = await perVehicle.getAttribute('data-player-id')
-    const cards = per.locator('.cards').getByRole('listitem')
-    const firstCard = await cards.nth(0).locator('span').textContent()
-    const secondCard = await cards.nth(1).locator('span').textContent()
-    await cards.nth(0).getByRole('button', { name: /senare$/ }).click()
+    const registers = per.getByRole('combobox', { name: /^Register / })
+    await registers.nth(0).selectOption('TURN_LEFT')
     await expect(per.getByRole('status')).toHaveCount(0)
-    await expect(cards.nth(0).locator('span')).toHaveText(secondCard ?? '')
 
     await per.reload()
 
@@ -45,10 +42,7 @@ test('reload during planning restores map, round and private planning state', as
     await expect(per.getByTestId('game-phase')).toHaveText('Fas PLANNING')
     await expect(per.getByTestId('player-vehicle').filter({ hasText: 'Per' }))
       .toHaveAttribute('data-player-id', playerId)
-    await expect(per.locator('.cards').getByRole('listitem').nth(0).locator('span'))
-      .toHaveText(secondCard ?? '')
-    await expect(per.locator('.cards').getByRole('listitem').nth(1).locator('span'))
-      .toHaveText(firstCard ?? '')
+    await expect(per.getByRole('combobox', { name: 'Register 1' })).toHaveValue('TURN_LEFT')
   })
 })
 
@@ -87,14 +81,13 @@ test('reload restores a locked private program', async ({ browser }) => {
     await alice.goto(gameLink)
     await joinGame(alice, 'Alice')
     await expect(per.getByRole('heading', { name: 'Planering', exact: true })).toBeVisible()
-    const order = await per.locator('.cards').getByRole('listitem').locator('span').allTextContents()
-    await per.getByRole('button', { name: 'Lås program', exact: true }).click()
+    await fillProgram(per)
     await expect(per.getByRole('button', { name: 'Program låst', exact: true })).toBeDisabled()
 
     await per.reload()
 
     await expect(per.getByRole('button', { name: 'Program låst', exact: true })).toBeDisabled()
-    expect(await per.locator('.cards').getByRole('listitem').locator('span').allTextContents()).toEqual(order)
+    await expect(per.getByRole('combobox', { name: 'Register 1' })).toHaveValue('WAIT')
   })
 })
 
@@ -108,8 +101,8 @@ test('reload between rounds reconstructs playback from server events', async ({ 
     await alice.goto(gameLink)
     await joinGame(alice, 'Alice')
     await expect(per.getByRole('heading', { name: 'Planering', exact: true })).toBeVisible()
-    await per.getByRole('button', { name: 'Lås program', exact: true }).click()
-    await alice.getByRole('button', { name: 'Lås program', exact: true }).click()
+    await fillProgram(per)
+    await fillProgram(alice)
     await expect(per.getByRole('button', { name: 'Starta nästa runda', exact: true }))
       .toBeVisible({ timeout: 20_000 })
 

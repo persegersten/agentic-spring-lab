@@ -20,6 +20,7 @@ import se.segersten.wreckage.game.domain.GameRepository;
 import se.segersten.wreckage.game.domain.GameStatus;
 import se.segersten.wreckage.game.domain.GameConfiguration;
 import se.segersten.wreckage.game.domain.Player;
+import se.segersten.wreckage.game.domain.PlayerProgram;
 import se.segersten.wreckage.game.domain.MovementOrder;
 import se.segersten.wreckage.game.domain.RoundPhase;
 import se.segersten.wreckage.game.domain.RoundEvent;
@@ -48,7 +49,7 @@ class GameServiceTest {
         InMemoryGameRepository repository = new InMemoryGameRepository();
         Instant now = Instant.parse("2026-01-01T12:00:00Z");
         GameService service = new GameService(repository, Clock.fixed(now, ZoneOffset.UTC));
-        GameConfiguration configuration = new GameConfiguration(4, 60, 10, 45);
+        GameConfiguration configuration = new GameConfiguration(4, 60, 5, 45);
 
         Game game = service.createGame(configuration);
 
@@ -58,9 +59,9 @@ class GameServiceTest {
     }
 
     @Test
-    void shouldAcceptCardsPerRoundBoundaryValues() {
-        assertThat(new GameConfiguration(12, 60, 3, 30).cardsPerRound()).isEqualTo(3);
-        assertThat(new GameConfiguration(12, 60, 10, 30).cardsPerRound()).isEqualTo(10);
+    void shouldAcceptProgramSizeBoundaryValues() {
+        assertThat(new GameConfiguration(12, 60, 1, 30).programSize()).isEqualTo(1);
+        assertThat(new GameConfiguration(12, 60, 5, 30).programSize()).isEqualTo(5);
     }
 
     @Test
@@ -69,9 +70,9 @@ class GameServiceTest {
                 .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> new GameConfiguration(12, 0, 3, 30))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> new GameConfiguration(12, 60, 2, 30))
+        assertThatThrownBy(() -> new GameConfiguration(12, 60, 0, 30))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> new GameConfiguration(12, 60, 11, 30))
+        assertThatThrownBy(() -> new GameConfiguration(12, 60, 6, 30))
                 .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> new GameConfiguration(12, 60, 3, 0))
                 .isInstanceOf(IllegalArgumentException.class);
@@ -183,13 +184,12 @@ class GameServiceTest {
     void shouldResolveConfiguredProgramsWhenEveryoneIsReady() {
         InMemoryGameRepository repository = new InMemoryGameRepository();
         Instant now = Instant.parse("2026-01-01T12:00:00Z");
-        GameService service = new GameService(repository, Clock.fixed(now, ZoneOffset.UTC),
-                () -> MovementOrder.FORWARD);
+        GameService service = new GameService(repository, Clock.fixed(now, ZoneOffset.UTC));
         Game game = service.createGame(new GameConfiguration(2, 60, 5, 30));
         var alice = service.addPlayer(game.getId(), "Alice");
         var bob = service.addPlayer(game.getId(), "Bob");
-        List<MovementOrder> fiveCards = List.of(MovementOrder.FORWARD, MovementOrder.FORWARD,
-                MovementOrder.FORWARD, MovementOrder.FORWARD, MovementOrder.FORWARD);
+        List<MovementOrder> fiveCards = List.of(MovementOrder.FORWARD_1, MovementOrder.FORWARD_1,
+                MovementOrder.FORWARD_1, MovementOrder.FORWARD_1, MovementOrder.FORWARD_1);
 
         service.submitProgram(game.getId(), alice.player().getId(), alice.token(), fiveCards);
         service.submitProgram(game.getId(), bob.player().getId(), bob.token(), fiveCards);
@@ -198,15 +198,14 @@ class GameServiceTest {
         assertThat(game.getRound().phase()).isEqualTo(RoundPhase.PLAYBACK);
         assertThat(game.getRound().playback()).extracting(RoundEvent::type)
                 .containsExactly(RoundEventType.FIRE, RoundEventType.FIRE);
-        assertThat(game.getRound().programs().get(alice.player().getId()).orders())
+        assertThat(game.getRound().programs().get(alice.player().getId()).commands())
                 .containsExactlyElementsOf(fiveCards);
     }
 
     @Test
     void shouldFillLobbyAndLockHeadlessProgramsInDealtOrder() {
         InMemoryGameRepository repository = new InMemoryGameRepository();
-        GameService service = new GameService(repository, Clock.systemUTC(),
-                () -> MovementOrder.TURN_LEFT, new HeadlessPlayerAutomation());
+        GameService service = new GameService(repository, Clock.systemUTC(), new HeadlessPlayerAutomation());
         Game game = service.createGame(new GameConfiguration(4, 60, 3, 30));
 
         var human = service.addPlayer(game.getId(), "Headless 1");
@@ -218,20 +217,20 @@ class GameServiceTest {
         game.getPlayers().stream().skip(1).forEach(player -> {
             var program = game.getRound().programs().get(player.getId());
             assertThat(program.ready()).isTrue();
-            assertThat(program.orders()).containsExactlyElementsOf(program.hand());
+            assertThat(program.commands()).containsExactlyElementsOf(program.commands());
         });
     }
 
     @Test
     void shouldResolveAndPrepareHeadlessPlayersForTheNextRound() {
         InMemoryGameRepository repository = new InMemoryGameRepository();
-        GameService service = new GameService(repository, Clock.systemUTC(),
-                () -> MovementOrder.FORWARD, new HeadlessPlayerAutomation());
+        GameService service = new GameService(repository, Clock.systemUTC(), new HeadlessPlayerAutomation());
         Game game = service.createGame(new GameConfiguration(3, 60, 3, 30));
         var human = service.addPlayer(game.getId(), "Alice");
         var humanProgram = game.getRound().programs().get(human.player().getId());
 
-        service.submitProgram(game.getId(), human.player().getId(), human.token(), humanProgram.hand());
+        service.submitProgram(game.getId(), human.player().getId(), human.token(),
+                java.util.Collections.nCopies(game.getConfiguration().programSize(), MovementOrder.WAIT));
 
         assertThat(game.getRound().phase()).isEqualTo(RoundPhase.PLAYBACK);
 
@@ -243,14 +242,14 @@ class GameServiceTest {
         game.getPlayers().stream().skip(1).forEach(player -> {
             var program = game.getRound().programs().get(player.getId());
             assertThat(program.ready()).isTrue();
-            assertThat(program.orders()).containsExactlyElementsOf(program.hand());
+            assertThat(program.commands()).containsExactlyElementsOf(program.commands());
         });
     }
 
     @Test
     void shouldFinishWithoutProgramsWhenEveryPlayerIsEliminated() {
         InMemoryGameRepository repository = new InMemoryGameRepository();
-        GameService service = new GameService(repository, Clock.systemUTC(), () -> MovementOrder.TURN_LEFT);
+        GameService service = new GameService(repository, Clock.systemUTC());
         Game game = service.createGame(new GameConfiguration(2, 60, 3, 30));
         var alice = service.addPlayer(game.getId(), "Alice");
         service.addPlayer(game.getId(), "Bob");
@@ -293,35 +292,55 @@ class GameServiceTest {
         Game game = new Game(UUID.randomUUID(), List.of(human, headless), board,
                 GameStatus.RUNNING, vehicles, null, new GameConfiguration(2, 60, 3, 30),
                 now, now.plusSeconds(60));
-        game.startRound(() -> MovementOrder.FORWARD);
+        game.startRound(java.time.Instant.now());
 
         new HeadlessPlayerAutomation().lockHeadlessPrograms(game);
 
         var program = game.getRound().programs().get(headlessId);
-        assertThat(program.hand()).containsExactly(MovementOrder.MALFUNCTION_NO_OP,
-                MovementOrder.FORWARD, MovementOrder.FORWARD);
-        assertThat(program.orders()).containsExactlyElementsOf(program.hand());
+        assertThat(program.commands()).containsExactly(MovementOrder.WAIT,
+                MovementOrder.WAIT, MovementOrder.WAIT);
+        assertThat(program.commands()).containsExactlyElementsOf(program.commands());
     }
 
     @Test
     void shouldPersistAnAuthenticatedProgramDraftForRecovery() {
         InMemoryGameRepository repository = new InMemoryGameRepository();
-        GameService service = new GameService(repository, Clock.systemUTC(),
-                () -> MovementOrder.FORWARD);
+        GameService service = new GameService(repository, Clock.systemUTC());
         Game game = service.createGame(new GameConfiguration(2, 60, 3, 30));
         var per = service.addPlayer(game.getId(), "Per");
         service.addPlayer(game.getId(), "Alice");
-        List<MovementOrder> draft = List.of(MovementOrder.FORWARD,
-                MovementOrder.FORWARD, MovementOrder.FORWARD);
+        List<MovementOrder> draft = List.of(MovementOrder.FORWARD_1,
+                MovementOrder.FORWARD_1, MovementOrder.FORWARD_1);
 
         service.saveProgramDraft(game.getId(), per.player().getId(), per.token(), draft);
 
         Game recovered = service.getPlayerGame(game.getId(), per.player().getId(), per.token());
-        assertThat(recovered.getRound().programs().get(per.player().getId()).hand())
+        assertThat(recovered.getRound().programs().get(per.player().getId()).commands())
                 .containsExactlyElementsOf(draft);
         assertThat(recovered.getRound().programs().get(per.player().getId()).ready()).isFalse();
         assertThatThrownBy(() -> service.saveProgramDraft(game.getId(), per.player().getId(),
                 "wrong-token", draft)).isInstanceOf(SecurityException.class);
+    }
+
+    @Test
+    void shouldCompleteMissingRegistersWithWaitAtPlanningDeadline() {
+        InMemoryGameRepository repository = new InMemoryGameRepository();
+        Instant now = Instant.parse("2026-01-01T12:00:00Z");
+        GameService service = new GameService(repository, Clock.fixed(now, ZoneOffset.UTC));
+        Game game = service.createGame(new GameConfiguration(2, 60, 3, 5));
+        var per = service.addPlayer(game.getId(), "Per");
+        service.addPlayer(game.getId(), "Alice");
+        service.saveProgramDraft(game.getId(), per.player().getId(), per.token(),
+                List.of(MovementOrder.TURN_LEFT));
+
+        new GameService(repository, Clock.fixed(now.plusSeconds(5), ZoneOffset.UTC))
+                .completeExpiredPlanning();
+
+        PlayerProgram completed = game.getRound().programs().get(per.player().getId());
+        assertThat(completed.commands()).containsExactly(
+                MovementOrder.TURN_LEFT, MovementOrder.WAIT, MovementOrder.WAIT);
+        assertThat(completed.ready()).isTrue();
+        assertThat(game.getRound().phase()).isEqualTo(RoundPhase.PLAYBACK);
     }
 
     @Test

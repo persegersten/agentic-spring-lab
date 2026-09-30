@@ -54,9 +54,9 @@ class InMemoryProfileIntegrationTest {
         Game aliceView = gameService.getPlayerGame(game.getId(), alice.player().getId(), alice.token());
         Game bobView = gameService.getPlayerGame(game.getId(), bob.player().getId(), bob.token());
         gameService.submitProgram(game.getId(), alice.player().getId(), alice.token(),
-                aliceView.getRound().programs().get(alice.player().getId()).hand());
+                java.util.Collections.nCopies(5, MovementOrder.WAIT));
         gameService.submitProgram(game.getId(), bob.player().getId(), bob.token(),
-                bobView.getRound().programs().get(bob.player().getId()).hand());
+                java.util.Collections.nCopies(5, MovementOrder.WAIT));
 
         Game retrieved = gameService.getGame(game.getId());
         assertThat(retrieved.getRound().phase()).isEqualTo(RoundPhase.PLAYBACK);
@@ -66,7 +66,7 @@ class InMemoryProfileIntegrationTest {
             assertThat(event.oldPosition()).isNotNull();
             assertThat(event.newPosition()).isNotNull();
         });
-        assertThat(retrieved.getRound().programs().get(alice.player().getId()).orders()).hasSize(5);
+        assertThat(retrieved.getRound().programs().get(alice.player().getId()).commands()).hasSize(5);
         assertThat(retrieved.getVehicleStates()).hasSize(2);
         assertThat(retrieved.getRound().finalVehicleStates()).hasSize(2);
     }
@@ -79,9 +79,8 @@ class InMemoryProfileIntegrationTest {
         var state = new VehicleState(vehicle, new Position(4, 4), Direction.NORTH, 3);
         var board = new Board(6, 6, java.util.Set.of(new Position(3, 1)),
                 java.util.Set.of(new Position(4, 5)));
-        var program = new se.segersten.wreckage.game.domain.PlayerProgram(playerId,
-                java.util.List.of(se.segersten.wreckage.game.domain.MovementOrder.FORWARD),
-                java.util.List.of(se.segersten.wreckage.game.domain.MovementOrder.FORWARD));
+        var program = new se.segersten.wreckage.game.domain.PlayerProgram(playerId, 1,
+                java.util.List.of(se.segersten.wreckage.game.domain.MovementOrder.FORWARD_1), true);
         var round = new se.segersten.wreckage.game.domain.Round(1, java.util.Map.of(playerId, program),
                 new se.segersten.wreckage.game.domain.GameState(board, java.util.List.of(state)));
         round.resolve(new se.segersten.wreckage.game.engine.MovementEngine());
@@ -102,15 +101,14 @@ class InMemoryProfileIntegrationTest {
     }
 
     @Test
-    void persistsMalfunctionCardsUsingInMemoryDatabase() {
+    void persistsProgramDraftUsingInMemoryDatabase() {
         var now = java.time.Instant.parse("2026-01-01T12:00:00Z");
         var playerId = java.util.UUID.randomUUID();
         var vehicle = new Vehicle(java.util.UUID.randomUUID(), playerId);
         var state = new VehicleState(vehicle, new Position(2, 2), Direction.NORTH, 1);
         var board = new Board(5, 5);
-        var program = new PlayerProgram(playerId,
-                java.util.List.of(MovementOrder.MALFUNCTION_NO_OP, MovementOrder.FORWARD),
-                java.util.List.of());
+        var program = new PlayerProgram(playerId, 2,
+                java.util.List.of(MovementOrder.WAIT, MovementOrder.FORWARD_1), false);
         var round = new Round(2, java.util.Map.of(playerId, program),
                 new GameState(board, java.util.List.of(state)));
         var game = new Game(java.util.UUID.randomUUID(),
@@ -121,7 +119,7 @@ class InMemoryProfileIntegrationTest {
         gameRepository.save(game);
         Game retrieved = gameService.getGame(game.getId());
 
-        assertThat(retrieved.getRound().programs().get(playerId).hand()).containsExactly(
-                MovementOrder.MALFUNCTION_NO_OP, MovementOrder.FORWARD);
+        assertThat(retrieved.getRound().programs().get(playerId).commands()).containsExactly(
+                MovementOrder.WAIT, MovementOrder.FORWARD_1);
     }
 }

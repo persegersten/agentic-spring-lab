@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { joinGame, withPlayerPages } from './player-pages.mjs'
+import { fillProgram, joinGame, withPlayerPages } from './player-pages.mjs'
 
 test('players receive and play the same server ordered event sequence', async ({ browser }) => {
   await withPlayerPages(browser, ['per', 'alice'], async ({ per, alice }) => {
@@ -17,8 +17,8 @@ test('players receive and play the same server ordered event sequence', async ({
     await joinGame(alice, 'Alice')
 
     await expect(per.getByRole('heading', { name: 'Planering', exact: true })).toBeVisible()
-    await per.getByRole('button', { name: 'Lås program', exact: true }).click()
-    await alice.getByRole('button', { name: 'Lås program', exact: true }).click()
+    await fillProgram(per)
+    await fillProgram(alice)
 
     for (const page of [per, alice]) {
       await expect(page.getByRole('heading', { name: 'Uppspelning', exact: true }).first()).toBeVisible()
@@ -57,11 +57,11 @@ test('playback finishes quickly across polling, stays paused and can replay', as
   let polls = 0
   const state = {
     id: gameId, playerId, status: 'RUNNING',
-    configuration: { maxPlayers: 1, cardsPerRound: 3, planningTimeoutSeconds: 120, joinTimeoutSeconds: 300 },
+    configuration: { maxPlayers: 1, programSize: 3, planningTimeoutSeconds: 120, joinTimeoutSeconds: 300 },
     players: [{ id: playerId, name: 'Per' }],
     board: { width: 20, height: 20, walls: [], pits: [] },
     vehicles: [{ ...vehicle, x: 12 }],
-    round: { state: { number: 1, phase: 'PLAYBACK', ready: { [playerId]: true }, initialVehicles: [vehicle], playback }, hand: [] },
+    round: { state: { number: 1, phase: 'PLAYBACK', ready: { [playerId]: true }, initialVehicles: [vehicle], playback }, program: [] },
   }
   await page.clock.install()
   await page.addInitScript(session => sessionStorage.setItem('wreckage-session', JSON.stringify(session)),

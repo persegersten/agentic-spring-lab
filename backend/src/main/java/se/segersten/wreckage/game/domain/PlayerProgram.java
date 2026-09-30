@@ -1,31 +1,9 @@
 package se.segersten.wreckage.game.domain;
-
-import java.util.List;
-import java.util.UUID;
-
-public record PlayerProgram(UUID playerId, List<MovementOrder> hand, List<MovementOrder> orders) {
-    public PlayerProgram {
-        hand = List.copyOf(hand);
-        orders = orders == null ? List.of() : List.copyOf(orders);
-    }
-    public boolean ready() { return !hand.isEmpty() && orders.size() == hand.size(); }
-    public PlayerProgram reorder(List<MovementOrder> selected) {
-        if (ready()) throw new IllegalStateException("Program is already locked");
-        validateSelection(selected);
-        return new PlayerProgram(playerId, selected, List.of());
-    }
-    public PlayerProgram lock(List<MovementOrder> selected) {
-        if (ready()) throw new IllegalStateException("Program is already locked");
-        validateSelection(selected);
-        return new PlayerProgram(playerId, hand, selected);
-    }
-    private void validateSelection(List<MovementOrder> selected) {
-        if (selected == null || selected.size() != hand.size() || !sameCards(hand, selected))
-            throw new IllegalArgumentException("Program must contain each dealt card exactly once");
-    }
-    private static boolean sameCards(List<MovementOrder> a, List<MovementOrder> b) {
-        var left = new java.util.ArrayList<>(a);
-        for (var card : b) if (!left.remove(card)) return false;
-        return left.isEmpty();
-    }
+import java.util.*;
+public record PlayerProgram(UUID playerId,int programSize,List<MovementOrder> commands,boolean locked){
+ public PlayerProgram{Objects.requireNonNull(playerId);if(programSize<1)throw new IllegalArgumentException("programSize must be positive");commands=commands==null?List.of():List.copyOf(commands);if(commands.stream().anyMatch(Objects::isNull)||commands.size()>programSize||locked&&commands.size()!=programSize)throw new IllegalArgumentException("Program must contain exactly "+programSize+" commands when locked");}
+ public static PlayerProgram empty(UUID id,int size){return new PlayerProgram(id,size,List.of(),false);} public boolean ready(){return locked;}
+ public PlayerProgram edit(List<MovementOrder> selected){if(locked)throw new IllegalStateException("Program is already locked");return new PlayerProgram(playerId,programSize,selected,false);}
+ public PlayerProgram lock(List<MovementOrder> selected){if(locked)throw new IllegalStateException("Program is already locked");return new PlayerProgram(playerId,programSize,selected,true);}
+ public PlayerProgram completeWithWait(){if(locked)return this;var result=new ArrayList<>(commands);while(result.size()<programSize)result.add(MovementOrder.WAIT);return new PlayerProgram(playerId,programSize,result,true);}
 }

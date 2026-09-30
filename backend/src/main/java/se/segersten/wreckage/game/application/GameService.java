@@ -7,8 +7,6 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
-import java.util.concurrent.ThreadLocalRandom;
-import java.util.function.Supplier;
 import java.time.Clock;
 import java.time.Instant;
 
@@ -35,31 +33,24 @@ public class GameService {
 
     private final GameRepository gameRepository;
     private final Clock clock;
-    private final Supplier<MovementOrder> cardSource;
     private final PlayerAutomation playerAutomation;
 
     @Autowired
     public GameService(GameRepository gameRepository, PlayerAutomation playerAutomation) {
-        this(gameRepository, Clock.systemUTC(), GameService::randomCard, playerAutomation);
+        this(gameRepository, Clock.systemUTC(), playerAutomation);
     }
 
     public GameService(GameRepository gameRepository) {
-        this(gameRepository, Clock.systemUTC(), GameService::randomCard, new NoOpPlayerAutomation());
+        this(gameRepository, Clock.systemUTC(), new NoOpPlayerAutomation());
     }
 
     GameService(GameRepository gameRepository, Clock clock) {
-        this(gameRepository, clock, GameService::randomCard, new NoOpPlayerAutomation());
+        this(gameRepository, clock, new NoOpPlayerAutomation());
     }
 
-    GameService(GameRepository gameRepository, Clock clock, Supplier<MovementOrder> cardSource) {
-        this(gameRepository, clock, cardSource, new NoOpPlayerAutomation());
-    }
-
-    GameService(GameRepository gameRepository, Clock clock, Supplier<MovementOrder> cardSource,
-                PlayerAutomation playerAutomation) {
+    GameService(GameRepository gameRepository, Clock clock, PlayerAutomation playerAutomation) {
         this.gameRepository = gameRepository;
         this.clock = clock;
-        this.cardSource = java.util.Objects.requireNonNull(cardSource);
         this.playerAutomation = java.util.Objects.requireNonNull(playerAutomation);
     }
 
@@ -82,7 +73,7 @@ public class GameService {
         Instant now = clock.instant();
         Player player = game.addPlayer(name, hash(token), now);
         playerAutomation.fillLobby(game, now);
-        game.startIfReady(now, cardSource);
+        game.startIfReady(now);
         playerAutomation.lockHeadlessPrograms(game);
         resolveIfReady(game);
         gameRepository.save(game);
@@ -93,7 +84,7 @@ public class GameService {
         Game game = authenticatedGameForUpdate(gameId, playerId, token);
         if (game.getRound() == null)
             throw new IllegalStateException("The first round starts automatically");
-        Round round = game.startRound(cardSource);
+        Round round = game.startRound(clock.instant());
         playerAutomation.lockHeadlessPrograms(game);
         resolveIfReady(game);
         gameRepository.save(game);
@@ -103,9 +94,10 @@ public class GameService {
     public void startExpiredLobbies() {
         Instant now = clock.instant();
         for (Game game : gameRepository.findAllByStatusForUpdate(GameStatus.WAITING_FOR_PLAYERS)) {
-            if (game.startIfReady(now, cardSource)) gameRepository.save(game);
+            if (game.startIfReady(now)) gameRepository.save(game);
         }
     }
+    public void completeExpiredPlanning(){Instant now=clock.instant();for(Game game:gameRepository.findAllByStatusForUpdate(GameStatus.RUNNING)){Round round=game.getRound();if(round!=null&&round.completeTimedOutPrograms(now)){resolveIfReady(game);gameRepository.save(game);}}}
 
     public Game getPlayerGame(UUID gameId, UUID playerId, String token) {
         return authenticatedGame(gameId, playerId, token);
@@ -181,12 +173,6 @@ public class GameService {
                 hash(token).getBytes(StandardCharsets.UTF_8))) {
             throw new SecurityException("Invalid player token");
         }
-    }
-
-    private static MovementOrder randomCard() {
-        MovementOrder[] cards = { MovementOrder.FORWARD, MovementOrder.REVERSE,
-                MovementOrder.TURN_LEFT, MovementOrder.TURN_RIGHT };
-        return cards[ThreadLocalRandom.current().nextInt(cards.length)];
     }
 
     private static String hash(String value) {

@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { joinGame, withPlayerPages } from './player-pages.mjs'
+import { fillProgram, joinGame, withPlayerPages } from './player-pages.mjs'
 
 test('a full lobby starts planning for every player', async ({ browser }) => {
   await withPlayerPages(browser, ['alice', 'bob', 'charlie', 'dana'], async players => {

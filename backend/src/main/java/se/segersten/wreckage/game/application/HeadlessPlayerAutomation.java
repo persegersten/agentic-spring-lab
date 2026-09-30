@@ -11,6 +11,7 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
 import se.segersten.wreckage.game.domain.Game;
+import se.segersten.wreckage.game.domain.MovementOrder;
 
 @Component
 @Profile("headless-players")
@@ -37,7 +38,7 @@ public class HeadlessPlayerAutomation implements PlayerAutomation {
         game.getPlayers().stream().skip(1).forEach(player -> {
             var program = game.getRound().programs().get(player.getId());
             if (program != null && !program.ready()) {
-                game.getRound().lock(player.getId(), program.hand());
+                game.getRound().lock(player.getId(),java.util.Collections.nCopies(game.getConfiguration().programSize(),MovementOrder.WAIT));
             }
         });
     }

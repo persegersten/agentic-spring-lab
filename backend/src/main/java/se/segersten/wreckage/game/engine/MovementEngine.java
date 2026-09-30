@@ -45,12 +45,13 @@ public class MovementEngine {
 
         VehicleState state = currentStates.get(vehicleIndex);
         return switch (vehicleTurn.movementOrder()) {
-            case FORWARD -> applyTranslation(gameState, vehicleIndex, state.orientation());
-            case MALFUNCTION_NO_OP -> new MovementResult(gameState, List.of());
-            case REVERSE ->
+            case FORWARD_1 -> applyTranslation(gameState, vehicleIndex, state.orientation());
+            case WAIT -> new MovementResult(gameState, List.of());
+            case REVERSE_1 ->
                     applyTranslation(gameState, vehicleIndex, state.orientation().reverse());
             case TURN_LEFT -> applyTurn(gameState, vehicleIndex, state.orientation().turnLeft());
             case TURN_RIGHT -> applyTurn(gameState, vehicleIndex, state.orientation().turnRight());
+            case FORWARD_2,U_TURN -> throw new UnsupportedOperationException(vehicleTurn.movementOrder()+" movement semantics are not implemented yet");
         };
     }
 

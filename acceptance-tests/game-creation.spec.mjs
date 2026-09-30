@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { joinGame, withPlayerPages } from './player-pages.mjs'
+import { fillProgram, joinGame, withPlayerPages } from './player-pages.mjs'
 
 test('Alice creates a game and Bob joins from a separate session', async ({ browser }) => {
   await withPlayerPages(browser, ['alice', 'bob'], async ({ alice, bob }) => {
