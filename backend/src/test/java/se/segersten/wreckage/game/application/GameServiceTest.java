@@ -197,7 +197,7 @@ class GameServiceTest {
         assertThat(game.getRound().allReady()).isTrue();
         assertThat(game.getRound().phase()).isEqualTo(RoundPhase.PLAYBACK);
         assertThat(game.getRound().playback()).extracting(RoundEvent::type)
-                .containsExactly(RoundEventType.FIRE, RoundEventType.FIRE);
+                .doesNotContain(RoundEventType.FIRE, RoundEventType.HIT, RoundEventType.DAMAGE);
         assertThat(game.getRound().programs().get(alice.player().getId()).commands())
                 .containsExactlyElementsOf(fiveCards);
     }
@@ -258,7 +258,7 @@ class GameServiceTest {
                 new se.segersten.wreckage.game.domain.VehicleState(state.vehicle(), state.position(),
                         state.orientation(), 3)).toList();
         var previous = new se.segersten.wreckage.game.domain.Round(1, RoundPhase.PLAYBACK,
-                game.getRound().programs(), new se.segersten.wreckage.game.domain.GameState(game.getBoard(), damaged),
+                game.getRound().programs(), game.getRound().initiative(), new se.segersten.wreckage.game.domain.GameState(game.getBoard(), damaged),
                 List.of());
         repository.save(new Game(game.getId(), game.getPlayers(), game.getBoard(), GameStatus.RUNNING,
                 Map.of(), previous, game.getConfiguration(), game.getCreatedAt(), game.getJoinDeadline()));

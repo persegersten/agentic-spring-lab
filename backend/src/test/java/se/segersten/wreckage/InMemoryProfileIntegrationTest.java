@@ -67,21 +67,23 @@ class InMemoryProfileIntegrationTest {
             assertThat(event.newPosition()).isNotNull();
         });
         assertThat(retrieved.getRound().programs().get(alice.player().getId()).commands()).hasSize(5);
+        assertThat(retrieved.getRound().initiative()).containsExactly(
+                alice.player().getId(), bob.player().getId());
         assertThat(retrieved.getVehicleStates()).hasSize(2);
         assertThat(retrieved.getRound().finalVehicleStates()).hasSize(2);
     }
 
     @Test
-    void persistsWallsPitsVehicleDamageAndPitPlaybackUsingInMemoryDatabase() {
+    void persistsInitiativeAndSequentialMovementPlaybackUsingInMemoryDatabase() {
         var now = java.time.Instant.parse("2026-01-01T12:00:00Z");
         var playerId = java.util.UUID.randomUUID();
         var vehicle = new Vehicle(java.util.UUID.randomUUID(), playerId);
-        var state = new VehicleState(vehicle, new Position(4, 4), Direction.NORTH, 3);
+        var state = new VehicleState(vehicle, new Position(2, 2), Direction.NORTH, 3);
         var board = new Board(6, 6, java.util.Set.of(new Position(3, 1)),
                 java.util.Set.of(new Position(4, 5)));
         var program = new se.segersten.wreckage.game.domain.PlayerProgram(playerId, 1,
-                java.util.List.of(se.segersten.wreckage.game.domain.MovementOrder.FORWARD_1), true);
-        var round = new se.segersten.wreckage.game.domain.Round(1, java.util.Map.of(playerId, program),
+                java.util.List.of(se.segersten.wreckage.game.domain.MovementOrder.FORWARD_2), true);
+        var round = new se.segersten.wreckage.game.domain.Round(1, java.util.Map.of(playerId, program), java.util.List.of(playerId),
                 new se.segersten.wreckage.game.domain.GameState(board, java.util.List.of(state)));
         round.resolve(new se.segersten.wreckage.game.engine.MovementEngine());
         var game = new Game(java.util.UUID.randomUUID(),
@@ -96,8 +98,10 @@ class InMemoryProfileIntegrationTest {
         assertThat(retrieved.getBoard().pits()).containsExactly(new Position(4, 5));
         assertThat(retrieved.getVehicleStates()).extracting(VehicleState::damage).containsExactly(3);
         assertThat(retrieved.getRound().phase()).isEqualTo(RoundPhase.PLAYBACK);
+        assertThat(retrieved.getRound().initiative()).containsExactly(playerId);
         assertThat(retrieved.getRound().playback()).extracting(event -> event.type())
-                .contains(se.segersten.wreckage.game.domain.RoundEventType.PIT);
+                .containsExactly(se.segersten.wreckage.game.domain.RoundEventType.MOVE,
+                        se.segersten.wreckage.game.domain.RoundEventType.MOVE);
     }
 
     @Test
@@ -109,7 +113,7 @@ class InMemoryProfileIntegrationTest {
         var board = new Board(5, 5);
         var program = new PlayerProgram(playerId, 2,
                 java.util.List.of(MovementOrder.WAIT, MovementOrder.FORWARD_1), false);
-        var round = new Round(2, java.util.Map.of(playerId, program),
+        var round = new Round(2, java.util.Map.of(playerId, program), java.util.List.of(playerId),
                 new GameState(board, java.util.List.of(state)));
         var game = new Game(java.util.UUID.randomUUID(),
                 java.util.List.of(Player.create(playerId, "Per", "token")),

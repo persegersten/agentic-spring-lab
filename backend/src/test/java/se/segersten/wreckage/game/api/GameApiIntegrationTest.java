@@ -209,7 +209,9 @@ class GameApiIntegrationTest {
         JsonNode resolvedPlayback = json(resolved).path("round").path("state").path("playback");
         assertThat(resolvedPlayback.isArray()).isTrue();
         assertThat(resolvedPlayback.valueStream().map(event -> event.path("type").asText()))
-                .contains("FIRE");
+                .doesNotContain("FIRE", "HIT", "DAMAGE");
+        assertThat(json(resolved).path("round").path("state").path("initiative").valueStream()
+                .map(JsonNode::asText)).containsExactly(per.path("id").asText(), alice.path("id").asText());
         JsonNode publicResolved = json(get("/games/" + gameId));
         assertThat(publicResolved.path("round").path("phase").asText()).isEqualTo("PLAYBACK");
         assertThat(publicResolved.path("round").path("playback")).isEqualTo(resolvedPlayback);
@@ -266,7 +268,8 @@ class GameApiIntegrationTest {
         Map<UUID, VehicleState> vehicles = new LinkedHashMap<>();
         damagedStates.forEach(state -> vehicles.put(state.vehicle().playerId(), state));
         Round completedRound = new Round(current.getRound().number(), RoundPhase.PLAYBACK,
-                current.getRound().programs(), new GameState(current.getBoard(), damagedStates), List.of());
+                current.getRound().programs(), current.getRound().initiative(),
+                new GameState(current.getBoard(), damagedStates), List.of());
         transaction.executeWithoutResult(status -> gameRepository.save(new Game(current.getId(),
                 current.getPlayers(), current.getBoard(), current.getStatus(), vehicles, completedRound,
                 current.getConfiguration(), current.getCreatedAt(), current.getJoinDeadline())));

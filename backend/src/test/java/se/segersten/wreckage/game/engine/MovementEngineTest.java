@@ -1,7 +1,6 @@
 package se.segersten.wreckage.game.engine;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
 
@@ -19,12 +18,10 @@ import se.segersten.wreckage.game.domain.VehicleState;
 import se.segersten.wreckage.game.domain.VehicleTurn;
 
 class MovementEngineTest {
-    @Test void waitDoesNothingAndDeferredCommandsFailExplicitly() {
+    @Test void waitDoesNothing() {
         VehicleState vehicle = state(2, 2, Direction.NORTH);
         GameState initial = new GameState(board, List.of(vehicle));
         assertThat(engine.resolveTurn(new Turn(List.of(order(vehicle, MovementOrder.WAIT))), initial)).isEqualTo(initial);
-        assertThatThrownBy(() -> engine.resolveTurn(new Turn(List.of(order(vehicle, MovementOrder.FORWARD_2))), initial)).isInstanceOf(UnsupportedOperationException.class);
-        assertThatThrownBy(() -> engine.resolveTurn(new Turn(List.of(order(vehicle, MovementOrder.U_TURN))), initial)).isInstanceOf(UnsupportedOperationException.class);
     }
 
     private final MovementEngine engine = new MovementEngine();
@@ -60,6 +57,53 @@ class MovementEngineTest {
             assertThat(event.newDirection()).isEqualTo(Direction.WEST);
             assertThat(event.oldPosition()).isEqualTo(event.newPosition());
         });
+    }
+
+    @Test
+    void forwardTwoCreatesTwoSequentialMovementEvents() {
+        VehicleState vehicle = state(2, 2, Direction.NORTH);
+
+        var result = engine.resolveTurnWithEvents(
+                new Turn(List.of(order(vehicle, MovementOrder.FORWARD_2))),
+                new GameState(board, List.of(vehicle)));
+
+        assertThat(result.events()).hasSize(2);
+        assertThat(result.events().get(0).oldPosition()).isEqualTo(new Position(2, 2));
+        assertThat(result.events().get(0).newPosition()).isEqualTo(new Position(2, 3));
+        assertThat(result.events().get(1).oldPosition()).isEqualTo(new Position(2, 3));
+        assertThat(result.events().get(1).newPosition()).isEqualTo(new Position(2, 4));
+    }
+
+    @Test
+    void forwardTwoResolvesInteractionsSeparatelyAtEachStep() {
+        VehicleState moving = state(1, 2, Direction.EAST);
+        VehicleState pushed = state(2, 2, Direction.NORTH);
+
+        var result = engine.resolveTurnWithEvents(
+                new Turn(List.of(order(moving, MovementOrder.FORWARD_2))),
+                new GameState(board, List.of(moving, pushed)));
+
+        assertThat(result.events()).extracting(event -> event.type()).containsExactly(
+                RoundEventType.PUSH, RoundEventType.RAM,
+                RoundEventType.PUSH, RoundEventType.RAM);
+        assertThat(result.events().get(1).newPosition()).isEqualTo(result.events().get(3).oldPosition());
+    }
+
+    @Test
+    void uTurnReversesEveryOrientationWithoutMoving() {
+        for (Direction direction : Direction.values()) {
+            VehicleState vehicle = state(2, 2, direction);
+            var result = engine.resolveTurnWithEvents(
+                    new Turn(List.of(order(vehicle, MovementOrder.U_TURN))),
+                    new GameState(board, List.of(vehicle)));
+
+            assertThat(result.events()).singleElement().satisfies(event -> {
+                assertThat(event.type()).isEqualTo(RoundEventType.TURN);
+                assertThat(event.oldDirection()).isEqualTo(direction);
+                assertThat(event.newDirection()).isEqualTo(direction.reverse());
+                assertThat(event.oldPosition()).isEqualTo(event.newPosition());
+            });
+        }
     }
 
     @Test
@@ -128,6 +172,7 @@ class MovementEngineTest {
 
     @Test
     void blocksForwardAndReverseAtBoardBoundary() {
+        // Feature 4 will replace this temporary blocking behavior with crashes.
         VehicleState northAtTop = state(0, 6, Direction.NORTH);
         VehicleState reversingSouthAtTop = state(1, 6, Direction.SOUTH);
 
@@ -207,6 +252,7 @@ class MovementEngineTest {
 
     @Test
     void blocksWholePushChainAtEveryBoardBoundary() {
+        // Feature 4 will replace this temporary blocking behavior with crashes.
         assertBlockedPush(state(0, 5, Direction.NORTH), state(0, 6, Direction.WEST), MovementOrder.FORWARD_1);
         assertBlockedPush(state(5, 0, Direction.EAST), state(6, 0, Direction.NORTH), MovementOrder.FORWARD_1);
         assertBlockedPush(state(0, 1, Direction.SOUTH), state(0, 0, Direction.EAST), MovementOrder.FORWARD_1);

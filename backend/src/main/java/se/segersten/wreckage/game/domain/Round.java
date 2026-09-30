@@ -11,25 +11,34 @@ public final class Round {
     private final int number;
     private RoundPhase phase;
     private final Map<UUID, PlayerProgram> programs;
+    private final List<UUID> initiative;
     private final GameState initialState;
     private List<RoundEvent> playback;
     private final Instant planningDeadline;
 
-    public Round(int number, Map<UUID, PlayerProgram> programs, GameState initialState) {
-        this(number, RoundPhase.PLANNING, programs, initialState, List.of(), Instant.EPOCH);
+    public Round(int number, Map<UUID, PlayerProgram> programs, List<UUID> initiative, GameState initialState) {
+        this(number, RoundPhase.PLANNING, programs, initiative, initialState, List.of(), Instant.EPOCH);
     }
     public Round(int number, RoundPhase phase, Map<UUID, PlayerProgram> programs,
-                 GameState initialState, List<RoundEvent> playback) {
-        this(number,phase,programs,initialState,playback,Instant.EPOCH);
+                 List<UUID> initiative, GameState initialState, List<RoundEvent> playback) {
+        this(number, phase, programs, initiative, initialState, playback, Instant.EPOCH);
     }
-    public Round(int number,RoundPhase phase,Map<UUID,PlayerProgram> programs,GameState initialState,List<RoundEvent> playback,Instant planningDeadline){
+    public Round(int number, RoundPhase phase, Map<UUID, PlayerProgram> programs,
+                 List<UUID> initiative, GameState initialState, List<RoundEvent> playback,
+                 Instant planningDeadline) {
         this.number = number; this.phase = phase;
         this.programs = new LinkedHashMap<>(programs);
+        this.initiative = List.copyOf(initiative);
+        if (this.initiative.size() != this.programs.size()
+                || !new java.util.LinkedHashSet<>(this.initiative).equals(this.programs.keySet())) {
+            throw new IllegalArgumentException("Initiative must contain every active player exactly once");
+        }
         this.initialState = initialState; this.playback = List.copyOf(playback);this.planningDeadline=planningDeadline;
     }
     public int number() { return number; }
     public RoundPhase phase() { return phase; }
     public Map<UUID, PlayerProgram> programs() { return Map.copyOf(programs); }
+    public List<UUID> initiative() { return initiative; }
     public GameState initialState() { return initialState; }
     public List<RoundEvent> playback() { return playback; }
     public Instant planningDeadline(){return planningDeadline;}
@@ -48,37 +57,24 @@ public final class Round {
     public boolean allReady() { return !programs.isEmpty() && programs.values().stream().allMatch(PlayerProgram::ready); }
     public boolean completeTimedOutPrograms(Instant now){if(phase!=RoundPhase.PLANNING||now.isBefore(planningDeadline))return false;programs.replaceAll((id,p)->p.completeWithWait());return true;}
     public void resolve(se.segersten.wreckage.game.engine.MovementEngine engine) {
-        resolve(engine, new se.segersten.wreckage.game.engine.CannonEngine(),
-                new se.segersten.wreckage.game.engine.BoardEffectEngine());
-    }
-    public void resolve(se.segersten.wreckage.game.engine.MovementEngine engine,
-                        se.segersten.wreckage.game.engine.CannonEngine cannonEngine) {
-        resolve(engine, cannonEngine, new se.segersten.wreckage.game.engine.BoardEffectEngine());
-    }
-    public void resolve(se.segersten.wreckage.game.engine.MovementEngine engine,
-                        se.segersten.wreckage.game.engine.CannonEngine cannonEngine,
-                        se.segersten.wreckage.game.engine.BoardEffectEngine boardEffectEngine) {
         if (!allReady()) throw new IllegalStateException("Not all players are ready");
-        phase = RoundPhase.MOVEMENT_ACTIONS;
+        phase = RoundPhase.RESOLVING;
         GameState state = initialState;
         List<RoundEvent> events = new ArrayList<>();
         int cardPositions = programs.values().iterator().next().commands().size();
         for (int index = 0; index < cardPositions; index++) {
             List<VehicleTurn> turns = new ArrayList<>();
-            for (VehicleState vehicle : state.vehicleStates()) {
-                MovementOrder order = programs.get(vehicle.vehicle().playerId()).commands().get(index);
-                turns.add(new VehicleTurn(vehicle, order));
+            for (UUID playerId : initiative) {
+                VehicleState vehicle = state.vehicleStates().stream()
+                        .filter(candidate -> candidate.vehicle().playerId().equals(playerId))
+                        .findFirst().orElseThrow(() -> new IllegalStateException(
+                                "Active player has no vehicle: " + playerId));
+                turns.add(new VehicleTurn(vehicle, programs.get(playerId).commands().get(index)));
             }
             var result = engine.resolveTurnWithEvents(new Turn(turns), state);
             state = result.state();
             for (RoundEvent event : result.events()) events.add(event.withSequence(events.size() + 1));
         }
-        var cannonResult = cannonEngine.resolve(state);
-        state = cannonResult.state();
-        for (RoundEvent event : cannonResult.events()) events.add(event.withSequence(events.size() + 1));
-        phase = RoundPhase.BOARD_EFFECTS;
-        var boardEffectResult = boardEffectEngine.resolve(state);
-        for (RoundEvent event : boardEffectResult.events()) events.add(event.withSequence(events.size() + 1));
         playback = List.copyOf(events);
         phase = RoundPhase.PLAYBACK;
     }
