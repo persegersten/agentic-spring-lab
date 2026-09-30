@@ -1,0 +1,2 @@
+ALTER TABLE vehicle ADD COLUMN status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE';
+ALTER TABLE vehicle ADD CONSTRAINT chk_vehicle_status CHECK (status IN ('ACTIVE', 'CRASHED'));

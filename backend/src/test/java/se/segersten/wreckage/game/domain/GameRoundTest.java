@@ -93,6 +93,31 @@ class GameRoundTest {
     }
 
     @Test
+    void crashedVehicleSkipsItsCurrentAndLaterRegisterCommands() {
+        UUID pusherId = UUID.randomUUID();
+        UUID victimId = UUID.randomUUID();
+        VehicleState pusher = state(pusherId, 1, 2);
+        VehicleState victim = state(victimId, 2, 2);
+        Map<UUID, PlayerProgram> programs = new LinkedHashMap<>();
+        programs.put(pusherId, locked(pusherId, MovementOrder.FORWARD_1, MovementOrder.WAIT));
+        programs.put(victimId, locked(victimId, MovementOrder.TURN_LEFT, MovementOrder.FORWARD_1));
+        Round round = new Round(1, RoundPhase.PLANNING, programs, List.of(pusherId, victimId),
+                new GameState(new Board(6, 6, java.util.Set.of(),
+                        java.util.Set.of(new Position(3, 2))), List.of(pusher, victim)), List.of());
+
+        round.resolve(new MovementEngine());
+
+        assertThat(round.playback()).extracting(RoundEvent::type)
+                .containsExactly(RoundEventType.CRASH, RoundEventType.RAM);
+        assertThat(round.finalVehicleStates()).filteredOn(state -> state.vehicle().playerId().equals(victimId))
+                .singleElement().satisfies(state -> {
+                    assertThat(state.status()).isEqualTo(VehicleStatus.CRASHED);
+                    assertThat(state.orientation()).isEqualTo(Direction.EAST);
+                    assertThat(state.position()).isEqualTo(new Position(3, 2));
+                });
+    }
+
+    @Test
     void assignsDistinctInitialVehiclePositions() {
         Game game = new Game(UUID.randomUUID(), new Board(5, 5));
         game.addPlayer("Alice", "a");

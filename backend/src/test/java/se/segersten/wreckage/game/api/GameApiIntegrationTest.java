@@ -29,6 +29,7 @@ import se.segersten.wreckage.game.domain.GameState;
 import se.segersten.wreckage.game.domain.Round;
 import se.segersten.wreckage.game.domain.RoundPhase;
 import se.segersten.wreckage.game.domain.VehicleState;
+import se.segersten.wreckage.game.domain.VehicleStatus;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
@@ -323,9 +324,44 @@ class GameApiIntegrationTest {
         assertThat(game.path("players").size()).isEqualTo(2);
         assertThat(game.path("players").path(0).path("name").asText()).isEqualTo("Per");
         assertThat(game.path("players").path(1).path("name").asText()).isEqualTo("Ulrika");
+        assertThat(game.path("vehicles")).allSatisfy(vehicle ->
+                assertThat(vehicle.path("status").asText()).isEqualTo("ACTIVE"));
         assertThat(game.path("board").path("width").asInt()).isEqualTo(20);
         assertThat(game.path("board").path("height").asInt()).isEqualTo(20);
         assertThat(game.toString()).doesNotContain("token", "\"program\":");
+    }
+
+    @Test
+    void exposesPersistedCrashedVehicleStatusWithoutRemovingPlayerAggregate() throws Exception {
+        HttpResponse<String> created = post("/games", """
+                {"maxPlayers":2,"joinTimeoutSeconds":90,"programSize":3,"planningTimeoutSeconds":45}
+                """);
+        String gameId = json(created).path("id").asText();
+        JsonNode per = json(post("/games/%s/players".formatted(gameId), "{\"name\":\"Per\"}"));
+        post("/games/%s/players".formatted(gameId), "{\"name\":\"Alice\"}");
+        UUID perId = UUID.fromString(per.path("id").asText());
+        TransactionTemplate transaction = new TransactionTemplate(transactionManager);
+        transaction.executeWithoutResult(status -> {
+            Game current = gameRepository.findById(UUID.fromString(gameId)).orElseThrow();
+            Map<UUID, VehicleState> vehicles = new LinkedHashMap<>();
+            current.getVehicleStates().forEach(state -> vehicles.put(state.vehicle().playerId(),
+                    state.vehicle().playerId().equals(perId)
+                            ? new VehicleState(state.vehicle(), new se.segersten.wreckage.game.domain.Position(-1, 0),
+                                    state.orientation(), state.damage(), VehicleStatus.CRASHED)
+                            : state));
+            gameRepository.save(new Game(current.getId(), current.getPlayers(), current.getBoard(),
+                    current.getStatus(), vehicles, current.getRound(), current.getConfiguration(),
+                    current.getCreatedAt(), current.getJoinDeadline()));
+        });
+
+        JsonNode game = json(get("/games/" + gameId));
+
+        assertThat(game.path("players")).hasSize(2);
+        JsonNode crashed = game.path("vehicles").valueStream()
+                .filter(vehicle -> vehicle.path("playerId").asText().equals(perId.toString()))
+                .findFirst().orElseThrow();
+        assertThat(crashed.path("status").asText()).isEqualTo("CRASHED");
+        assertThat(crashed.path("x").asInt()).isEqualTo(-1);
     }
 
     @Test

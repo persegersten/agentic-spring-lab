@@ -99,11 +99,41 @@ class InMemoryProfileIntegrationTest {
                 .containsExactly(new Wall(new Position(3, 1), Direction.EAST));
         assertThat(retrieved.getBoard().pits()).containsExactly(new Position(4, 5));
         assertThat(retrieved.getVehicleStates()).extracting(VehicleState::damage).containsExactly(3);
+        assertThat(retrieved.getVehicleStates()).extracting(VehicleState::status)
+                .containsExactly(se.segersten.wreckage.game.domain.VehicleStatus.ACTIVE);
         assertThat(retrieved.getRound().phase()).isEqualTo(RoundPhase.PLAYBACK);
         assertThat(retrieved.getRound().initiative()).containsExactly(playerId);
         assertThat(retrieved.getRound().playback()).extracting(event -> event.type())
                 .containsExactly(se.segersten.wreckage.game.domain.RoundEventType.MOVE,
                         se.segersten.wreckage.game.domain.RoundEventType.MOVE);
+    }
+
+    @Test
+    void persistsCrashedVehicleStatusAndCrashPlaybackUsingInMemoryDatabase() {
+        var now = java.time.Instant.parse("2026-01-01T12:00:00Z");
+        var playerId = java.util.UUID.randomUUID();
+        var vehicle = new Vehicle(java.util.UUID.randomUUID(), playerId);
+        var active = new VehicleState(vehicle, new Position(2, 2), Direction.NORTH, 0);
+        var board = new Board(5, 5, java.util.Set.of(), java.util.Set.of(new Position(2, 3)));
+        var program = new PlayerProgram(playerId, 1, java.util.List.of(MovementOrder.FORWARD_1), true);
+        var round = new Round(1, java.util.Map.of(playerId, program), java.util.List.of(playerId),
+                new GameState(board, java.util.List.of(active)));
+        round.resolve(new se.segersten.wreckage.game.engine.MovementEngine());
+        VehicleState crashed = round.finalVehicleStates().getFirst();
+        var game = new Game(java.util.UUID.randomUUID(),
+                java.util.List.of(Player.create(playerId, "Alice", "token")), board, GameStatus.RUNNING,
+                java.util.Map.of(playerId, crashed), round, GameConfiguration.defaults(), now,
+                now.plusSeconds(60));
+
+        gameRepository.save(game);
+        Game retrieved = gameService.getGame(game.getId());
+
+        assertThat(retrieved.getVehicleStates().getFirst().status())
+                .isEqualTo(se.segersten.wreckage.game.domain.VehicleStatus.CRASHED);
+        assertThat(retrieved.getRound().initialState().vehicleStates().getFirst().status())
+                .isEqualTo(se.segersten.wreckage.game.domain.VehicleStatus.ACTIVE);
+        assertThat(retrieved.getRound().playback()).extracting(event -> event.type())
+                .containsExactly(se.segersten.wreckage.game.domain.RoundEventType.CRASH);
     }
 
     @Test

@@ -14,22 +14,24 @@ import se.segersten.wreckage.game.domain.Position;
 import se.segersten.wreckage.game.domain.RoundEventType;
 import se.segersten.wreckage.game.domain.Vehicle;
 import se.segersten.wreckage.game.domain.VehicleState;
+import se.segersten.wreckage.game.domain.VehicleStatus;
 
 class BoardEffectEngineTest {
     private final BoardEffectEngine engine = new BoardEffectEngine();
 
     @Test
-    void appliesPitEffectToVehicleOnPitWithoutMutatingState() {
+    void defensivelyCrashesAnActiveVehicleAlreadyOnAPit() {
         VehicleState vehicle = vehicleAt(new Position(4, 5));
         GameState state = new GameState(new Board(8, 8, Set.of(), Set.of(new Position(4, 5))),
                 List.of(vehicle));
 
         BoardEffectResult result = engine.resolve(state);
 
-        assertThat(result.state()).isSameAs(state);
-        assertThat(result.state().vehicleStates()).containsExactly(vehicle);
+        assertThat(result.state()).isNotSameAs(state);
+        assertThat(result.state().vehicleStates()).singleElement()
+                .extracting(VehicleState::status).isEqualTo(VehicleStatus.CRASHED);
         assertThat(result.events()).singleElement().satisfies(event -> {
-            assertThat(event.type()).isEqualTo(RoundEventType.PIT);
+            assertThat(event.type()).isEqualTo(RoundEventType.CRASH);
             assertThat(event.playerId()).isEqualTo(vehicle.vehicle().playerId());
             assertThat(event.vehicleId()).isEqualTo(vehicle.vehicle().id());
             assertThat(event.oldPosition()).isEqualTo(new Position(4, 5));

@@ -13,7 +13,7 @@ function describeEvent(event: RoundEvent, players: Player[]) {
     case 'FIRE': return `${name} skjuter`
     case 'HIT': return `${source} träffar ${name}`
     case 'DAMAGE': return `${name} får ${event.newDamage - event.oldDamage} skada`
-    case 'PIT': return `${name} faller i en grop`
+    case 'CRASH': return `${name} kraschar`
   }
 }
 
@@ -33,13 +33,15 @@ export function RoundPlayback({board,round,players,onVehicles,onEvent,onFinished
   useEffect(() => {
     const vehicles = timeline.initialVehicles.map(vehicle => ({...vehicle}))
     for (const event of timeline.playback.slice(0, eventIndex)) {
-      const vehicle = vehicles.find(candidate => candidate.id === event.vehicleId)
+      const vehicleIndex = vehicles.findIndex(candidate => candidate.id === event.vehicleId)
+      const vehicle = vehicles[vehicleIndex]
       if (vehicle && ['MOVE', 'TURN', 'RAM', 'PUSH'].includes(event.type)) {
         vehicle.x = event.newPosition.x
         vehicle.y = event.newPosition.y
         vehicle.direction = event.newDirection
       }
       if (vehicle && event.type === 'DAMAGE') vehicle.damage = event.newDamage
+      if (vehicle && event.type === 'CRASH') vehicles.splice(vehicleIndex, 1)
     }
     onVehicles(vehicles)
     onEvent(timeline.playback[eventIndex - 1])
@@ -49,7 +51,7 @@ export function RoundPlayback({board,round,players,onVehicles,onEvent,onFinished
     if (!playing || finished) return
     // Keep a shot and its consequences close together, with time to read the damage.
     const duration = !current ? 0 : current.type === 'FIRE' || current.type === 'HIT' ? 120
-      : current.type === 'DAMAGE' || current.type === 'PIT' ? 450 : 250
+      : current.type === 'DAMAGE' || current.type === 'CRASH' ? 450 : 250
     const id = window.setTimeout(() => {
       if (eventIndex >= timeline.playback.length) {
         setFinished(true)
