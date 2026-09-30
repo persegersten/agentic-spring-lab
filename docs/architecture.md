@@ -48,15 +48,19 @@ program remains the existing `POST`. The normal polling loop retries after a
 temporary connection failure and replaces the rendered view with fresh server
 state without changing other players or the game aggregate.
 
-The aggregate persists the current round, programs and an authoritative ordered
-event stream. After all programs are locked, `MovementEngine` resolves the
-configured program registers in stable player order. `CannonEngine` then fires
-every vehicle once, tracing each shot until the first vehicle, wall, or board
-boundary. Hits increment a minimal persisted damage counter. The round then
-enters `BOARD_EFFECTS`, where `BoardEffectEngine` emits a PIT event for every
-vehicle on a persisted PIT position. The engines emit MOVE, TURN, FIRE, HIT,
-DAMAGE and PIT events with enough state for React to visualize the persisted
-events in server order without predicting a result.
+The aggregate persists the current round, programs, the round's authoritative
+initiative order, and an authoritative ordered event stream. Round one uses
+stable player join order; each later round rotates the previous persisted order
+left by one position. After all programs are locked, the round moves through
+the externally meaningful `PLANNING`, `RESOLVING`, and `PLAYBACK` phases.
+Resolution is synchronous and atomic from the client's point of view.
+`MovementEngine` resolves every active player's command in initiative order for
+one register before starting the next register. `FORWARD_2` applies two complete
+one-cell movement steps and therefore produces two movement interactions and
+events rather than teleporting. Automatic cannon fire and premature board
+effects are not part of round resolution. The resulting MOVE, TURN, RAM, and
+PUSH events contain enough state for React to visualize the persisted sequence
+without predicting a result.
 When a round starts, every active player receives an empty private program with
 the configured number of registers and fills it from the complete v2 command set.
 Damage does not alter the available planning commands.

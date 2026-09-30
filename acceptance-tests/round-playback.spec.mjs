@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { fillProgram, joinGame, withPlayerPages } from './player-pages.mjs'
+import { joinGame, withPlayerPages } from './player-pages.mjs'
 
 test('players receive and play the same server ordered event sequence', async ({ browser }) => {
   await withPlayerPages(browser, ['per', 'alice'], async ({ per, alice }) => {
@@ -17,8 +17,13 @@ test('players receive and play the same server ordered event sequence', async ({
     await joinGame(alice, 'Alice')
 
     await expect(per.getByRole('heading', { name: 'Planering', exact: true })).toBeVisible()
-    await fillProgram(per)
-    await fillProgram(alice)
+    for (const page of [per, alice]) {
+      const registers = page.getByRole('combobox', { name: /^Register / })
+      await registers.nth(0).selectOption('TURN_LEFT')
+      await registers.nth(1).selectOption('FORWARD_2')
+      await registers.nth(2).selectOption('WAIT')
+      await page.getByRole('button', { name: 'Lås program', exact: true }).click()
+    }
 
     for (const page of [per, alice]) {
       await expect(page.getByRole('heading', { name: 'Uppspelning', exact: true }).first()).toBeVisible()
@@ -28,7 +33,8 @@ test('players receive and play the same server ordered event sequence', async ({
     const perEvents = await per.getByTestId('round-event').allTextContents()
     const aliceEvents = await alice.getByTestId('round-event').allTextContents()
     expect(aliceEvents).toEqual(perEvents)
-    expect(perEvents.some(event => event.includes('FIRE'))).toBe(true)
+    expect(perEvents.some(event => event.includes('MOVE'))).toBe(true)
+    expect(perEvents.some(event => event.includes('FIRE'))).toBe(false)
     const sequences = await per.getByTestId('round-event').evaluateAll(events =>
       events.map(event => Number(event.getAttribute('data-sequence'))))
     expect(sequences).toEqual(sequences.map((_, index) => index + 1))
@@ -61,7 +67,7 @@ test('playback finishes quickly across polling, stays paused and can replay', as
     players: [{ id: playerId, name: 'Per' }],
     board: { width: 20, height: 20, walls: [], pits: [] },
     vehicles: [{ ...vehicle, x: 12 }],
-    round: { state: { number: 1, phase: 'PLAYBACK', ready: { [playerId]: true }, initialVehicles: [vehicle], playback }, program: [] },
+    round: { state: { number: 1, phase: 'PLAYBACK', ready: { [playerId]: true }, initiative: [playerId], initialVehicles: [vehicle], playback }, program: [] },
   }
   await page.clock.install()
   await page.addInitScript(session => sessionStorage.setItem('wreckage-session', JSON.stringify(session)),

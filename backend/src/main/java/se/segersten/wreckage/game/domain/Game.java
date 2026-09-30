@@ -92,15 +92,30 @@ public class Game {
             if (isEliminated(player.getId())) continue;
             programs.put(player.getId(),PlayerProgram.empty(player.getId(),configuration.programSize()));
         }
-        round = new Round(round == null ? 1 : round.number() + 1,RoundPhase.PLANNING, programs,
+        List<UUID> initiative = nextInitiative(programs);
+        round = new Round(round == null ? 1 : round.number() + 1,RoundPhase.PLANNING, programs, initiative,
                 new GameState(board, getVehicleStates().stream()
                         .filter(v -> !isEliminated(v.vehicle().playerId())).toList()),List.of(),now.plusSeconds(configuration.planningTimeoutSeconds()));
         status = GameStatus.RUNNING;
         if (programs.isEmpty()) {
-            round = new Round(round.number(), RoundPhase.PLAYBACK, programs, round.initialState(), List.of(),round.planningDeadline());
+            round = new Round(round.number(), RoundPhase.PLAYBACK, programs, initiative,
+                    round.initialState(), List.of(),round.planningDeadline());
             completeRound();
         }
         return round;
+    }
+
+    private List<UUID> nextInitiative(Map<UUID, PlayerProgram> programs) {
+        if (round == null) {
+            return players.stream().map(Player::getId).filter(programs::containsKey).toList();
+        }
+        List<UUID> rotated = new ArrayList<>(round.initiative());
+        if (!rotated.isEmpty()) rotated.add(rotated.remove(0));
+        rotated.removeIf(playerId -> !programs.containsKey(playerId));
+        players.stream().map(Player::getId)
+                .filter(programs::containsKey).filter(playerId -> !rotated.contains(playerId))
+                .forEach(rotated::add);
+        return List.copyOf(rotated);
     }
 
     public boolean isEliminated(UUID playerId) {
