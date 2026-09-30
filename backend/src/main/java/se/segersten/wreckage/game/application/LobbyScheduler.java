@@ -15,5 +15,6 @@ public class LobbyScheduler {
     @Scheduled(fixedDelay = 500)
     public void startExpiredLobbies() {
         gameService.startExpiredLobbies();
+        gameService.completeExpiredPlanning();
     }
 }

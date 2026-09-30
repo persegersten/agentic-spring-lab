@@ -31,8 +31,9 @@ class HeadlessPlayersProfileIntegrationTest {
         persisted.getPlayers().stream().skip(1).forEach(player ->
                 assertThat(persisted.getRound().programs().get(player.getId()).ready()).isTrue());
 
-        var hand = persisted.getRound().programs().get(human.player().getId()).hand();
-        gameService.submitProgram(game.getId(), human.player().getId(), human.token(), hand);
+        gameService.submitProgram(game.getId(), human.player().getId(), human.token(),
+                java.util.Collections.nCopies(game.getConfiguration().programSize(),
+                        se.segersten.wreckage.game.domain.MovementOrder.WAIT));
 
         var resolved = gameService.getPlayerGame(game.getId(), human.player().getId(), human.token());
         assertThat(resolved.getRound().phase()).isEqualTo(RoundPhase.PLAYBACK);
@@ -45,7 +46,7 @@ class HeadlessPlayersProfileIntegrationTest {
         nextRound.getPlayers().stream().skip(1).forEach(player -> {
             var program = nextRound.getRound().programs().get(player.getId());
             assertThat(program.ready()).isTrue();
-            assertThat(program.orders()).containsExactlyElementsOf(program.hand());
+            assertThat(program.commands()).containsExactlyElementsOf(program.commands());
         });
     }
 }

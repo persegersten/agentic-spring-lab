@@ -49,7 +49,7 @@ public class GameController {
         GameConfiguration configuration = request == null
                 ? GameConfiguration.defaults()
                 : new GameConfiguration(request.maxPlayers(), request.joinTimeoutSeconds(),
-                        request.cardsPerRound(), request.planningTimeoutSeconds());
+                        request.programSize(), request.planningTimeoutSeconds());
         return GameResponse.from(gameService.createGame(configuration));
     }
 
@@ -163,7 +163,7 @@ public class GameController {
     public record AddPlayerRequest(String name) {
     }
     public record CreateGameRequest(int maxPlayers, int joinTimeoutSeconds,
-                                    int cardsPerRound, int planningTimeoutSeconds) {}
+                                    int programSize, int planningTimeoutSeconds) {}
     public record ProgramRequest(List<MovementOrder> orders) {}
     public record PlayerJoinResponse(UUID id, String name, String token) {}
 

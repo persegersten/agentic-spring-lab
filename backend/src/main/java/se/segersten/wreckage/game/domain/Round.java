@@ -5,6 +5,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.time.Instant;
 
 public final class Round {
     private final int number;
@@ -12,26 +13,31 @@ public final class Round {
     private final Map<UUID, PlayerProgram> programs;
     private final GameState initialState;
     private List<RoundEvent> playback;
+    private final Instant planningDeadline;
 
     public Round(int number, Map<UUID, PlayerProgram> programs, GameState initialState) {
-        this(number, RoundPhase.PLANNING, programs, initialState, List.of());
+        this(number, RoundPhase.PLANNING, programs, initialState, List.of(), Instant.EPOCH);
     }
     public Round(int number, RoundPhase phase, Map<UUID, PlayerProgram> programs,
                  GameState initialState, List<RoundEvent> playback) {
+        this(number,phase,programs,initialState,playback,Instant.EPOCH);
+    }
+    public Round(int number,RoundPhase phase,Map<UUID,PlayerProgram> programs,GameState initialState,List<RoundEvent> playback,Instant planningDeadline){
         this.number = number; this.phase = phase;
         this.programs = new LinkedHashMap<>(programs);
-        this.initialState = initialState; this.playback = List.copyOf(playback);
+        this.initialState = initialState; this.playback = List.copyOf(playback);this.planningDeadline=planningDeadline;
     }
     public int number() { return number; }
     public RoundPhase phase() { return phase; }
     public Map<UUID, PlayerProgram> programs() { return Map.copyOf(programs); }
     public GameState initialState() { return initialState; }
     public List<RoundEvent> playback() { return playback; }
+    public Instant planningDeadline(){return planningDeadline;}
     public void reorder(UUID playerId, List<MovementOrder> orders) {
         if (phase != RoundPhase.PLANNING) throw new IllegalStateException("Round is not accepting programs");
         var current = programs.get(playerId);
         if (current == null) throw new IllegalArgumentException("Player is not part of this round");
-        programs.put(playerId, current.reorder(orders));
+        programs.put(playerId, current.edit(orders));
     }
     public void lock(UUID playerId, List<MovementOrder> orders) {
         if (phase != RoundPhase.PLANNING) throw new IllegalStateException("Round is not accepting programs");
@@ -40,6 +46,7 @@ public final class Round {
         programs.put(playerId, current.lock(orders));
     }
     public boolean allReady() { return !programs.isEmpty() && programs.values().stream().allMatch(PlayerProgram::ready); }
+    public boolean completeTimedOutPrograms(Instant now){if(phase!=RoundPhase.PLANNING||now.isBefore(planningDeadline))return false;programs.replaceAll((id,p)->p.completeWithWait());return true;}
     public void resolve(se.segersten.wreckage.game.engine.MovementEngine engine) {
         resolve(engine, new se.segersten.wreckage.game.engine.CannonEngine(),
                 new se.segersten.wreckage.game.engine.BoardEffectEngine());
@@ -55,11 +62,11 @@ public final class Round {
         phase = RoundPhase.MOVEMENT_ACTIONS;
         GameState state = initialState;
         List<RoundEvent> events = new ArrayList<>();
-        int cardPositions = programs.values().iterator().next().orders().size();
+        int cardPositions = programs.values().iterator().next().commands().size();
         for (int index = 0; index < cardPositions; index++) {
             List<VehicleTurn> turns = new ArrayList<>();
             for (VehicleState vehicle : state.vehicleStates()) {
-                MovementOrder order = programs.get(vehicle.vehicle().playerId()).orders().get(index);
+                MovementOrder order = programs.get(vehicle.vehicle().playerId()).commands().get(index);
                 turns.add(new VehicleTurn(vehicle, order));
             }
             var result = engine.resolveTurnWithEvents(new Turn(turns), state);

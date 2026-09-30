@@ -22,11 +22,11 @@ class EliminatedPlayerResponseTest {
         Game game = new Game(original.getId(), original.getPlayers(), original.getBoard(),
                 GameStatus.RUNNING, states, null, new GameConfiguration(3, 60, 3, 30),
                 now, now.plusSeconds(60));
-        game.startRound(() -> MovementOrder.FORWARD);
+        game.startRound(java.time.Instant.now());
 
         PlayerGameResponse response = PlayerGameResponse.from(game, spectator.getId());
 
-        assertThat(response.round().hand()).isEmpty();
+        assertThat(response.round().program()).isEmpty();
         assertThat(response.round().state().ready()).hasSize(2).doesNotContainKey(spectator.getId());
         assertThat(response.round().state().initialVehicles()).hasSize(2);
         assertThat(response.players()).hasSize(3);

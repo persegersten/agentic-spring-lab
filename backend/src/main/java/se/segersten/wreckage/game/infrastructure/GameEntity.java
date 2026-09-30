@@ -19,7 +19,7 @@ class GameEntity {
     @Column(name = "join_deadline", nullable = false) private Instant joinDeadline;
     @Column(name = "max_players", nullable = false) private Integer maxPlayers;
     @Column(name = "join_timeout_seconds", nullable = false) private Integer joinTimeoutSeconds;
-    @Column(name = "cards_per_round", nullable = false) private Integer cardsPerRound;
+    @Column(name = "program_size", nullable = false) private Integer programSize;
     @Column(name = "planning_timeout_seconds", nullable = false) private Integer planningTimeoutSeconds;
     @Column(name = "board_width") private Integer boardWidth;
     @Column(name = "board_height") private Integer boardHeight;
@@ -36,7 +36,7 @@ class GameEntity {
         setBoard(game.getBoard()); status = game.getStatus();
         GameConfiguration configuration = game.getConfiguration();
         maxPlayers = configuration.maxPlayers(); joinTimeoutSeconds = configuration.joinTimeoutSeconds();
-        cardsPerRound = configuration.cardsPerRound(); planningTimeoutSeconds = configuration.planningTimeoutSeconds();
+        programSize = configuration.programSize(); planningTimeoutSeconds = configuration.planningTimeoutSeconds();
         joinDeadline = game.getJoinDeadline(); addMissingPlayers(game.getPlayers()); syncVehicles(game.getVehicleStates());
         if (game.getRound() != null) round = round == null ? RoundEntity.fromDomain(game.getRound(), this) : round.updateFrom(game.getRound());
         return this;
@@ -76,7 +76,7 @@ class GameEntity {
         for (VehicleEntity entity : vehicles) { VehicleState state = entity.toDomain(); vehicleMap.put(state.vehicle().playerId(), state); byVehicleId.put(state.vehicle().id(), state.vehicle()); }
         Round domainRound = round == null ? null : round.toDomain(board, byVehicleId);
         GameConfiguration configuration = new GameConfiguration(maxPlayers, joinTimeoutSeconds,
-                cardsPerRound, planningTimeoutSeconds);
+                programSize, planningTimeoutSeconds);
         return new Game(domainId, domainPlayers, board, status, vehicleMap, domainRound,
                 configuration, createdAt.toInstant(), joinDeadline);
     }

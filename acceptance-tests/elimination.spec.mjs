@@ -7,11 +7,11 @@ test('elimination is revealed after playback and spectators can replay', async (
   const other = { ...vehicle, id: 'v2', playerId: 'other', x: 1, damage: 0 }
   const state = {
     id: gameId, playerId, status: 'FINISHED',
-    configuration: { maxPlayers: 2, cardsPerRound: 3, planningTimeoutSeconds: 30, joinTimeoutSeconds: 60 },
+    configuration: { maxPlayers: 2, programSize: 3, planningTimeoutSeconds: 30, joinTimeoutSeconds: 60 },
     players: [{ id: playerId, name: 'Per' }, { id: 'other', name: 'Alice' }],
     board: { width: 5, height: 5, walls: [], pits: [] },
     vehicles: [{ ...vehicle, damage: 3 }, other],
-    round: { hand: [], state: {
+    round: { program: [], state: {
       number: 1, phase: 'PLAYBACK', ready: { [playerId]: true, other: true },
       initialVehicles: [vehicle, other],
       playback: [{

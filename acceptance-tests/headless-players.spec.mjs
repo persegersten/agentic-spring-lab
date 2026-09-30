@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { fillProgram } from './player-pages.mjs'
 
 test('one browser can play against headless players', async ({ page }) => {
   await page.goto('/')
@@ -15,7 +16,7 @@ test('one browser can play against headless players', async ({ page }) => {
     await expect(page.getByRole('listitem').filter({ hasText: name })).toContainText('Redo')
   }
 
-  await page.getByRole('button', { name: 'Lås program', exact: true }).click()
+  await fillProgram(page)
   await expect(page.getByRole('heading', { name: 'Uppspelning', exact: true }).first()).toBeVisible()
   await expect(page.getByRole('button', { name: 'Starta nästa runda', exact: true }))
     .toBeVisible({ timeout: 30_000 })

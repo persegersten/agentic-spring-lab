@@ -1,0 +1,6 @@
+package se.segersten.wreckage.game.domain;
+import static org.assertj.core.api.Assertions.*;import java.time.Instant;import java.util.*;import org.junit.jupiter.api.Test;
+class ProgramPlanningTest{
+ @Test void supportsDraftsDuplicatesLockingAndTimeout(){UUID id=UUID.randomUUID();var p=PlayerProgram.empty(id,3).edit(List.of(MovementOrder.FORWARD_1,MovementOrder.FORWARD_1));var locked=p.lock(List.of(MovementOrder.FORWARD_1,MovementOrder.FORWARD_1,MovementOrder.WAIT));assertThat(locked.ready()).isTrue();assertThatThrownBy(()->locked.edit(List.of())).isInstanceOf(IllegalStateException.class);Instant deadline=Instant.parse("2099-01-01T00:00:00Z");var round=new Round(1,RoundPhase.PLANNING,Map.of(id,p),new GameState(new Board(5,5),List.of()),List.of(),deadline);assertThat(round.completeTimedOutPrograms(deadline)).isTrue();assertThat(round.programs().get(id).commands()).containsExactly(MovementOrder.FORWARD_1,MovementOrder.FORWARD_1,MovementOrder.WAIT);}
+ @Test void exposesExactlyTheV2Commands(){assertThat(MovementOrder.values()).containsExactly(MovementOrder.FORWARD_1,MovementOrder.FORWARD_2,MovementOrder.REVERSE_1,MovementOrder.TURN_LEFT,MovementOrder.TURN_RIGHT,MovementOrder.U_TURN,MovementOrder.WAIT);}
+}

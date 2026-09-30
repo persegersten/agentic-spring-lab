@@ -1,6 +1,7 @@
 package se.segersten.wreckage.game.engine;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
 
@@ -18,6 +19,13 @@ import se.segersten.wreckage.game.domain.VehicleState;
 import se.segersten.wreckage.game.domain.VehicleTurn;
 
 class MovementEngineTest {
+    @Test void waitDoesNothingAndDeferredCommandsFailExplicitly() {
+        VehicleState vehicle = state(2, 2, Direction.NORTH);
+        GameState initial = new GameState(board, List.of(vehicle));
+        assertThat(engine.resolveTurn(new Turn(List.of(order(vehicle, MovementOrder.WAIT))), initial)).isEqualTo(initial);
+        assertThatThrownBy(() -> engine.resolveTurn(new Turn(List.of(order(vehicle, MovementOrder.FORWARD_2))), initial)).isInstanceOf(UnsupportedOperationException.class);
+        assertThatThrownBy(() -> engine.resolveTurn(new Turn(List.of(order(vehicle, MovementOrder.U_TURN))), initial)).isInstanceOf(UnsupportedOperationException.class);
+    }
 
     private final MovementEngine engine = new MovementEngine();
     private final Board board = new Board(7, 7);
@@ -27,7 +35,7 @@ class MovementEngineTest {
         VehicleState per = state(2, 3, Direction.NORTH);
 
         var result = engine.resolveTurnWithEvents(
-                new Turn(List.of(order(per, MovementOrder.FORWARD))),
+                new Turn(List.of(order(per, MovementOrder.FORWARD_1))),
                 new GameState(board, List.of(per)));
 
         assertThat(result.events()).singleElement().satisfies(event -> {
@@ -58,7 +66,7 @@ class MovementEngineTest {
     void blockedMovementDoesNotCreateAnEvent() {
         VehicleState per = state(0, 6, Direction.NORTH);
         var result = engine.resolveTurnWithEvents(
-                new Turn(List.of(order(per, MovementOrder.FORWARD))),
+                new Turn(List.of(order(per, MovementOrder.FORWARD_1))),
                 new GameState(board, List.of(per)));
         assertThat(result.events()).isEmpty();
         assertThat(result.state().vehicleStates()).containsExactly(per);
@@ -68,7 +76,7 @@ class MovementEngineTest {
     void movesForwardNorthByIncreasingY() {
         VehicleState vehicle = state(3, 3, Direction.NORTH);
 
-        GameState result = resolve(List.of(vehicle), order(vehicle, MovementOrder.FORWARD));
+        GameState result = resolve(List.of(vehicle), order(vehicle, MovementOrder.FORWARD_1));
 
         assertThat(result.vehicleStates()).containsExactly(
                 new VehicleState(vehicle.vehicle(), new Position(3, 4), Direction.NORTH));
@@ -81,13 +89,13 @@ class MovementEngineTest {
         VehicleState south = state(3, 3, Direction.SOUTH);
         VehicleState west = state(3, 3, Direction.WEST);
 
-        assertThat(resolve(List.of(north), order(north, MovementOrder.REVERSE)).vehicleStates())
+        assertThat(resolve(List.of(north), order(north, MovementOrder.REVERSE_1)).vehicleStates())
                 .containsExactly(new VehicleState(north.vehicle(), new Position(3, 2), Direction.NORTH));
-        assertThat(resolve(List.of(east), order(east, MovementOrder.REVERSE)).vehicleStates())
+        assertThat(resolve(List.of(east), order(east, MovementOrder.REVERSE_1)).vehicleStates())
                 .containsExactly(new VehicleState(east.vehicle(), new Position(2, 3), Direction.EAST));
-        assertThat(resolve(List.of(south), order(south, MovementOrder.REVERSE)).vehicleStates())
+        assertThat(resolve(List.of(south), order(south, MovementOrder.REVERSE_1)).vehicleStates())
                 .containsExactly(new VehicleState(south.vehicle(), new Position(3, 4), Direction.SOUTH));
-        assertThat(resolve(List.of(west), order(west, MovementOrder.REVERSE)).vehicleStates())
+        assertThat(resolve(List.of(west), order(west, MovementOrder.REVERSE_1)).vehicleStates())
                 .containsExactly(new VehicleState(west.vehicle(), new Position(4, 3), Direction.WEST));
     }
 
@@ -97,7 +105,7 @@ class MovementEngineTest {
         VehicleState pushed = state(2, 2, Direction.SOUTH);
 
         var result = engine.resolveTurnWithEvents(
-                new Turn(List.of(order(moving, MovementOrder.MALFUNCTION_NO_OP))),
+                new Turn(List.of(order(moving, MovementOrder.WAIT))),
                 new GameState(board, List.of(moving, pushed)));
 
         assertThat(result.state().vehicleStates()).containsExactly(moving, pushed);
@@ -124,10 +132,10 @@ class MovementEngineTest {
         VehicleState reversingSouthAtTop = state(1, 6, Direction.SOUTH);
 
         assertThat(resolve(List.of(northAtTop),
-                order(northAtTop, MovementOrder.FORWARD)).vehicleStates())
+                order(northAtTop, MovementOrder.FORWARD_1)).vehicleStates())
                 .containsExactly(northAtTop);
         assertThat(resolve(List.of(reversingSouthAtTop),
-                order(reversingSouthAtTop, MovementOrder.REVERSE)).vehicleStates())
+                order(reversingSouthAtTop, MovementOrder.REVERSE_1)).vehicleStates())
                 .containsExactly(reversingSouthAtTop);
     }
 
@@ -137,7 +145,7 @@ class MovementEngineTest {
         VehicleState stationary = state(2, 2, Direction.NORTH);
 
         var result = engine.resolveTurnWithEvents(
-                new Turn(List.of(order(moving, MovementOrder.FORWARD))),
+                new Turn(List.of(order(moving, MovementOrder.FORWARD_1))),
                 new GameState(board, List.of(moving, stationary)));
 
         assertThat(result.state().vehicleStates()).containsExactly(
@@ -166,7 +174,7 @@ class MovementEngineTest {
         VehicleState front = state(3, 2, Direction.NORTH);
 
         var result = engine.resolveTurnWithEvents(
-                new Turn(List.of(order(moving, MovementOrder.FORWARD))),
+                new Turn(List.of(order(moving, MovementOrder.FORWARD_1))),
                 new GameState(board, List.of(moving, middle, front)));
 
         assertThat(result.state().vehicleStates()).containsExactly(
@@ -187,7 +195,7 @@ class MovementEngineTest {
         VehicleState pushed = state(2, 2, Direction.SOUTH);
 
         var result = engine.resolveTurnWithEvents(
-                new Turn(List.of(order(moving, MovementOrder.REVERSE))),
+                new Turn(List.of(order(moving, MovementOrder.REVERSE_1))),
                 new GameState(board, List.of(moving, pushed)));
 
         assertThat(result.state().vehicleStates()).containsExactly(
@@ -199,10 +207,10 @@ class MovementEngineTest {
 
     @Test
     void blocksWholePushChainAtEveryBoardBoundary() {
-        assertBlockedPush(state(0, 5, Direction.NORTH), state(0, 6, Direction.WEST), MovementOrder.FORWARD);
-        assertBlockedPush(state(5, 0, Direction.EAST), state(6, 0, Direction.NORTH), MovementOrder.FORWARD);
-        assertBlockedPush(state(0, 1, Direction.SOUTH), state(0, 0, Direction.EAST), MovementOrder.FORWARD);
-        assertBlockedPush(state(1, 0, Direction.WEST), state(0, 0, Direction.SOUTH), MovementOrder.FORWARD);
+        assertBlockedPush(state(0, 5, Direction.NORTH), state(0, 6, Direction.WEST), MovementOrder.FORWARD_1);
+        assertBlockedPush(state(5, 0, Direction.EAST), state(6, 0, Direction.NORTH), MovementOrder.FORWARD_1);
+        assertBlockedPush(state(0, 1, Direction.SOUTH), state(0, 0, Direction.EAST), MovementOrder.FORWARD_1);
+        assertBlockedPush(state(1, 0, Direction.WEST), state(0, 0, Direction.SOUTH), MovementOrder.FORWARD_1);
     }
 
     @Test
@@ -210,7 +218,7 @@ class MovementEngineTest {
         VehicleState moving = state(1, 2, Direction.EAST);
         VehicleState pushed = state(2, 2, Direction.NORTH);
         GameState original = new GameState(board, List.of(moving, pushed));
-        Turn turn = new Turn(List.of(order(moving, MovementOrder.FORWARD)));
+        Turn turn = new Turn(List.of(order(moving, MovementOrder.FORWARD_1)));
 
         var first = engine.resolveTurnWithEvents(turn, original);
         var second = engine.resolveTurnWithEvents(turn, original);
@@ -225,11 +233,11 @@ class MovementEngineTest {
         VehicleState follower = state(1, 2, Direction.EAST);
 
         GameState leaderFirst = resolve(List.of(follower, leader),
-                order(leader, MovementOrder.FORWARD),
-                order(follower, MovementOrder.FORWARD));
+                order(leader, MovementOrder.FORWARD_1),
+                order(follower, MovementOrder.FORWARD_1));
         GameState followerFirst = resolve(List.of(follower, leader),
-                order(follower, MovementOrder.FORWARD),
-                order(leader, MovementOrder.FORWARD));
+                order(follower, MovementOrder.FORWARD_1),
+                order(leader, MovementOrder.FORWARD_1));
 
         assertThat(leaderFirst.vehicleStates()).containsExactly(
                 new VehicleState(follower.vehicle(), new Position(2, 2), Direction.EAST),
@@ -244,7 +252,7 @@ class MovementEngineTest {
         VehicleState vehicle = state(1, 1, Direction.NORTH);
         GameState original = new GameState(board, List.of(vehicle));
 
-        engine.resolveTurn(new Turn(List.of(order(vehicle, MovementOrder.FORWARD))), original);
+        engine.resolveTurn(new Turn(List.of(order(vehicle, MovementOrder.FORWARD_1))), original);
 
         assertThat(original.vehicleStates()).containsExactly(vehicle);
     }

@@ -34,15 +34,15 @@ made directly or through the development server.
 Joining a game returns a one-time player token. The browser stores it in
 `sessionStorage` and sends it in `X-Player-Token`; mutations also identify the
 player with `X-Player-Id`. Only the authenticated player endpoint returns that
-player's programming hand. The public game response contains readiness but no
-hands or unrevealed programs. Tokens are stored server-side only as SHA-256
+player's private program. The public game response contains readiness but no
+unrevealed programs. Tokens are stored server-side only as SHA-256
 hashes.
 
 On reload, the game URL selects the matching stored player credential and the
 browser rebuilds the complete view from the authenticated player endpoint. The
 credential identifies the player but is not game state: the board, vehicles,
-current round, readiness, dealt hand, and the player's current private card
-ordering are all persisted by the server. Reordering cards during planning uses
+current round, readiness, and the player's current private program draft are
+all persisted by the server. Editing registers during planning uses
 an authenticated `PUT` to the existing current-program resource; locking the
 program remains the existing `POST`. The normal polling loop retries after a
 temporary connection failure and replaces the rendered view with fresh server
@@ -50,16 +50,16 @@ state without changing other players or the game aggregate.
 
 The aggregate persists the current round, programs and an authoritative ordered
 event stream. After all programs are locked, `MovementEngine` resolves the
-configured card positions in stable player order. `CannonEngine` then fires
+configured program registers in stable player order. `CannonEngine` then fires
 every vehicle once, tracing each shot until the first vehicle, wall, or board
 boundary. Hits increment a minimal persisted damage counter. The round then
 enters `BOARD_EFFECTS`, where `BoardEffectEngine` emits a PIT event for every
 vehicle on a persisted PIT position. The engines emit MOVE, TURN, FIRE, HIT,
 DAMAGE and PIT events with enough state for React to visualize the persisted
 events in server order without predicting a result.
-When the next round starts, a damaged vehicle receives one mandatory private
-`MALFUNCTION_NO_OP` card per damage point, capped at the hand size; the existing hand
-validation ensures it is included in the submitted program.
+When a round starts, every active player receives an empty private program with
+the configured number of registers and fills it from the complete v2 command set.
+Damage does not alter the available planning commands.
 The same event stream is returned to every client and also drives the
 development debug view.
 
@@ -86,7 +86,7 @@ should normally enter the domain model rather than controllers or JPA entities.
 manual testing. The default implementation is a no-op. With the
 `headless-players` Spring profile, the first player remains browser-controlled,
 the lobby is filled to `maxPlayers`, and every later player's program is locked
-using its dealt hand without reordering. The stable aggregate player order
+using its program draft without reordering. The stable aggregate player order
 identifies the first player, so no client session or additional persistence
 field is needed for automated players. `GameService` invokes the automation
 after joining and after starting each later round, before saving the aggregate.
@@ -137,7 +137,7 @@ A `Game` contains:
 - zero or more `Player` objects, each with a UUID and non-blank name;
 - a `Board` value with width and height.
 - a persistent `GameConfiguration` containing player capacity, join timeout,
-  cards per round, and planning timeout;
+  program size, and planning timeout;
 - a creation time and authoritative join deadline;
 - a lifecycle status of `WAITING_FOR_PLAYERS`, `RUNNING`, or `FINISHED`;
   newly created games wait in the lobby.

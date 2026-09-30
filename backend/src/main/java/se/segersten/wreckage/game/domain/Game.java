@@ -7,7 +7,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import java.time.Instant;
-import java.util.function.Supplier;
 
 public class Game {
     private final UUID id;
@@ -69,19 +68,18 @@ public class Game {
         return player;
     }
 
-    public boolean startIfReady(Instant now, Supplier<MovementOrder> cards) {
+    public boolean startIfReady(Instant now) {
         Objects.requireNonNull(now);
-        Objects.requireNonNull(cards);
         if (status != GameStatus.WAITING_FOR_PLAYERS || round != null || players.size() < 2)
             return false;
         boolean full = players.size() >= configuration.maxPlayers();
         boolean expired = !now.isBefore(joinDeadline);
         if (!full && !expired) return false;
-        startRound(cards);
+        startRound(now);
         return true;
     }
 
-    public Round startRound(Supplier<MovementOrder> cards) {
+    public Round startRound(Instant now) {
         if (status == GameStatus.FINISHED) throw new IllegalStateException("The game is finished");
         if (players.isEmpty()) throw new IllegalStateException("A round needs at least one player");
         if (round != null && round.phase() != RoundPhase.PLAYBACK)
@@ -92,24 +90,14 @@ public class Game {
         Map<UUID, PlayerProgram> programs = new LinkedHashMap<>();
         for (Player player : players) {
             if (isEliminated(player.getId())) continue;
-            List<MovementOrder> hand = new ArrayList<>(configuration.cardsPerRound());
-            VehicleState vehicle = vehicles.get(player.getId());
-            int malfunctionCount = vehicle == null ? 0 : Math.min(vehicle.damage(), configuration.cardsPerRound());
-            for (int index = 0; index < malfunctionCount; index++) {
-                hand.add(MovementOrder.MALFUNCTION_NO_OP);
-            }
-            for (int index = hand.size(); index < configuration.cardsPerRound(); index++) {
-                hand.add(Objects.requireNonNull(cards.get(), "card source must not return null"));
-            }
-            programs.put(player.getId(), new PlayerProgram(player.getId(), hand,
-                    hand.stream().allMatch(card -> card == MovementOrder.MALFUNCTION_NO_OP) ? hand : List.of()));
+            programs.put(player.getId(),PlayerProgram.empty(player.getId(),configuration.programSize()));
         }
-        round = new Round(round == null ? 1 : round.number() + 1, programs,
+        round = new Round(round == null ? 1 : round.number() + 1,RoundPhase.PLANNING, programs,
                 new GameState(board, getVehicleStates().stream()
-                        .filter(v -> !isEliminated(v.vehicle().playerId())).toList()));
+                        .filter(v -> !isEliminated(v.vehicle().playerId())).toList()),List.of(),now.plusSeconds(configuration.planningTimeoutSeconds()));
         status = GameStatus.RUNNING;
         if (programs.isEmpty()) {
-            round = new Round(round.number(), RoundPhase.PLAYBACK, programs, round.initialState(), List.of());
+            round = new Round(round.number(), RoundPhase.PLAYBACK, programs, round.initialState(), List.of(),round.planningDeadline());
             completeRound();
         }
         return round;
@@ -117,7 +105,7 @@ public class Game {
 
     public boolean isEliminated(UUID playerId) {
         VehicleState vehicle = vehicles.get(playerId);
-        return vehicle != null && vehicle.damage() >= configuration.cardsPerRound();
+        return vehicle != null && vehicle.damage() >= configuration.programSize();
     }
 
     public void completeRound() {

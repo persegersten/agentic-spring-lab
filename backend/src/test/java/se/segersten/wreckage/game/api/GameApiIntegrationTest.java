@@ -60,7 +60,7 @@ class GameApiIntegrationTest {
         assertThat(game.path("players").isEmpty()).isTrue();
         assertThat(game.path("status").asText()).isEqualTo("WAITING_FOR_PLAYERS");
         assertThat(game.path("configuration").path("maxPlayers").asInt()).isEqualTo(12);
-        assertThat(game.path("configuration").path("cardsPerRound").asInt()).isEqualTo(3);
+        assertThat(game.path("configuration").path("programSize").asInt()).isEqualTo(3);
         assertThat(game.path("joinDeadline").asText()).isNotBlank();
         assertThat(game.path("board").path("width").asInt()).isEqualTo(20);
         assertThat(game.path("board").path("height").asInt()).isEqualTo(20);
@@ -72,7 +72,7 @@ class GameApiIntegrationTest {
     @Test
     void createGameWithConfigurationAndRetrieveIt() throws Exception {
         HttpResponse<String> created = post("/games", """
-                {"maxPlayers":4,"joinTimeoutSeconds":90,"cardsPerRound":10,"planningTimeoutSeconds":45}
+                {"maxPlayers":4,"joinTimeoutSeconds":90,"programSize":5,"planningTimeoutSeconds":45}
                 """);
         assertThat(created.statusCode()).isEqualTo(HttpStatus.CREATED.value());
         JsonNode createdGame = json(created);
@@ -82,18 +82,18 @@ class GameApiIntegrationTest {
         JsonNode configuration = json(retrieved).path("configuration");
         assertThat(configuration.path("maxPlayers").asInt()).isEqualTo(4);
         assertThat(configuration.path("joinTimeoutSeconds").asInt()).isEqualTo(90);
-        assertThat(configuration.path("cardsPerRound").asInt()).isEqualTo(10);
+        assertThat(configuration.path("programSize").asInt()).isEqualTo(5);
         assertThat(configuration.path("planningTimeoutSeconds").asInt()).isEqualTo(45);
     }
 
     @Test
     void rejectInvalidGameConfiguration() throws Exception {
         HttpResponse<String> response = post("/games", """
-                {"maxPlayers":4,"joinTimeoutSeconds":90,"cardsPerRound":11,"planningTimeoutSeconds":45}
+                {"maxPlayers":4,"joinTimeoutSeconds":90,"programSize":11,"planningTimeoutSeconds":45}
                 """);
 
         assertThat(response.statusCode()).isEqualTo(HttpStatus.BAD_REQUEST.value());
-        assertThat(json(response).path("message").asText()).contains("cardsPerRound");
+        assertThat(json(response).path("message").asText()).contains("programSize");
     }
 
     @Test
@@ -111,7 +111,7 @@ class GameApiIntegrationTest {
     @Test
     void rejectPlayerWhenLobbyIsFull() throws Exception {
         HttpResponse<String> created = post("/games", """
-                {"maxPlayers":1,"joinTimeoutSeconds":90,"cardsPerRound":3,"planningTimeoutSeconds":45}
+                {"maxPlayers":1,"joinTimeoutSeconds":90,"programSize":3,"planningTimeoutSeconds":45}
                 """);
         String gameId = json(created).path("id").asText();
         post("/games/%s/players".formatted(gameId), "{\"name\":\"Alice\"}");
@@ -126,7 +126,7 @@ class GameApiIntegrationTest {
     @Test
     void startsPlanningWhenLobbyBecomesFullAndPersistsThePhase() throws Exception {
         HttpResponse<String> created = post("/games", """
-                {"maxPlayers":2,"joinTimeoutSeconds":90,"cardsPerRound":3,"planningTimeoutSeconds":45}
+                {"maxPlayers":2,"joinTimeoutSeconds":90,"programSize":3,"planningTimeoutSeconds":45}
                 """);
         String gameId = json(created).path("id").asText();
         post("/games/%s/players".formatted(gameId), "{\"name\":\"Alice\"}");
@@ -142,7 +142,7 @@ class GameApiIntegrationTest {
     @Test
     void returnsTheSameServerOwnedBoardAndVehiclePositionsToEveryPlayer() throws Exception {
         HttpResponse<String> created = post("/games", """
-                {"maxPlayers":2,"joinTimeoutSeconds":90,"cardsPerRound":3,"planningTimeoutSeconds":45}
+                {"maxPlayers":2,"joinTimeoutSeconds":90,"programSize":3,"planningTimeoutSeconds":45}
                 """);
         String gameId = json(created).path("id").asText();
         JsonNode alice = json(post("/games/%s/players".formatted(gameId), "{\"name\":\"Alice\"}"));
@@ -163,7 +163,7 @@ class GameApiIntegrationTest {
     @Test
     void keepsFiveCardHandsPrivateAndPublishesReadiness() throws Exception {
         HttpResponse<String> created = post("/games", """
-                {"maxPlayers":2,"joinTimeoutSeconds":90,"cardsPerRound":5,"planningTimeoutSeconds":45}
+                {"maxPlayers":2,"joinTimeoutSeconds":90,"programSize":5,"planningTimeoutSeconds":45}
                 """);
         String gameId = json(created).path("id").asText();
         JsonNode per = json(post("/games/%s/players".formatted(gameId), "{\"name\":\"Per\"}"));
@@ -173,36 +173,34 @@ class GameApiIntegrationTest {
         JsonNode perGame = json(getPlayerGame(gameId, per));
         JsonNode aliceGame = json(getPlayerGame(gameId, alice));
 
-        assertThat(publicGame.toString()).doesNotContain("hand", "orders");
-        assertThat(perGame.path("round").path("hand")).hasSize(5);
-        assertThat(aliceGame.path("round").path("hand")).hasSize(5);
+        assertThat(publicGame.toString()).doesNotContain("\"program\":", "orders");
+        assertThat(perGame.path("round").path("program")).isEmpty();
+        assertThat(aliceGame.path("round").path("program")).isEmpty();
         assertThat(perGame.path("round").has("state")).isTrue();
         assertThat(perGame.path("round").size()).isEqualTo(2);
 
         var selectedOrder = objectMapper.createArrayNode();
-        for (int index = 4; index >= 0; index--) {
-            selectedOrder.add(perGame.path("round").path("hand").path(index).asText());
-        }
+        for (int index = 0; index < 5; index++) selectedOrder.add("WAIT");
         HttpResponse<String> submitted = postPlayer(
                 "/games/%s/rounds/current/program".formatted(gameId), per,
                 objectMapper.createObjectNode()
                         .set("orders", selectedOrder)
                         .toString());
         assertThat(submitted.statusCode()).isEqualTo(HttpStatus.OK.value());
-        assertThat(json(submitted).path("round").path("hand")).isEqualTo(selectedOrder);
+        assertThat(json(submitted).path("round").path("program")).isEqualTo(selectedOrder);
 
         JsonNode aliceAfterSubmission = json(getPlayerGame(gameId, alice));
         assertThat(aliceAfterSubmission.path("round").path("state").path("phase").asText())
                 .isEqualTo("PLANNING");
         assertThat(aliceAfterSubmission.path("round").path("state").path("ready")
                 .path(per.path("id").asText()).asBoolean()).isTrue();
-        assertThat(aliceAfterSubmission.path("round").path("hand")).hasSize(5);
+        assertThat(aliceAfterSubmission.path("round").path("program")).isEmpty();
         assertThat(aliceAfterSubmission.toString()).doesNotContain("orders", "playback\":[{");
 
         HttpResponse<String> resolved = postPlayer(
                 "/games/%s/rounds/current/program".formatted(gameId), alice,
                 objectMapper.createObjectNode()
-                        .set("orders", aliceGame.path("round").path("hand"))
+                        .set("orders", selectedOrder)
                         .toString());
 
         assertThat(resolved.statusCode()).isEqualTo(HttpStatus.OK.value());
@@ -218,22 +216,20 @@ class GameApiIntegrationTest {
         JsonNode aliceResolved = json(getPlayerGame(gameId, per));
         assertThat(aliceResolved.path("round").path("state").path("playback"))
                 .isEqualTo(resolvedPlayback);
-        assertThat(publicResolved.toString()).doesNotContain("hand", "orders");
+        assertThat(publicResolved.toString()).doesNotContain("\"program\":", "orders");
     }
 
     @Test
     void persistsAPlayersPrivatePlanningDraftForReconnect() throws Exception {
         HttpResponse<String> created = post("/games", """
-                {"maxPlayers":2,"joinTimeoutSeconds":90,"cardsPerRound":3,"planningTimeoutSeconds":45}
+                {"maxPlayers":2,"joinTimeoutSeconds":90,"programSize":3,"planningTimeoutSeconds":45}
                 """);
         String gameId = json(created).path("id").asText();
         JsonNode per = json(post("/games/%s/players".formatted(gameId), "{\"name\":\"Per\"}"));
         post("/games/%s/players".formatted(gameId), "{\"name\":\"Alice\"}");
         JsonNode original = json(getPlayerGame(gameId, per));
         var draft = objectMapper.createArrayNode();
-        for (int index = 2; index >= 0; index--) {
-            draft.add(original.path("round").path("hand").path(index).asText());
-        }
+        draft.add("TURN_LEFT"); draft.add("TURN_LEFT");
 
         HttpResponse<String> saved = putPlayer(
                 "/games/%s/rounds/current/program".formatted(gameId), per,
@@ -241,18 +237,18 @@ class GameApiIntegrationTest {
 
         assertThat(saved.statusCode()).isEqualTo(HttpStatus.OK.value());
         JsonNode recovered = json(getPlayerGame(gameId, per));
-        assertThat(recovered.path("round").path("hand")).isEqualTo(draft);
+        assertThat(recovered.path("round").path("program")).isEqualTo(draft);
         assertThat(recovered.path("round").path("state").path("number").asInt()).isEqualTo(1);
         assertThat(recovered.path("board")).isEqualTo(original.path("board"));
         assertThat(recovered.path("round").path("state").path("ready")
                 .path(per.path("id").asText()).asBoolean()).isFalse();
-        assertThat(json(get("/games/" + gameId)).toString()).doesNotContain("hand", "orders");
+        assertThat(json(get("/games/" + gameId)).toString()).doesNotContain("\"program\":", "orders");
     }
 
     @Test
-    void returnsMandatoryMalfunctionOnlyToTheDamagedPlayer() throws Exception {
+    void damageDoesNotChangeTheAvailablePlanningProgram() throws Exception {
         HttpResponse<String> created = post("/games", """
-                {"maxPlayers":2,"joinTimeoutSeconds":90,"cardsPerRound":3,"planningTimeoutSeconds":45}
+                {"maxPlayers":2,"joinTimeoutSeconds":90,"programSize":3,"planningTimeoutSeconds":45}
                 """);
         String gameId = json(created).path("id").asText();
         JsonNode per = json(post("/games/%s/players".formatted(gameId), "{\"name\":\"Per\"}"));
@@ -281,10 +277,10 @@ class GameApiIntegrationTest {
         JsonNode perGame = json(nextRound);
         JsonNode aliceGame = json(getPlayerGame(gameId, alice));
         JsonNode publicGame = json(get("/games/" + gameId));
-        assertThat(perGame.path("round").path("hand").valueStream()
-                .map(JsonNode::asText)).contains("MALFUNCTION_NO_OP");
+        assertThat(perGame.path("round").path("program")).isEmpty();
+        assertThat(aliceGame.path("round").path("program")).isEmpty();
         assertThat(aliceGame.toString()).doesNotContain("MALFUNCTION_NO_OP");
-        assertThat(publicGame.toString()).doesNotContain("MALFUNCTION_NO_OP", "hand", "orders");
+        assertThat(publicGame.toString()).doesNotContain("MALFUNCTION_NO_OP", "\"program\":", "orders");
     }
 
     @Test
@@ -318,7 +314,7 @@ class GameApiIntegrationTest {
         assertThat(game.path("players").path(1).path("name").asText()).isEqualTo("Ulrika");
         assertThat(game.path("board").path("width").asInt()).isEqualTo(20);
         assertThat(game.path("board").path("height").asInt()).isEqualTo(20);
-        assertThat(game.toString()).doesNotContain("token", "hand");
+        assertThat(game.toString()).doesNotContain("token", "\"program\":");
     }
 
     @Test

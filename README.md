@@ -6,7 +6,7 @@ Current scope:
 - Create game
 - Add players
 - Read game state
-- Program three private movement cards per player
+- Build a private ordered program from the complete v2 command set
 - Resolve simultaneous movement and replay each round in the browser
 
 There is no account system; private player views use the secret token returned
@@ -37,8 +37,8 @@ profile:
 
 The first player joining a game is controlled by the browser. The profile
 immediately fills every remaining slot up to `maxPlayers` with headless players,
-starts the game, and locks each headless player's cards in the order they were
-dealt. The first player remains the only participant requiring input. Omit the
+starts the game, and locks each headless player's deterministic WAIT program.
+The first player remains the only participant requiring input. Omit the
 optional profile for normal multiplayer games.
 
 For PostgreSQL, start the database first:

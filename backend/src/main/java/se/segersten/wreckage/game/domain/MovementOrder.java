@@ -1,9 +1,11 @@
 package se.segersten.wreckage.game.domain;
 
 public enum MovementOrder {
-    FORWARD,
-    REVERSE,
+    FORWARD_1,
+    FORWARD_2,
+    REVERSE_1,
     TURN_LEFT,
     TURN_RIGHT,
-    MALFUNCTION_NO_OP;
+    U_TURN,
+    WAIT;
 }
