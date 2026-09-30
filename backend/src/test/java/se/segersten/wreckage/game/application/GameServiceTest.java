@@ -25,6 +25,9 @@ import se.segersten.wreckage.game.domain.MovementOrder;
 import se.segersten.wreckage.game.domain.RoundPhase;
 import se.segersten.wreckage.game.domain.RoundEvent;
 import se.segersten.wreckage.game.domain.RoundEventType;
+import se.segersten.wreckage.game.domain.Direction;
+import se.segersten.wreckage.game.domain.Position;
+import se.segersten.wreckage.game.domain.Wall;
 
 class GameServiceTest {
 
@@ -39,8 +42,9 @@ class GameServiceTest {
         assertThat(game.getPlayers()).isEmpty();
         assertThat(game.getStatus()).isEqualTo(GameStatus.WAITING_FOR_PLAYERS);
         assertThat(game.getConfiguration()).isEqualTo(GameConfiguration.defaults());
-        assertThat(game.getBoard()).isEqualTo(new Board(20, 20, java.util.Set.of(),
-                java.util.Set.of(new se.segersten.wreckage.game.domain.Position(4, 5))));
+        assertThat(game.getBoard()).isEqualTo(new Board(20, 20,
+                java.util.Set.of(new Wall(new Position(0, 0), Direction.NORTH)),
+                java.util.Set.of(new Position(4, 5))));
         assertThat(repository.findById(game.getId())).containsSame(game);
     }
 

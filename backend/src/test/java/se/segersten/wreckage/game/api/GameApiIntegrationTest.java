@@ -64,9 +64,17 @@ class GameApiIntegrationTest {
         assertThat(game.path("joinDeadline").asText()).isNotBlank();
         assertThat(game.path("board").path("width").asInt()).isEqualTo(20);
         assertThat(game.path("board").path("height").asInt()).isEqualTo(20);
+        assertThat(game.path("board").path("walls")).hasSize(1);
+        assertThat(game.path("board").path("walls").path(0).path("cell").path("x").asInt()).isZero();
+        assertThat(game.path("board").path("walls").path(0).path("cell").path("y").asInt()).isZero();
+        assertThat(game.path("board").path("walls").path(0).path("direction").asText())
+                .isEqualTo("NORTH");
         assertThat(game.path("board").path("pits")).hasSize(1);
         assertThat(game.path("board").path("pits").path(0).path("x").asInt()).isEqualTo(4);
         assertThat(game.path("board").path("pits").path(0).path("y").asInt()).isEqualTo(5);
+
+        JsonNode retrieved = json(get("/games/" + game.path("id").asText()));
+        assertThat(retrieved.path("board").path("walls")).isEqualTo(game.path("board").path("walls"));
     }
 
     @Test

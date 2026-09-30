@@ -3,13 +3,13 @@ package se.segersten.wreckage.game.domain;
 import java.util.Objects;
 import java.util.Set;
 
-public record Board(int width, int height, Set<Position> walls, Set<Position> pits) {
+public record Board(int width, int height, Set<Wall> walls, Set<Position> pits) {
 
     public Board(int width, int height) {
         this(width, height, Set.of(), Set.of());
     }
 
-    public Board(int width, int height, Set<Position> walls) {
+    public Board(int width, int height, Set<Wall> walls) {
         this(width, height, walls, Set.of());
     }
 
@@ -17,8 +17,8 @@ public record Board(int width, int height, Set<Position> walls, Set<Position> pi
         if (width <= 0 || height <= 0) throw new IllegalArgumentException("Board dimensions must be positive");
         walls = Set.copyOf(Objects.requireNonNull(walls));
         pits = Set.copyOf(Objects.requireNonNull(pits));
-        if (walls.stream().anyMatch(position -> !isWithinBounds(position, width, height)))
-            throw new IllegalArgumentException("Walls must be inside the board");
+        if (walls.stream().anyMatch(wall -> !isWithinBounds(wall.cell(), width, height)))
+            throw new IllegalArgumentException("Wall cells must be inside the board");
         if (pits.stream().anyMatch(position -> !isWithinBounds(position, width, height)))
             throw new IllegalArgumentException("Pits must be inside the board");
     }
@@ -27,7 +27,12 @@ public record Board(int width, int height, Set<Position> walls, Set<Position> pi
         return isWithinBounds(position);
     }
 
-    public boolean blocksShot(Position position) { return walls.contains(position); }
+    public boolean hasWall(Position cell, Direction direction) {
+        Objects.requireNonNull(cell);
+        Objects.requireNonNull(direction);
+        return walls.contains(new Wall(cell, direction))
+                || walls.contains(new Wall(cell.move(direction), direction.reverse()));
+    }
 
     public boolean isPit(Position position) { return pits.contains(position); }
 

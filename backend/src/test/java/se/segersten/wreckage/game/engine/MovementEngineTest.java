@@ -3,6 +3,7 @@ package se.segersten.wreckage.game.engine;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
+import java.util.Set;
 
 import org.junit.jupiter.api.Test;
 
@@ -16,6 +17,7 @@ import se.segersten.wreckage.game.domain.Turn;
 import se.segersten.wreckage.game.domain.Vehicle;
 import se.segersten.wreckage.game.domain.VehicleState;
 import se.segersten.wreckage.game.domain.VehicleTurn;
+import se.segersten.wreckage.game.domain.Wall;
 
 class MovementEngineTest {
     @Test void waitDoesNothing() {
@@ -185,6 +187,56 @@ class MovementEngineTest {
     }
 
     @Test
+    void wallBlocksMovementAcrossTheEdgeFromEitherSide() {
+        Board walledBoard = new Board(7, 7,
+                Set.of(new Wall(new Position(3, 3), Direction.EAST)));
+        VehicleState eastbound = state(3, 3, Direction.EAST);
+        VehicleState westbound = state(4, 3, Direction.WEST);
+
+        var eastResult = engine.resolveTurnWithEvents(
+                new Turn(List.of(order(eastbound, MovementOrder.FORWARD_1))),
+                new GameState(walledBoard, List.of(eastbound)));
+        var westResult = engine.resolveTurnWithEvents(
+                new Turn(List.of(order(westbound, MovementOrder.FORWARD_1))),
+                new GameState(walledBoard, List.of(westbound)));
+
+        assertThat(eastResult.state().vehicleStates()).containsExactly(eastbound);
+        assertThat(westResult.state().vehicleStates()).containsExactly(westbound);
+        assertThat(eastResult.events()).isEmpty();
+        assertThat(westResult.events()).isEmpty();
+    }
+
+    @Test
+    void reverseMovementRespectsWallsWithoutChangingOrientation() {
+        Board walledBoard = new Board(7, 7,
+                Set.of(new Wall(new Position(2, 3), Direction.EAST)));
+        VehicleState vehicle = state(3, 3, Direction.EAST);
+
+        var result = engine.resolveTurnWithEvents(
+                new Turn(List.of(order(vehicle, MovementOrder.REVERSE_1))),
+                new GameState(walledBoard, List.of(vehicle)));
+
+        assertThat(result.state().vehicleStates()).containsExactly(vehicle);
+        assertThat(result.events()).isEmpty();
+    }
+
+    @Test
+    void forwardTwoKeepsItsSuccessfulFirstStepWhenSecondStepHitsAWall() {
+        Board walledBoard = new Board(7, 7,
+                Set.of(new Wall(new Position(2, 3), Direction.NORTH)));
+        VehicleState vehicle = state(2, 2, Direction.NORTH);
+
+        var result = engine.resolveTurnWithEvents(
+                new Turn(List.of(order(vehicle, MovementOrder.FORWARD_2))),
+                new GameState(walledBoard, List.of(vehicle)));
+
+        assertThat(result.state().vehicleStates()).containsExactly(
+                new VehicleState(vehicle.vehicle(), new Position(2, 3), Direction.NORTH));
+        assertThat(result.events()).extracting(event -> event.type())
+                .containsExactly(RoundEventType.MOVE);
+    }
+
+    @Test
     void pushesAnotherVehicleAndCreatesPushThenRamEvents() {
         VehicleState moving = state(1, 2, Direction.EAST);
         VehicleState stationary = state(2, 2, Direction.NORTH);
@@ -232,6 +284,40 @@ class MovementEngineTest {
                 .containsExactly(front.vehicle().id(), middle.vehicle().id(), moving.vehicle().id());
         assertThat(result.state().vehicleStates()).extracting(VehicleState::position)
                 .doesNotHaveDuplicates();
+    }
+
+    @Test
+    void intermediateWallBlocksTheWholePushChainAtomically() {
+        VehicleState moving = state(1, 2, Direction.EAST);
+        VehicleState middle = state(2, 2, Direction.SOUTH);
+        VehicleState front = state(3, 2, Direction.NORTH);
+        Board walledBoard = new Board(7, 7,
+                Set.of(new Wall(new Position(2, 2), Direction.EAST)));
+        GameState original = new GameState(walledBoard, List.of(moving, middle, front));
+
+        var result = engine.resolveTurnWithEvents(
+                new Turn(List.of(order(moving, MovementOrder.FORWARD_1))), original);
+
+        assertThat(result.state()).isSameAs(original);
+        assertThat(result.state().vehicleStates()).containsExactly(moving, middle, front);
+        assertThat(result.events()).isEmpty();
+    }
+
+    @Test
+    void wallAtFinalDisplacementBlocksTheWholePushChainAtomically() {
+        VehicleState moving = state(1, 2, Direction.EAST);
+        VehicleState middle = state(2, 2, Direction.SOUTH);
+        VehicleState front = state(3, 2, Direction.NORTH);
+        Board walledBoard = new Board(7, 7,
+                Set.of(new Wall(new Position(3, 2), Direction.EAST)));
+        GameState original = new GameState(walledBoard, List.of(moving, middle, front));
+
+        var result = engine.resolveTurnWithEvents(
+                new Turn(List.of(order(moving, MovementOrder.FORWARD_1))), original);
+
+        assertThat(result.state()).isSameAs(original);
+        assertThat(result.state().vehicleStates()).containsExactly(moving, middle, front);
+        assertThat(result.events()).isEmpty();
     }
 
     @Test

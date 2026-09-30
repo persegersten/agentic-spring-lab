@@ -79,7 +79,8 @@ public class MovementEngine {
         List<VehicleState> currentStates = gameState.vehicleStates();
         VehicleState moving = currentStates.get(vehicleIndex);
         Position destination = moving.position().move(movementDirection);
-        if (!gameState.board().isValidPosition(destination)) {
+        if (!gameState.board().isValidPosition(destination)
+                || gameState.board().hasWall(moving.position(), movementDirection)) {
             return new MovementResult(gameState, List.of());
         }
 
@@ -87,8 +88,10 @@ public class MovementEngine {
         int occupiedIndex = indexAt(currentStates, destination);
         while (occupiedIndex >= 0) {
             pushedIndexes.add(occupiedIndex);
+            Position origin = destination;
             destination = destination.move(movementDirection);
-            if (!gameState.board().isValidPosition(destination)) {
+            if (!gameState.board().isValidPosition(destination)
+                    || gameState.board().hasWall(origin, movementDirection)) {
                 return new MovementResult(gameState, List.of());
             }
             occupiedIndex = indexAt(currentStates, destination);

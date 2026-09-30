@@ -19,6 +19,10 @@ test('all players see the same server-owned game board in planning', async ({ br
       await expect(page.getByTestId('board-pit')).toHaveCount(1)
       await expect(page.getByTestId('board-pit')).toHaveAttribute('data-x', '4')
       await expect(page.getByTestId('board-pit')).toHaveAttribute('data-y', '5')
+      await expect(page.getByTestId('board-wall')).toHaveCount(1)
+      await expect(page.getByTestId('board-wall')).toHaveAttribute('data-x', '0')
+      await expect(page.getByTestId('board-wall')).toHaveAttribute('data-y', '0')
+      await expect(page.getByTestId('board-wall')).toHaveAttribute('data-direction', 'NORTH')
       await expect(page.getByTestId('round-number')).toHaveText('Runda 1')
       await expect(page.getByTestId('game-phase')).toHaveText('Fas PLANNING')
       await expect(page.getByTestId('player-vehicle')).toHaveCount(2)
@@ -52,7 +56,7 @@ test('vehicle arrow tips point in the server forward direction', async ({ page }
       { id: 'player-south', name: 'South' },
       { id: 'player-west', name: 'West' },
     ],
-    board: { width: 5, height: 5, walls: [], pits: [] },
+    board: { width: 5, height: 5, walls: [{ cell: { x: 1, y: 1 }, direction: 'NORTH' }], pits: [] },
     vehicles: [
       { id: 'vehicle-north', playerId, x: 1, y: 1, direction: 'NORTH', damage: 0 },
       { id: 'vehicle-east', playerId: 'player-east', x: 3, y: 1, direction: 'EAST', damage: 0 },
@@ -66,6 +70,8 @@ test('vehicle arrow tips point in the server forward direction', async ({ page }
   await page.route(`**/games/${gameId}/players/${playerId}`, route => route.fulfill({ json: state }))
 
   await page.goto(`/game/${gameId}`)
+
+  await expect(page.getByTestId('board-wall')).toHaveClass(/wall-north/)
 
   const northArrow = page.getByTestId('player-vehicle').filter({ hasText: 'North' }).locator('.vehicle-direction')
   const eastArrow = page.getByTestId('player-vehicle').filter({ hasText: 'East' }).locator('.vehicle-direction')

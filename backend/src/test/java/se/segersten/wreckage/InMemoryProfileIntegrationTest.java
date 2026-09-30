@@ -23,6 +23,7 @@ import se.segersten.wreckage.game.domain.Position;
 import se.segersten.wreckage.game.domain.Round;
 import se.segersten.wreckage.game.domain.Vehicle;
 import se.segersten.wreckage.game.domain.VehicleState;
+import se.segersten.wreckage.game.domain.Wall;
 
 @ActiveProfiles("in-memory")
 @SpringBootTest
@@ -79,7 +80,7 @@ class InMemoryProfileIntegrationTest {
         var playerId = java.util.UUID.randomUUID();
         var vehicle = new Vehicle(java.util.UUID.randomUUID(), playerId);
         var state = new VehicleState(vehicle, new Position(2, 2), Direction.NORTH, 3);
-        var board = new Board(6, 6, java.util.Set.of(new Position(3, 1)),
+        var board = new Board(6, 6, java.util.Set.of(new Wall(new Position(3, 1), Direction.EAST)),
                 java.util.Set.of(new Position(4, 5)));
         var program = new se.segersten.wreckage.game.domain.PlayerProgram(playerId, 1,
                 java.util.List.of(se.segersten.wreckage.game.domain.MovementOrder.FORWARD_2), true);
@@ -94,7 +95,8 @@ class InMemoryProfileIntegrationTest {
         gameRepository.save(game);
         Game retrieved = gameService.getGame(game.getId());
 
-        assertThat(retrieved.getBoard().walls()).containsExactly(new Position(3, 1));
+        assertThat(retrieved.getBoard().walls())
+                .containsExactly(new Wall(new Position(3, 1), Direction.EAST));
         assertThat(retrieved.getBoard().pits()).containsExactly(new Position(4, 5));
         assertThat(retrieved.getVehicleStates()).extracting(VehicleState::damage).containsExactly(3);
         assertThat(retrieved.getRound().phase()).isEqualTo(RoundPhase.PLAYBACK);
