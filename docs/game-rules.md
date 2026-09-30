@@ -1,42 +1,54 @@
-# Wreckage — Game Rules
+# Wreckage — Game Rules v2
 
-This document defines the game rules currently implemented by the Wreckage game engine.
+This document is the authoritative rules specification for Wreckage v2.
 
-It is intentionally limited to the rules required by the current implementation.
+It replaces the previous combat-oriented ruleset. Wreckage v2 is a fast,
+programmed-movement multiplayer game for 2–10 players, designed for a typical
+match length of approximately 10–20 minutes.
 
-If a rule is not described here, the game engine must not invent one.
+The backend is authoritative. If a rule is not described here, the game engine
+must not invent one.
+
+When implementation, tests, other documentation, and this document disagree,
+the discrepancy must be resolved explicitly. Existing implementation is not
+implicitly authoritative.
 
 ---
 
-## 1. Game State
+## 1. Design goals
 
-A `GameState` represents the complete state of a game at a specific point in time.
+Wreckage v2 is built around four ideas:
 
-The game state contains:
+1. **Simultaneous planning** — all players choose their programs at the same time.
+2. **Programmed movement** — each player commits several commands before seeing how opponents move.
+3. **Deterministic chaos** — interaction comes from pushing, walls, pits, board elements and initiative, not dice or random cards.
+4. **Short fixed matches** — no player is permanently eliminated and the game ends after a configured number of rounds.
 
-* a `Board`
-* the participating players
-* one vehicle controlled by each player
-* the position of each vehicle
-* the orientation of each vehicle
+The intended player experience is:
 
-Resolving movement produces a **new `GameState`**.
+> I had a perfect plan until another player moved me one square.
 
-The previous state must not be modified.
+---
 
-Conceptually:
+## 2. Players and match size
+
+A game supports:
 
 ```text
-GameState + MovementOrders -> GameState
+minPlayers = 2
+maxPlayers = 10
 ```
 
-Given the same game state and the same movement orders, the engine must always produce the same result.
+A game may start when at least two players have joined and the existing lobby
+start condition is satisfied.
+
+The lobby and shareable game-link concept remain part of the game.
 
 ---
 
-## 2. Board
+## 3. Board
 
-The game is played on a rectangular grid.
+The game is played on a rectangular grid of square cells.
 
 A board has:
 
@@ -45,60 +57,95 @@ width
 height
 ```
 
-Positions are represented using integer coordinates:
+Positions use integer coordinates:
 
 ```text
 Position(x, y)
 ```
 
-The bottom-left position is:
+The bottom-left cell is `(0, 0)`.
+
+The x-coordinate increases to the right and the y-coordinate increases towards
+`NORTH`.
+
+A position is inside the board when:
 
 ```text
-(0, 0)
+0 <= x < width
+0 <= y < height
 ```
 
-The x-coordinate increases towards the right.
+The board may contain:
 
-The y-coordinate increases towards `NORTH`.
+- floor cells,
+- edge walls,
+- pits,
+- conveyors,
+- rotators,
+- checkpoints,
+- control points,
+- spawn points.
+
+Not every map must use every board element.
+
+### 3.1 Edge walls
+
+Walls exist **between cells**, not as occupied cells.
+
+A wall is therefore defined by an edge, conceptually:
+
+```text
+Wall(Position cell, Direction edge)
+```
+
+A wall blocks movement across that edge in both directions.
 
 Example:
 
 ```text
-(0,2) (1,2) (2,2) (3,2)
-(0,1) (1,1) (2,1) (3,1)
-(0,0) (1,0) (2,0) (3,0)
+A | B
 ```
 
-For a board with width `W` and height `H`, a position is valid when:
+A vehicle in A cannot move into B and a vehicle in B cannot move into A.
 
-```text
-0 <= x < W
-0 <= y < H
-```
+An outer board edge may also contain a wall. If an outer edge does not contain a
+wall, moving beyond that edge causes a crash.
 
-A vehicle may never occupy a position outside the board.
+### 3.2 Pits
+
+A pit occupies a cell. A vehicle entering a pit crashes immediately.
+
+### 3.3 Spawn points
+
+Each player is assigned a spawn point and initial orientation by the map.
+
+A map used for a game must provide enough spawn points for the configured player
+capacity.
+
+Spawn points are ordinary board positions during play. Respawn collision rules
+are defined in section 15.
 
 ---
 
-## 3. Vehicle Position
+## 4. Vehicle
 
-Every vehicle occupies exactly one grid position.
+Each player controls exactly one vehicle.
 
-Example:
+A vehicle has, at minimum:
 
 ```text
-Position(3, 4)
+vehicleId
+playerId
+position
+orientation
+status
+score
+spawnPoint
+spawnOrientation
+visitedCheckpoints
 ```
 
-At the end of movement resolution, no two vehicles may occupy the same position.
-
----
-
-## 4. Orientation
-
-Every vehicle has exactly one orientation.
-
-The possible orientations are:
+Possible orientations are:
 
 ```text
 NORTH
@@ -107,74 +154,183 @@ SOUTH
 WEST
 ```
 
-Orientation determines the direction in which a vehicle moves when executing `FORWARD` or `REVERSE`.
-
----
-
-## 5. Movement Orders
-
-During a movement resolution each player may issue one movement order.
-
-The currently supported orders are:
+Possible gameplay statuses are:
 
 ```text
-FORWARD
-REVERSE
-TURN_LEFT
-TURN_RIGHT
+ACTIVE
+CRASHED
 ```
 
-Movement orders describe the player's intended action.
-
-Players cannot directly specify their resulting position or orientation.
+A crashed vehicle is not present on the board for the remainder of the current
+round.
 
 ---
 
-## 6. Forward and Reverse
+## 5. Game configuration
 
-### Forward
+The core configurable values are:
 
-`FORWARD` attempts to move a vehicle exactly one grid position in its current orientation.
+```text
+maxPlayers
+joinTimeoutSeconds
+planningTimeoutSeconds
+programSize
+roundLimit
+checkpointScore
+controlPointScore
+crashPenalty
+pushCrashScore
+mapId
+```
 
-The movement vectors are:
+Recommended defaults:
 
-| Orientation | Change       |
-| ----------- | ------------ |
-| NORTH       | `(x, y + 1)` |
-| EAST        | `(x + 1, y)` |
-| SOUTH       | `(x, y - 1)` |
-| WEST        | `(x - 1, y)` |
+```text
+maxPlayers = 6
+joinTimeoutSeconds = 300
+planningTimeoutSeconds = 30
+programSize = 3
+roundLimit = 6
+checkpointScore = 2
+controlPointScore = 1
+crashPenalty = -1
+pushCrashScore = 1
+```
+
+`maxPlayers` must be between 2 and 10.
+
+`programSize` is configurable, but **3 is the normal game mode**. The first
+implementation should support values from 1 to 5 unless a narrower range is
+chosen explicitly elsewhere.
+
+The selected map must support the configured number of players.
+
+---
+
+## 6. Round lifecycle
+
+A match consists of a fixed number of rounds.
+
+The externally meaningful round lifecycle is:
+
+```text
+PLANNING
+   ↓
+RESOLVING
+   ↓
+PLAYBACK
+```
+
+Resolution is atomic from the client's point of view. The server calculates the
+complete authoritative result before playback begins.
+
+Internally, `RESOLVING` processes each program register in order:
+
+```text
+REGISTER 1
+    player commands in initiative order
+    board effects
+
+REGISTER 2
+    player commands in initiative order
+    board effects
+
+...
+
+REGISTER N
+    player commands in initiative order
+    board effects
+
+ROUND-END SCORING
+```
+
+Playback must never influence game results.
+
+---
+
+## 7. Commands
+
+Every active player always has access to the same command set.
+
+There is no random card draw and no private dealt hand.
+
+The core commands are:
+
+```text
+FORWARD_1
+FORWARD_2
+REVERSE_1
+TURN_LEFT
+TURN_RIGHT
+U_TURN
+WAIT
+```
+
+Commands may be repeated within the same program.
+
+Example program:
+
+```text
+FORWARD_2
+TURN_RIGHT
+FORWARD_1
+```
+
+---
+
+## 8. Planning
+
+During `PLANNING`, every active player constructs an ordered program containing
+exactly `programSize` commands.
+
+Other players may see whether a player is ready, but may not see that player's
+program before resolution/playback.
+
+A player may edit the program until either:
+
+- the player locks it, or
+- the planning timeout expires.
+
+A locked program is immutable for that round.
+
+If the planning timeout expires before a player has filled every register,
+missing registers are filled with:
+
+```text
+WAIT
+```
+
+When all active players have locked complete programs, resolution may start
+immediately without waiting for the timeout.
+
+---
+
+## 9. Initiative
+
+Programs are resolved one register at a time.
+
+Within one register, player commands are resolved sequentially according to the
+round's initiative order.
+
+The initial initiative order is the stable player join order.
 
 Example:
 
 ```text
-Position:    (3, 4)
-Orientation: NORTH
-Order:       FORWARD
-
-Intended position: (3, 5)
+Round 1: A B C D
+Round 2: B C D A
+Round 3: C D A B
+Round 4: D A B C
 ```
 
-Executing `FORWARD` does not change the vehicle's orientation.
+Initiative rotates one position after every round.
 
-### Reverse
-
-`REVERSE` attempts to move a vehicle exactly one grid position opposite its current orientation.
-
-The movement vectors are:
-
-| Orientation | Change       |
-| ----------- | ------------ |
-| NORTH       | `(x, y - 1)` |
-| EAST        | `(x - 1, y)` |
-| SOUTH       | `(x, y + 1)` |
-| WEST        | `(x + 1, y)` |
-
-Executing `REVERSE` does not change the vehicle's orientation.
+The initiative order for a round is stored as part of the authoritative round
+state so replay and debugging never depend on recalculating it.
 
 ---
 
-## 7. Turning
+## 10. Rotation commands
 
 `TURN_LEFT` rotates the vehicle 90 degrees counter-clockwise.
 
@@ -194,230 +350,505 @@ SOUTH -> WEST
 WEST  -> NORTH
 ```
 
-Turning does not change the vehicle's position.
+`U_TURN` rotates the vehicle 180 degrees.
+
+Rotation does not change position.
 
 ---
 
-## 8. Board Boundaries
+## 11. Translation commands
 
-A vehicle cannot move outside the board.
+`FORWARD_1` performs one forward movement step.
 
-If a `FORWARD` or `REVERSE` order would result in a position outside the board, the movement is blocked.
+`REVERSE_1` performs one backward movement step without changing orientation.
 
-The vehicle remains at its original position and retains its original orientation.
+`FORWARD_2` performs **two consecutive forward movement steps**.
+
+It must not teleport two cells.
+
+Conceptually:
+
+```text
+FORWARD_2 = stepForward() + stepForward()
+```
+
+Each step independently resolves:
+
+- walls,
+- pushes,
+- pits,
+- leaving the board,
+- checkpoint entry.
+
+If the active vehicle crashes during the first step, the second step is not
+executed.
+
+`WAIT` changes neither position nor orientation.
+
+---
+
+## 12. Movement across walls
+
+Before a vehicle or pushed vehicle crosses from one cell to an adjacent cell,
+the engine checks the edge between those cells.
+
+If that edge contains a wall, movement across it is blocked.
+
+For a simple move, the active vehicle remains in its current position.
+
+For a push chain, if **any required displacement** in the chain is blocked by a
+wall, the entire movement step fails atomically and no vehicle in the chain
+moves.
+
+The command is still consumed.
+
+---
+
+## 13. Pushing
+
+Both forward and reverse translation may push another vehicle.
+
+If active vehicle A tries to enter a cell occupied by B, B is pushed one cell in
+the movement direction.
 
 Example:
 
 ```text
-Board:       10 x 10
-Position:    (0, 9)
-Orientation: NORTH
-Order:       FORWARD
-
-Result:
-Position:    (0, 9)
-Orientation: NORTH
+A -> B .
 ```
 
-Leaving the board does not currently cause damage or destroy the vehicle.
+becomes:
+
+```text
+. A B
+```
+
+Pushes may form chains.
+
+```text
+A -> B C .
+```
+
+becomes:
+
+```text
+. A B C
+```
+
+The orientation of pushed vehicles does not change.
+
+A push chain is one atomic movement step. It either resolves to a valid result
+or, when blocked by a wall, does not move any vehicle.
+
+Pits and open board edges are not blockers. They are lethal destinations and are
+resolved as crashes.
 
 ---
 
-## 9. Command order
+## 14. Crash
 
-Commands are resolved sequentially in stable player order within each card
-position. Every player's first card is resolved before any second card:
+A vehicle crashes when it:
 
-```text
-A1 -> B1 -> C1 -> A2 -> B2 -> C2
-```
+- enters a pit,
+- is pushed into a pit,
+- moves beyond an open board edge,
+- is pushed beyond an open board edge,
+- is affected by another board element explicitly defined as lethal.
 
-Each command observes the state produced by the preceding command. A move into
-an occupied position attempts to ram the occupying vehicle according to the
-rules below.
+A crash has the following effects:
 
-### Ramming and pushing
+1. The vehicle is removed from the active board state for the remainder of the round.
+2. Its remaining commands in the current round are skipped.
+3. Its score changes by `crashPenalty`.
+4. Its status becomes `CRASHED`.
+5. It is scheduled to respawn at the start of the next round.
 
-Both `FORWARD` and `REVERSE` can ram another vehicle. The movement direction of
-the active command is also the direction in which the other vehicle is pushed;
-the pushed vehicle's own orientation is irrelevant and remains unchanged.
+Scores are allowed to become negative.
 
-If another vehicle occupies the destination, the engine follows the contiguous
-line of vehicles in the movement direction. The move succeeds only when the
-position immediately beyond the line is empty and inside the board. Every
-vehicle in the line then moves exactly one position, and the active vehicle
-moves into the position vacated by the first vehicle.
+### 14.1 Push-caused crash score
 
-The whole operation is atomic. If the line ends at a board boundary, no vehicle
-moves and no event is produced. A successful ram produces one `PUSH` event for
-each pushed vehicle, ordered from the front of the line back towards the active
-vehicle, followed by one `RAM` event for the active vehicle. This ordering lets
-playback apply every displacement without introducing an intermediate overlap.
+If a crash occurs during another player's translation command because of that
+command's push chain, the player executing the command receives
+`pushCrashScore`.
 
----
+The active player receives the score even when the crashed opponent is not the
+first vehicle in the push chain.
 
-## 10. Missing Movement Orders
+If more than one opponent crashes during the same command, the active player
+receives the score once for each crashed opponent.
 
-If a player does not provide a movement order, the vehicle performs no action.
+A player never receives a push-crash score for crashing their own vehicle.
 
-Its position and orientation remain unchanged.
-
-A missing order is therefore equivalent to:
-
-```text
-NO_ACTION
-```
-
-`NO_ACTION` does not need to exist as a public movement order.
+Crashes caused later by conveyors, rotators, or other board effects do not award
+a push-crash score in the v2 core rules.
 
 ---
 
-## 11. Movement Invariants
+## 15. Respawn
 
-After every movement resolution, the following conditions must always hold.
+A crashed vehicle respawns at the start of the next round before planning
+begins.
 
-### Board invariant
+The engine first attempts to place it on its assigned spawn point with its
+assigned spawn orientation.
 
-Every vehicle must occupy a valid board position.
+If that spawn point is occupied, the engine chooses the first available spawn
+point using the map's stable spawn-point order, starting from the vehicle's own
+spawn point and wrapping around.
+
+If every map spawn point is occupied, the vehicle remains `CRASHED` for that
+round and the engine retries at the next round start.
+
+A vehicle that cannot respawn does not submit a program and does not block
+planning readiness.
+
+No player is permanently eliminated from the match.
+
+---
+
+## 16. Checkpoints
+
+A checkpoint occupies a board cell and has a stable checkpoint identifier.
+
+When a vehicle enters or is moved onto a checkpoint for the first time in that
+match, that player receives:
 
 ```text
-board.contains(vehicle.position) == true
+checkpointScore
 ```
 
-### Uniqueness invariant
+The same player may score the same checkpoint only once per match.
 
-No two vehicles may occupy the same position.
+Different players may score the same checkpoint independently.
 
-### Vehicle invariant
+Checkpoints do not need to be visited in a predefined order.
 
-Movement resolution must neither create nor remove vehicles.
+Checkpoint scoring applies when the vehicle reaches the cell through:
 
-The set of vehicles before and after movement must be identical.
+- its own movement,
+- a push,
+- a conveyor or other board movement effect.
+
+---
+
+## 17. Control points
+
+A control point occupies a board cell.
+
+At the end of each round, every active vehicle standing on a control point gains:
+
+```text
+controlPointScore
+```
+
+Control-point scoring occurs after the last register and its board effects.
+
+A map may contain zero or more control points.
+
+---
+
+## 18. Board effects
+
+Board effects are resolved after **every register**, after all player commands in
+that register have completed.
+
+The v2 core board-effect order is:
+
+```text
+1. conveyors
+2. rotators
+3. checkpoint detection caused by board movement
+4. lethal-position/crash resolution where needed
+```
+
+A future board effect must define its place in this order before it is
+implemented.
+
+### 18.1 Conveyors
+
+A conveyor has a position and direction.
+
+A vehicle on a conveyor is moved one cell in the conveyor direction when
+conveyors activate.
+
+Conveyor movement uses the same wall, push, pit and open-edge rules as normal
+movement.
+
+Conveyors are resolved in a deterministic map-defined order.
+
+A conveyor-caused push does not award `pushCrashScore` in the v2 core rules.
+
+### 18.2 Rotators
+
+A rotator occupies a cell and has one of two effects:
+
+```text
+CLOCKWISE
+COUNTER_CLOCKWISE
+```
+
+A surviving vehicle on that cell rotates 90 degrees when rotators activate.
+
+A rotator does not move the vehicle.
+
+---
+
+## 19. Scoring summary
+
+Default scoring is:
+
+```text
+first visit to checkpoint  +2
+control point at round end +1
+opponent crashes from your push command +1
+own crash                  -1
+```
+
+All values are configuration values; the rule is the event that causes the
+score change, not the numeric default.
+
+Every score change must be represented by an authoritative event.
+
+---
+
+## 20. End of game
+
+The game ends after `roundLimit` rounds have completed.
+
+There is no last-vehicle-standing victory condition and no permanent player
+elimination.
+
+The player with the highest score wins.
+
+Tie breakers are applied in this order:
+
+1. most distinct checkpoints visited,
+2. fewest crashes,
+3. shared placement if still tied.
+
+No sudden-death round is created automatically.
+
+---
+
+## 21. Match-length guidance
+
+The rules must support short games.
+
+Recommended defaults by player count are:
+
+| Players | Suggested board | Suggested rounds |
+|---:|---:|---:|
+| 2–3 | about 10×10 | 7 |
+| 4–6 | about 12×12 | 6 |
+| 7–10 | about 16×16 | 5 |
+
+These are map/configuration recommendations, not movement-engine rules.
+
+The target timing for normal play is approximately:
+
+```text
+planning:   20–30 seconds
+resolution: <1 second server-side
+playback:    5–15 seconds
+```
+
+A complete match should normally fit within approximately 10–20 minutes.
+
+---
+
+## 22. Authoritative resolution and events
+
+The server owns all game state and computes all results.
+
+The client sends intentions such as:
+
+```text
+submitProgram(...)
+lockProgram(...)
+```
+
+The client does not decide:
+
+- final movement,
+- push results,
+- crashes,
+- board effects,
+- score changes,
+- initiative,
+- winner.
+
+Round resolution produces both:
+
+```text
+final game state
+ordered event stream
+```
+
+The event stream is authoritative and is used for playback, debugging and
+reconnection.
+
+Events should represent meaningful facts such as:
+
+```text
+COMMAND_STARTED
+VEHICLE_MOVED
+VEHICLE_TURNED
+VEHICLE_PUSHED
+MOVE_BLOCKED
+VEHICLE_CRASHED
+VEHICLE_RESPAWNED
+CONVEYOR_MOVED
+ROTATOR_TURNED
+CHECKPOINT_REACHED
+SCORE_CHANGED
+REGISTER_COMPLETED
+ROUND_COMPLETED
+GAME_FINISHED
+```
+
+The exact Java representation may evolve, but the event stream must contain
+enough information for a client to replay the result without predicting rules.
+
+---
+
+## 23. Determinism
+
+The game engine is deterministic.
+
+Given the same:
+
+```text
+game state
+board/map
+round number
+initiative order
+player programs
+configuration
+```
+
+it must always produce the same:
+
+```text
+resulting state
+score changes
+event sequence
+```
+
+The v2 core rules require no gameplay randomness.
+
+If randomness is introduced by a later feature, it must use an injectable or
+persisted seed/source so replays and tests remain deterministic.
+
+---
+
+## 24. Core invariants
+
+After every resolved atomic step, all applicable invariants must hold.
+
+### Position uniqueness
+
+No two active vehicles may occupy the same board cell.
+
+### Active-position validity
+
+Every `ACTIVE` vehicle has exactly one position inside the board and is not on a
+pit after lethal effects have been resolved.
+
+### Crashed-state invariant
+
+A `CRASHED` vehicle does not participate in movement, pushing or board effects
+for the remainder of that round.
 
 ### Orientation invariant
 
-Every vehicle must have exactly one valid orientation.
+Every vehicle has exactly one valid orientation.
 
-### Immutability invariant
+### Score invariant
 
-The input `GameState` must not be modified.
+Every score mutation is caused by a documented rule and represented by an
+authoritative event.
+
+### Program invariant
+
+Every active, successfully respawned player has exactly `programSize` resolved
+commands for the round after timeout handling.
 
 ### Determinism invariant
 
-The same game state and movement orders must always produce the same resulting game state.
+The same authoritative input produces the same state and event sequence.
 
-### Ordering invariant
+### Server-authority invariant
 
-Resolution always follows the stable player order recorded by the round.
-
----
-
-## 12. Automatic cannons and damage
-
-After every programmed command has been resolved, each vehicle fires its
-forward-facing cannon once in the stable vehicle order recorded by the round.
-The server follows the shot one board position at a time. The shot stops at the
-first vehicle, wall, or board boundary. A wall blocks the shot and the first
-vehicle shields any vehicles behind it.
-
-Every shot produces a `FIRE` event. A vehicle hit additionally produces `HIT`
-and `DAMAGE` events in that order. Damage is deliberately minimal: every hit
-increments the target vehicle's non-negative damage counter by one. Damage does
-not currently destroy a vehicle. Each damage point replaces one normal card with a mandatory `MALFUNCTION_NO_OP`
-at the next Planning phase, up to the configured hand size.
-The authoritative event stream contains the source, target, shot endpoints,
-and damage before and after the event so clients only visualize the computed
-result.
-
-## 13. Board effects
-
-After all programmed movement and automatic cannon actions have completed, the
-round enters `BOARD_EFFECTS`. Board effects observe the resulting game state and
-are resolved in the stable vehicle order recorded by the round.
-
-The only currently supported board effect is `PIT`. A vehicle ending
-Movement/Actions on a PIT position produces one `PIT` event. The event identifies
-the affected player and vehicle and retains its position and orientation. PIT
-does not yet destroy, move, damage, or respawn the vehicle because those rules
-have not been defined.
-
-PIT events are appended after every movement and cannon event and before the
-round enters `PLAYBACK`.
-
-## 14. Out of Scope
-
-The following rules are intentionally **not part of the movement engine yet**:
-
-* board effects other than PIT
-* vehicle destruction
-* vehicle segment destruction
-* acceleration
-* movement distances greater than one grid position
-* terrain
-* obstacle effects other than walls blocking cannon shots
-* movement costs
-* initiative
-* AI strategies in normal multiplayer games; the optional `headless-players`
-  Spring profile only supplies deterministic local test opponents
-
-* malfunction types other than `MALFUNCTION_NO_OP`
-* repair or removal of malfunction cards while damage remains
-
-## 15. Rounds and command cards
-
-Each round has four phases: `PLANNING`, `MOVEMENT_ACTIONS`, `BOARD_EFFECTS`, and
-`PLAYBACK`. In `PLANNING`, the server randomly deals the
-configured number of cards to every participating player. A normal card is one
-of the four movement orders. Each damage point replaces one normal card with `MALFUNCTION_NO_OP`, capped at
-the hand size. This card does nothing and produces no movement events.
-At the end of a round, a player whose damage is at least the configured card
-count is eliminated: they would have zero active cards in the next round.
-The current round finishes normally, including cannons and board effects.
-Eliminated players receive no further programs and their vehicles are excluded
-from subsequent rounds, including collisions, shooting and board effects.
-They remain authenticated spectators and never block readiness.
-The UI labels them “Utslagen” after playback finishes, without a modal or pause.
-When at most one player survives, a multiplayer game is FINISHED; one survivor
-wins and zero survivors means no winner. Solo games end when the player is
-eliminated. Finished games retain playback and reject new rounds.
-If every remaining participant is ready, the server resolves the round.
-Only its owner may retrieve the hand. The player submits all dealt cards
-in the desired order; every dealt card, including a malfunction, must be
-included exactly once. A submitted program is immutable. A malfunction remains
-private during Planning because public round responses expose readiness but not
-hands or unrevealed programs.
-
-When the optional `headless-players` Spring profile is active, the first player
-is the only browser-controlled player. All later players are created by the
-server up to the configured `maxPlayers` value. Their deterministic test
-strategy locks every dealt card immediately in its original order, including a
-mandatory malfunction card. Without this profile every player remains
-client-controlled.
-
-When every player is ready, the server enters `MOVEMENT_ACTIONS`. For card positions
-one through the configured card count it resolves every player's card in stable
-player order, then resolves automatic cannons. It next enters `BOARD_EFFECTS`
-and resolves PIT positions. The initial state and authoritative event stream are
-retained. Resolution completes atomically and exposes no partial result.
-
-In `PLAYBACK`, all commands and the resulting states are public so every
-client can reproduce the same animation. A new round may start only after the
-current round has reached playback, and starts from its final vehicle state.
-
-These rules must not be introduced implicitly by the movement implementation.
+Client-side animation never changes authoritative game state.
 
 ---
 
-## 16. Rule Authority
+## 25. Explicitly removed v1 rules
 
-This document defines the intended behaviour of the current movement engine.
+The following v1 mechanics are **not part of Wreckage v2 core gameplay** and
+must not influence resolution:
 
-Tests should express these rules as executable examples.
+- random command-card dealing,
+- mandatory use of a dealt hand,
+- cannon fire,
+- hit points or damage counters,
+- malfunction cards,
+- damage-based elimination,
+- last-surviving-player victory,
+- acceleration,
+- handling,
+- armour,
+- weapon equipment,
+- permanent elimination.
 
-Implementation code must satisfy both the documented rules and their invariants.
+Legacy code for these mechanics may exist temporarily during refactoring, but
+it is not authoritative and must eventually be removed.
 
-When implementation, tests and this document disagree, the discrepancy must be investigated rather than automatically treating the existing implementation as correct.
+---
 
-A coding agent may implement, refactor or review these rules, but it must not invent new game rules to resolve ambiguity.
+## 26. Initial implementation scope
 
-Ambiguous cases should instead be made explicit in this document before implementation.
+The minimum playable v2 slice is:
+
+```text
+2–10 players
+square grid
+programSize = 3 by default
+FORWARD_1
+FORWARD_2
+REVERSE_1
+TURN_LEFT
+TURN_RIGHT
+U_TURN
+WAIT
+rotating initiative
+edge walls
+push chains
+pits and open-edge crashes
+respawn
+checkpoints
+score
+fixed round limit
+authoritative playback events
+```
+
+Conveyors, rotators and control points are the next board features after this
+minimum slice.
+
+Weapons, damage, robot classes, mines and special abilities are future features
+and must not be implemented implicitly.
+
+---
+
+## 27. Rule authority
+
+This document defines intended Wreckage v2 gameplay.
+
+Tests should express these rules as executable examples at the lowest useful
+level.
+
+A coding agent may implement, refactor or review these rules, but it must not
+invent additional gameplay rules to resolve ambiguity.
+
+When an ambiguous case is discovered, make the rule explicit before relying on
+an implementation-specific answer.
