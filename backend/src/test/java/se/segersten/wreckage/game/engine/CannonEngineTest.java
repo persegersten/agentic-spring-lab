@@ -13,6 +13,7 @@ import se.segersten.wreckage.game.domain.Position;
 import se.segersten.wreckage.game.domain.RoundEventType;
 import se.segersten.wreckage.game.domain.Vehicle;
 import se.segersten.wreckage.game.domain.VehicleState;
+import se.segersten.wreckage.game.domain.Wall;
 
 class CannonEngineTest {
     private final CannonEngine engine = new CannonEngine();
@@ -39,13 +40,26 @@ class CannonEngineTest {
     @Test void wallBlocksShotBeforeVehicle() {
         VehicleState shooter = state(1, 2, Direction.EAST);
         VehicleState target = state(5, 2, Direction.WEST);
-        Board board = new Board(7, 5, Set.of(new Position(3, 2)));
+        Board board = new Board(7, 5, Set.of(new Wall(new Position(3, 2), Direction.WEST)));
 
         CannonResult result = engine.resolve(new GameState(board, List.of(shooter, target)));
 
         assertThat(result.events()).extracting(event -> event.type())
                 .containsExactly(RoundEventType.FIRE, RoundEventType.FIRE);
-        assertThat(result.events().getFirst().newPosition()).isEqualTo(new Position(3, 2));
+        assertThat(result.events().getFirst().newPosition()).isEqualTo(new Position(2, 2));
+        assertThat(result.state().vehicleStates()).extracting(VehicleState::damage).containsOnly(0);
+    }
+
+    @Test void wallBlocksShotFromEitherSide() {
+        Wall wall = new Wall(new Position(3, 2), Direction.WEST);
+        VehicleState eastbound = state(2, 2, Direction.EAST);
+        VehicleState westbound = state(3, 2, Direction.WEST);
+
+        CannonResult result = engine.resolve(new GameState(
+                new Board(7, 5, Set.of(wall)), List.of(eastbound, westbound)));
+
+        assertThat(result.events()).extracting(event -> event.type())
+                .containsExactly(RoundEventType.FIRE, RoundEventType.FIRE);
         assertThat(result.state().vehicleStates()).extracting(VehicleState::damage).containsOnly(0);
     }
 

@@ -59,7 +59,10 @@ public class GameService {
     }
 
     public Game createGame(GameConfiguration configuration) {
-        Board board = new Board(DEFAULT_BOARD_WIDTH, DEFAULT_BOARD_HEIGHT, java.util.Set.of(),
+        Board board = new Board(DEFAULT_BOARD_WIDTH, DEFAULT_BOARD_HEIGHT, java.util.Set.of(
+                new se.segersten.wreckage.game.domain.Wall(
+                        new se.segersten.wreckage.game.domain.Position(0, 0),
+                        se.segersten.wreckage.game.domain.Direction.NORTH)),
                 java.util.Set.of(new se.segersten.wreckage.game.domain.Position(4, 5)));
         Instant createdAt = clock.instant();
         return gameRepository.save(new Game(UUID.randomUUID(), List.of(), board,

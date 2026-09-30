@@ -30,10 +30,10 @@ public final class CannonEngine {
         Position endpoint = shooter.position();
         VehicleState target = null;
         while (true) {
+            if (state.board().hasWall(cursor, shooter.orientation())) break;
             cursor = cursor.move(shooter.orientation());
             if (!state.board().isValidPosition(cursor)) break;
             endpoint = cursor;
-            if (state.board().blocksShot(cursor)) break;
             target = findAt(state.vehicleStates(), cursor);
             if (target != null) break;
         }
@@ -41,7 +41,7 @@ public final class CannonEngine {
         List<RoundEvent> events = new ArrayList<>();
         events.add(event(RoundEventType.FIRE, shooter, shooter, shooter.position(), endpoint,
                 shooter.damage(), shooter.damage()));
-        if (target == null || state.board().blocksShot(endpoint)) return new ShotResult(state, events);
+        if (target == null) return new ShotResult(state, events);
 
         events.add(event(RoundEventType.HIT, shooter, target, target.position(), target.position(),
                 target.damage(), target.damage()));

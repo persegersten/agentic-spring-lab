@@ -23,7 +23,7 @@ class GameEntity {
     @Column(name = "planning_timeout_seconds", nullable = false) private Integer planningTimeoutSeconds;
     @Column(name = "board_width") private Integer boardWidth;
     @Column(name = "board_height") private Integer boardHeight;
-    @Column(name = "board_walls", nullable = false) private String boardWalls;
+    @Column(name = "board_edge_walls", nullable = false) private String boardWalls;
     @Column(name = "board_pits", nullable = false) private String boardPits;
     @Enumerated(EnumType.STRING) @Column(name = "status", nullable = false) private GameStatus status;
     @OneToMany(mappedBy = "game", cascade = CascadeType.ALL, orphanRemoval = true) private List<PlayerEntity> players = new ArrayList<>();
@@ -43,8 +43,12 @@ class GameEntity {
     }
     private void setBoard(Board board) {
         boardWidth = board.width(); boardHeight = board.height();
-        boardWalls = board.walls().stream().sorted(java.util.Comparator.comparingInt(Position::x).thenComparingInt(Position::y))
-                .map(position -> position.x() + "," + position.y()).collect(Collectors.joining("|"));
+        boardWalls = board.walls().stream().sorted(java.util.Comparator
+                        .comparingInt((Wall wall) -> wall.cell().x())
+                        .thenComparingInt(wall -> wall.cell().y())
+                        .thenComparing(Wall::direction))
+                .map(wall -> wall.cell().x() + "," + wall.cell().y() + "," + wall.direction())
+                .collect(Collectors.joining("|"));
         boardPits = board.pits().stream().sorted(java.util.Comparator.comparingInt(Position::x).thenComparingInt(Position::y))
                 .map(position -> position.x() + "," + position.y()).collect(Collectors.joining("|"));
     }
@@ -59,10 +63,11 @@ class GameEntity {
         }
     }
     Game toDomain() {
-        java.util.Set<Position> walls = boardWalls == null || boardWalls.isBlank() ? java.util.Set.of()
+        java.util.Set<Wall> walls = boardWalls == null || boardWalls.isBlank() ? java.util.Set.of()
                 : java.util.Arrays.stream(boardWalls.split("\\|"))
                 .map(value -> value.split(","))
-                .map(parts -> new Position(Integer.parseInt(parts[0]), Integer.parseInt(parts[1])))
+                .map(parts -> new Wall(new Position(Integer.parseInt(parts[0]), Integer.parseInt(parts[1])),
+                        Direction.valueOf(parts[2])))
                 .collect(Collectors.toUnmodifiableSet());
         java.util.Set<Position> pits = boardPits == null || boardPits.isBlank() ? java.util.Set.of()
                 : java.util.Arrays.stream(boardPits.split("\\|"))
