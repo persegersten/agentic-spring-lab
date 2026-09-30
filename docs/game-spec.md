@@ -1,15 +1,26 @@
 # Wreckage – Spel- och GUI-specifikation
 
+Detta dokument beskriver produktflödet och GUI-förväntningarna för Wreckage
+v2. De detaljerade spelreglerna finns i `docs/game-rules.md`, som är den
+auktoritativa specifikationen vid varje eventuell motsägelse. Detta dokument ska
+inte användas för att införa eller tolka ytterligare spelregler.
+
 ## 1. Spelkonfiguration
 
 En spelare kan skapa ett nytt spel och blir spelets initiativtagare.
 
 Följande parametrar ska kunna konfigureras:
 
-* `maxPlayers` – maximalt antal spelare, initialt **12**.
+* `maxPlayers` – maximalt antal spelare, mellan **2 och 10**.
 * `joinTimeoutSeconds` – antal sekunder som andra spelare har på sig att ansluta.
-* `cardsPerRound` – antal kommandokort per spelare och runda, **3–10**.
-* `planningTimeoutSeconds` – tidsgräns för spelarnas planering.
+* `planningTimeoutSeconds` – tidsgräns för spelarnas samtidiga planering.
+* `programSize` – antal kommandon i varje spelares program.
+* `roundLimit` – antal rundor i matchen.
+* `mapId` – vilken kompatibel spelkarta som används.
+
+GUI:t ska visa serverns konfigurationsvärden och valideringsresultat. Tillåtna
+intervall, standardvärden och övriga konfigurationsregler definieras i
+`docs/game-rules.md`.
 
 Systemet skapar en unik spellänk som initiativtagaren kan dela med andra.
 
@@ -17,17 +28,16 @@ Systemet skapar en unik spellänk som initiativtagaren kan dela med andra.
 
 ## 2. Lobby och anslutning
 
-En person som öppnar spellänken kan ansluta till spelet genom att ange ett nickname.
+En person som öppnar spellänken kan ansluta till spelet genom att ange ett
+nickname. Nicknamet ska vara unikt inom spelet.
 
-Nicknamet ska vara unikt inom spelet.
-
-Efter anslutning kommer spelaren direkt till spelvyn och kan se:
+Efter anslutning kommer spelaren till spelvyn och kan se:
 
 * spelkartan,
 * sitt eget fordon,
 * övriga anslutna spelare,
-* gameboard,
 * aktuell spelstatus,
+* matchens konfiguration,
 * återstående tid innan spelet startar.
 
 Nya spelare får ansluta tills:
@@ -35,199 +45,136 @@ Nya spelare får ansluta tills:
 * `maxPlayers` har anslutit, eller
 * `joinTimeoutSeconds` har löpt ut.
 
-Spelet startar därefter automatiskt om minst två spelare har anslutit.
+Spelet startar därefter enligt lobbyvillkoren i `docs/game-rules.md`, inklusive
+kravet på minst två spelare.
 
 ---
 
-# 3. Spelprocess
+## 3. Spelprocess
 
-Spelet består av rundor.
+Spelet består av ett konfigurerat antal rundor. Varje runda följer det
+utåtriktade flödet:
 
-Varje runda följer processen:
+**PLANNING → RESOLVING → PLAYBACK**
 
-**PLANNING → MOVEMENT/ACTIONS → BOARD EFFECTS → PLAYBACK**
+Alla spelare planerar samtidigt. När planeringen är avslutad beräknar servern
+hela rundans resultat innan uppspelningen börjar.
 
-Servern är auktoritativ. Alla spelregler och resultat beräknas på servern. Klienten ansvarar huvudsakligen för användarinteraktion och animation.
-
----
-
-## 4. Planning
-
-I början av varje runda får varje aktiv spelare `cardsPerRound` slumpmässigt valda kommandokort.
-
-Antalet kan konfigureras mellan **3 och 10**.
-
-Exempel på kort:
-
-* `FORWARD`
-* `REVERSE`
-* `TURN_LEFT`
-* `TURN_RIGHT`
-
-Spelaren ser endast sina egna kort och placerar dem i den ordning de ska utföras.
-
-Exempel:
-
-`FORWARD → TURN_LEFT → FORWARD → REVERSE`
-
-När spelaren är klar bekräftas valet.
-
-Övriga spelare kan se att spelaren är klar men inte vilka kort eller vilken ordning spelaren valt.
-
-Planning avslutas när samtliga spelare är klara eller `planningTimeoutSeconds` har löpt ut.
+Servern är auktoritativ för spelstatus, initiativ, rörelser, interaktioner,
+brädeffekter, krascher, poäng och matchresultat. Klienten skickar spelarens
+avsikter och ansvarar för användarinteraktion och animation, men beräknar inte
+spelresultat.
 
 ---
 
-## 5. Movement / Actions
+## 4. Samtidig programplanering
 
-Servern utför spelarnas programmerade kommandon ett kortsteg i taget.
+Under `PLANNING` bygger varje aktiv spelare ett ordnat program med exakt
+`programSize` kommandon. Samma tillgängliga kommandon visas för alla spelare;
+den fullständiga kommandouppsättningen och dess beteende definieras i
+`docs/game-rules.md`.
 
-Med tre spelare och tre kort:
+GUI:t ska låta spelaren:
 
-`A1 → B1 → C1 → A2 → B2 → C2 → A3 → B3 → C3`
+* välja kommandon till programmets register,
+* se och ändra ordningen innan programmet låses,
+* se hur mycket planeringstid som återstår,
+* låsa ett komplett program,
+* se vilka andra spelare som är klara utan att se deras program.
 
-Samma princip gäller för valfritt `cardsPerRound`.
+En spelares program är privat fram till resolution eller playback. Efter att
+programmet har låsts kan det inte ändras under den aktuella rundan.
 
-Ordningen mellan spelarna ska vara deterministisk.
-
-### Ramning
-
-Om ett fordon kör in i ett annat kan det knuffa framförvarande fordon.
-
-Knuffar kan fortplantas genom flera fordon:
-
-`A → B → C → tom ruta`
-
-kan bli:
-
-`tom ruta → A → B → C`
-
-Spelare kan därmed ramma andra in i väggar, miljöfaror eller ut från spelområdet.
-
-### Automatisk kanon
-
-Varje fordon har en fast kanon riktad i fordonets färdriktning.
-
-Kanonen avfyras automatiskt efter att de programmerade rörelserna utförts.
-
-Den första spelaren i skottlinjen träffas. Väggar och andra blockerande objekt stoppar skottet.
-
-Träffar kan orsaka skada och malfunction.
+Planeringen avslutas när alla berörda spelare är klara eller när
+`planningTimeoutSeconds` har löpt ut. Servern hanterar ofullständiga program vid
+timeout enligt `docs/game-rules.md`; klienten ska inte själv fylla i eller
+beräkna det slutliga programmet.
 
 ---
 
-# 6. Board Effects
+## 5. Auktoritativ resolution
 
-Efter Movement/Actions aktiveras spelplanens miljöeffekter.
+Under `RESOLVING` bearbetar servern spelarnas program och brädets effekter i den
+ordning som anges i `docs/game-rules.md`. Resolutionen är deterministisk och sker
+helt på servern.
 
-Spelplanen kan exempelvis innehålla:
-
-* hål och stup,
-* minor,
-* transportband,
-* roterande plattformar,
-* fasta kanoner,
-* eld,
-* pressar och andra miljöfaror.
-
-Effekterna behandlas i en definierad och deterministisk ordning.
-
-Miljön är därmed en del av stridssystemet. En spelare kan exempelvis ramma en motståndare framför en kanon, ner i ett hål eller till en annan farlig position.
+GUI:t ska visa att rundan beräknas men får inte flytta fordon, tilldela poäng
+eller på annat sätt förutsäga resultatet medan resolutionen pågår.
 
 ---
 
-# 7. Skada och Malfunction
+## 6. Playback
 
-Skada ska kunna påverka spelarens kontroll över sitt fordon.
+Servern beräknar först hela rundans resultat och sparar både den resulterande
+spelstatusen och en ordnad, auktoritativ eventsekvens. Eventen ska ge klienten
+tillräckligt underlag för att visualisera exempelvis kommandon, rörelser,
+rotationer, knuffar, blockerade förflyttningar, krascher, brädeffekter och
+poängändringar utan att klienten tillämpar spelregler.
 
-Varje skadepoäng ersätter ett normalt kort med `MALFUNCTION_NO_OP` inför nästa
-Planning-fas, upp till hela handen. Kortet gör ingenting.
+Samma auktoritativa sekvens skickas till alla klienter. Klienterna spelar upp
+händelserna i serverns ordning som en gemensam animation. Playback får aldrig
+påverka spelresultatet.
 
-När alla kort är no-op låses handen automatiskt varje runda. Spelaren är därmed
-i praktiken ute ur spelet och blockerar inte övriga spelares planering. Fordonet
-står kvar och omfattas fortfarande av automatisk eldgivning och brädeffekter.
-
-Exakta regler för skada och reparation specificeras separat.
-
----
-
-# 8. Playback
-
-Servern beräknar först hela rundans resultat.
-
-Alla relevanta händelser sparas som en ordnad sekvens av events, exempelvis:
-
-`Player A moves forward`
-
-`Player A rams Player B`
-
-`Player B moves onto mine`
-
-`Player C turns left`
-
-`Player C fires cannon`
-
-`Player A is hit`
-
-`Conveyor moves Player B`
-
-`Player B falls into pit`
-
-Eventsekvensen skickas till samtliga klienter.
-
-Klienterna spelar sedan upp händelserna som en gemensam animation där spelarna kan se kort, rörelser, ramningar, skott, träffar och miljöeffekter.
-
-Klienten beräknar inte spelresultatet utan visualiserar serverns resultat.
-
-När Playback är färdig startar nästa runda.
+Efter playback går matchen vidare till nästa runda eller till avslutat läge om
+`roundLimit` har uppnåtts. GUI:t ska under matchen visa aktuell runda och
+poängställning och efter sista rundan visa serverns slutresultat.
 
 ---
 
-# 9. Övergripande state machine
+## 7. Krascher och fortsatt deltagande
 
-Spelet följer:
+GUI:t ska kunna visa att ett fordon kraschar, tillfälligt tas bort från brädet
+och senare kan återkomma enligt de auktoritativa reglerna. En krasch innebär
+inte att spelaren permanent slås ut ur matchen. Detaljer om krasch, respawn och
+poäng finns enbart i `docs/game-rules.md`.
 
-`WAITING_FOR_PLAYERS`
+---
 
-↓
+## 8. Övergripande state machine
 
-`PLANNING`
+Det externt synliga flödet är:
 
-↓
+```text
+WAITING_FOR_PLAYERS
+        ↓
+     PLANNING
+        ↓
+    RESOLVING
+        ↓
+     PLAYBACK
+        ↓
+PLANNING eller FINISHED
+```
 
-`MOVEMENT_ACTIONS`
+Servern ansvarar för alla state transitions. Klienten visar serverns aktuella
+status och använder den för att avgöra vilka kontroller som ska vara tillgängliga.
 
-↓
+---
 
-`BOARD_EFFECTS`
+## 9. Återanslutning
 
-↓
+En klient som tappar anslutningen eller laddar om sidan ska kunna återansluta
+och återskapa den aktuella spelvyn från serverns state.
 
-`PLAYBACK`
+Den återskapade vyn ska omfatta relevant lobby- eller matchstatus, spelarens
+privata planeringsdata när de får visas, aktuell runda, fordon, poäng och den
+eventsekvens som behövs för korrekt playback. Klienten ska inte behöva återskapa
+spelresultat från lokalt tillstånd.
 
-↓
+---
 
-`PLANNING`
-
-↓
-
-`...`
-
-Servern ansvarar för alla state transitions.
-
-En klient som tappar anslutningen eller laddar om sidan ska kunna återansluta och återskapa aktuell spelvy från serverns state.
-
-## Testability
+## 10. Testability
 
 The game must support deterministic automated testing.
 
-Random game behaviour must be based on an injectable or seedable
-random source.
+Wreckage v2 core gameplay has no random behaviour. If randomness is introduced
+by a future, explicitly specified feature, its source must be injectable or
+persisted so tests and playback remain deterministic.
 
-Time-dependent behaviour must be testable without relying on long
-real-world waits.
+Time-dependent behaviour must be testable without relying on long real-world
+waits.
 
 The GUI must expose stable selectors for automated tests.
 
-Server-generated game state and round events are the authoritative
-source used when verifying multiplayer behaviour.
+Server-generated game state and ordered round events are the authoritative
+source used when verifying multiplayer behaviour, reconnection and playback.
