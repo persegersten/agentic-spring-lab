@@ -2,19 +2,26 @@ package se.segersten.wreckage.game.domain;
 
 import java.util.Objects;
 import java.util.Set;
+import java.util.List;
+import java.util.stream.IntStream;
 
-public record Board(int width, int height, Set<Wall> walls, Set<Position> pits, Set<Checkpoint> checkpoints) {
+public record Board(int width, int height, Set<Wall> walls, Set<Position> pits,
+                    Set<Checkpoint> checkpoints, List<SpawnPoint> spawnPoints) {
 
     public Board(int width, int height) {
-        this(width, height, Set.of(), Set.of(), Set.of());
+        this(width, height, Set.of(), Set.of(), Set.of(), defaultSpawnPoints(width, height));
     }
 
     public Board(int width, int height, Set<Wall> walls) {
-        this(width, height, walls, Set.of(), Set.of());
+        this(width, height, walls, Set.of(), Set.of(), defaultSpawnPoints(width, height));
     }
 
     public Board(int width, int height, Set<Wall> walls, Set<Position> pits) {
-        this(width, height, walls, pits, Set.of());
+        this(width, height, walls, pits, Set.of(), defaultSpawnPoints(width, height));
+    }
+
+    public Board(int width, int height, Set<Wall> walls, Set<Position> pits, Set<Checkpoint> checkpoints) {
+        this(width, height, walls, pits, checkpoints, defaultSpawnPoints(width, height));
     }
 
     public Board {
@@ -22,6 +29,7 @@ public record Board(int width, int height, Set<Wall> walls, Set<Position> pits, 
         walls = Set.copyOf(Objects.requireNonNull(walls));
         pits = Set.copyOf(Objects.requireNonNull(pits));
         checkpoints = Set.copyOf(Objects.requireNonNull(checkpoints));
+        spawnPoints = List.copyOf(Objects.requireNonNull(spawnPoints));
         if (walls.stream().anyMatch(wall -> !isWithinBounds(wall.cell(), width, height)))
             throw new IllegalArgumentException("Wall cells must be inside the board");
         if (pits.stream().anyMatch(position -> !isWithinBounds(position, width, height)))
@@ -32,6 +40,11 @@ public record Board(int width, int height, Set<Wall> walls, Set<Position> pits, 
             throw new IllegalArgumentException("Checkpoint ids must be unique");
         if (checkpoints.stream().map(Checkpoint::position).distinct().count() != checkpoints.size())
             throw new IllegalArgumentException("Checkpoint positions must be unique");
+        if (spawnPoints.isEmpty()) throw new IllegalArgumentException("A board needs spawn points");
+        if (spawnPoints.stream().anyMatch(spawn -> !isWithinBounds(spawn.position(), width, height)))
+            throw new IllegalArgumentException("Spawn points must be inside the board");
+        if (spawnPoints.stream().map(SpawnPoint::position).distinct().count() != spawnPoints.size())
+            throw new IllegalArgumentException("Spawn positions must be unique");
     }
 
     public boolean isValidPosition(Position position) {
@@ -58,5 +71,12 @@ public record Board(int width, int height, Set<Wall> walls, Set<Position> pits, 
     private static boolean isWithinBounds(Position position, int width, int height) {
         Objects.requireNonNull(position);
         return position.x() >= 0 && position.x() < width && position.y() >= 0 && position.y() < height;
+    }
+
+    private static List<SpawnPoint> defaultSpawnPoints(int width, int height) {
+        if (width <= 0 || height <= 0) return List.of();
+        return IntStream.range(0, width * height)
+                .mapToObj(index -> new SpawnPoint(new Position(index % width, index / width), Direction.SOUTH))
+                .toList();
     }
 }

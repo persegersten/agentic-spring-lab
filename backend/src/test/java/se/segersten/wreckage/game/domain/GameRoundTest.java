@@ -1,6 +1,7 @@
 package se.segersten.wreckage.game.domain;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Instant;
 import java.util.LinkedHashMap;
@@ -238,6 +239,110 @@ class GameRoundTest {
         game.completeRound();
 
         assertThat(game.getStatus()).isEqualTo(GameStatus.FINISHED);
+        assertThatThrownBy(() -> game.startRound(now.plusSeconds(30)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("The game is finished");
+    }
+
+    @Test
+    void respawnsCrashedVehicleAtAssignedSpawnBeforePlanning() {
+        Instant now = Instant.parse("2099-01-01T00:00:00Z");
+        SpawnPoint assigned = new SpawnPoint(new Position(2, 1), Direction.WEST);
+        Board board = new Board(4, 4, java.util.Set.of(), java.util.Set.of(), java.util.Set.of(),
+                List.of(assigned, new SpawnPoint(new Position(3, 1), Direction.NORTH)));
+        Player player = Player.create(UUID.randomUUID(), "Alice", "a");
+        Vehicle vehicle = new Vehicle(UUID.randomUUID(), player.getId(), assigned.position(), assigned.orientation());
+        Game game = new Game(UUID.randomUUID(), List.of(player), board, GameStatus.RUNNING,
+                Map.of(player.getId(), new VehicleState(vehicle, new Position(-1, 1), Direction.SOUTH, 2,
+                        VehicleStatus.CRASHED)), null, new GameConfiguration(2, 60, 1, 30), now, now.plusSeconds(60));
+
+        Round round = game.startRound(now);
+
+        assertThat(round.initialState().vehicleStates()).singleElement().satisfies(state -> {
+            assertThat(state.position()).isEqualTo(assigned.position());
+            assertThat(state.orientation()).isEqualTo(Direction.WEST);
+            assertThat(state.status()).isEqualTo(VehicleStatus.ACTIVE);
+            assertThat(state.damage()).isZero();
+        });
+        assertThat(round.programs()).containsKey(player.getId());
+        assertThat(round.startEvents()).singleElement()
+                .extracting(RoundEvent::type).isEqualTo(RoundEventType.VEHICLE_RESPAWNED);
+    }
+
+    @Test
+    void respawnUsesStableWrappedFallbackWhenAssignedSpawnIsOccupied() {
+        Instant now = Instant.parse("2099-01-01T00:00:00Z");
+        List<SpawnPoint> spawns = List.of(
+                new SpawnPoint(new Position(0, 0), Direction.NORTH),
+                new SpawnPoint(new Position(1, 0), Direction.EAST),
+                new SpawnPoint(new Position(2, 0), Direction.SOUTH));
+        Board board = new Board(3, 2, java.util.Set.of(), java.util.Set.of(), java.util.Set.of(), spawns);
+        Player crashedPlayer = Player.create(UUID.randomUUID(), "Alice", "a");
+        Player occupant = Player.create(UUID.randomUUID(), "Bob", "b");
+        Vehicle crashedVehicle = new Vehicle(UUID.randomUUID(), crashedPlayer.getId(), spawns.getFirst().position(), Direction.WEST);
+        Vehicle activeVehicle = new Vehicle(UUID.randomUUID(), occupant.getId(), spawns.getFirst().position(), Direction.NORTH);
+        Map<UUID, VehicleState> states = new LinkedHashMap<>();
+        states.put(crashedPlayer.getId(), new VehicleState(crashedVehicle, new Position(-1, 0), Direction.SOUTH, 0, VehicleStatus.CRASHED));
+        states.put(occupant.getId(), new VehicleState(activeVehicle, spawns.getFirst().position(), Direction.NORTH));
+        Game game = new Game(UUID.randomUUID(), List.of(crashedPlayer, occupant), board, GameStatus.RUNNING,
+                states, null, new GameConfiguration(2, 60, 1, 30), now, now.plusSeconds(60));
+
+        Round round = game.startRound(now);
+
+        assertThat(round.initialState().vehicleStates()).filteredOn(s -> s.vehicle().playerId().equals(crashedPlayer.getId()))
+                .singleElement().extracting(VehicleState::position).isEqualTo(spawns.get(1).position());
+    }
+
+    @Test
+    void noFreeSpawnLeavesVehicleCrashedWithoutBlockingReadiness() {
+        Instant now = Instant.parse("2099-01-01T00:00:00Z");
+        List<SpawnPoint> spawns = List.of(new SpawnPoint(new Position(0, 0), Direction.NORTH),
+                new SpawnPoint(new Position(1, 0), Direction.EAST));
+        Board board = new Board(2, 2, java.util.Set.of(), java.util.Set.of(), java.util.Set.of(), spawns);
+        Player waiting = Player.create(UUID.randomUUID(), "Waiting", "w");
+        Player first = Player.create(UUID.randomUUID(), "First", "a");
+        Player second = Player.create(UUID.randomUUID(), "Second", "b");
+        Map<UUID, VehicleState> states = new LinkedHashMap<>();
+        states.put(waiting.getId(), new VehicleState(new Vehicle(UUID.randomUUID(), waiting.getId(), spawns.getFirst().position(), Direction.SOUTH), new Position(-1, 0), Direction.SOUTH, 0, VehicleStatus.CRASHED));
+        states.put(first.getId(), new VehicleState(new Vehicle(UUID.randomUUID(), first.getId(), spawns.getFirst().position(), Direction.NORTH), spawns.getFirst().position(), Direction.NORTH));
+        states.put(second.getId(), new VehicleState(new Vehicle(UUID.randomUUID(), second.getId(), spawns.get(1).position(), Direction.EAST), spawns.get(1).position(), Direction.EAST));
+        Game game = new Game(UUID.randomUUID(), List.of(waiting, first, second), board, GameStatus.RUNNING,
+                states, null, new GameConfiguration(3, 60, 1, 30), now, now.plusSeconds(60));
+
+        Round round = game.startRound(now);
+        round.lock(first.getId(), List.of(MovementOrder.WAIT));
+        round.lock(second.getId(), List.of(MovementOrder.WAIT));
+
+        assertThat(round.programs()).doesNotContainKey(waiting.getId());
+        assertThat(round.startEvents()).isEmpty();
+        assertThat(game.getVehicleStates()).filteredOn(s -> s.vehicle().playerId().equals(waiting.getId()))
+                .singleElement().extracting(VehicleState::status).isEqualTo(VehicleStatus.CRASHED);
+        assertThat(round.allReady()).isTrue();
+    }
+
+    @Test
+    void finishedPlacementsApplyAllTieBreakersAndShareCompleteTies() {
+        Instant now = Instant.parse("2099-01-01T00:00:00Z");
+        GameConfiguration configuration = new GameConfiguration(4, 60, 1, 30, 1, 2, -1, 1);
+        Game game = new Game(UUID.randomUUID(), List.of(), new Board(5, 5), GameStatus.RUNNING,
+                Map.of(), null, configuration, now, now.plusSeconds(60));
+        Player first = game.addPlayer("First", "1", now);
+        Player second = game.addPlayer("Second", "2", now);
+        Player tied = game.addPlayer("Tied", "3", now);
+        Player fourth = game.addPlayer("Fourth", "4", now);
+        first.changeScore(10); first.visitCheckpoint("a"); first.visitCheckpoint("b"); first.recordCrash();
+        second.changeScore(10); second.visitCheckpoint("a"); second.recordCrash();
+        tied.changeScore(10); tied.visitCheckpoint("a"); tied.recordCrash();
+        fourth.changeScore(9);
+        Round round = game.startRound(now);
+        resolveWithWait(round);
+        game.completeRound();
+
+        assertThat(game.getPlacements()).extracting(GamePlacement::placement).containsExactly(1, 2, 2, 4);
+        assertThat(game.getPlacements()).extracting(GamePlacement::playerId)
+                .containsExactly(first.getId(), second.getId(), tied.getId(), fourth.getId());
+        assertThat(game.getPlacements()).filteredOn(GamePlacement::winner).singleElement()
+                .extracting(GamePlacement::playerId).isEqualTo(first.getId());
     }
 
     private void resolveSinglePlayer(Board board, Player player, VehicleState state, MovementOrder order) {

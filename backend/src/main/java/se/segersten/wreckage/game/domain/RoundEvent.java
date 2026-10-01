@@ -47,4 +47,11 @@ public record RoundEvent(int sequence, RoundEventType type, UUID playerId, UUID 
                 sourceVehicleId, position, position, direction, direction, 0, 0,
                 oldScore, newScore, newScore - oldScore, reason, checkpointId);
     }
+
+    public static RoundEvent vehicleRespawned(VehicleState oldState, VehicleState newState) {
+        return new RoundEvent(0, RoundEventType.VEHICLE_RESPAWNED, newState.vehicle().playerId(),
+                newState.vehicle().id(), newState.vehicle().playerId(), newState.vehicle().id(),
+                oldState.position(), newState.position(), oldState.orientation(), newState.orientation(),
+                oldState.damage(), newState.damage(), null, null, null, null, null);
+    }
 }

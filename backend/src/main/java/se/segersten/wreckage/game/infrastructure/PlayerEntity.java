@@ -44,27 +44,32 @@ class PlayerEntity {
     @Column(name = "visited_checkpoints", nullable = false)
     private String visitedCheckpoints;
 
+    @Column(name = "crashes", nullable = false)
+    private int crashes;
+
     protected PlayerEntity() {
     }
 
     private PlayerEntity(UUID domainId, GameEntity game, String name, String accessTokenHash,
-                         int score, String visitedCheckpoints) {
+                         int score, String visitedCheckpoints, int crashes) {
         this.domainId = domainId;
         this.game = game;
         this.name = name;
         this.accessTokenHash = accessTokenHash;
         this.score = score;
         this.visitedCheckpoints = visitedCheckpoints;
+        this.crashes = crashes;
     }
 
     static PlayerEntity fromDomain(Player player, GameEntity game) {
         return new PlayerEntity(player.getId(), game, player.getName(), player.getAccessTokenHash(),
-                player.getScore(), encodeCheckpoints(player.getVisitedCheckpoints()));
+                player.getScore(), encodeCheckpoints(player.getVisitedCheckpoints()), player.getCrashes());
     }
 
     PlayerEntity updateFrom(Player player) {
         score = player.getScore();
         visitedCheckpoints = encodeCheckpoints(player.getVisitedCheckpoints());
+        crashes = player.getCrashes();
         return this;
     }
 
@@ -75,7 +80,7 @@ class PlayerEntity {
     Player toDomain() {
         Set<String> checkpoints = visitedCheckpoints == null || visitedCheckpoints.isBlank() ? Set.of()
                 : Arrays.stream(visitedCheckpoints.split("\\|", -1)).collect(Collectors.toUnmodifiableSet());
-        return Player.rehydrate(domainId, name, accessTokenHash, score, checkpoints);
+        return Player.rehydrate(domainId, name, accessTokenHash, score, checkpoints, crashes);
     }
 
     private static String encodeCheckpoints(Set<String> checkpoints) {

@@ -59,12 +59,13 @@ public class Game {
         String nickname = name == null ? null : name.trim();
         if (nickname != null && players.stream().anyMatch(player -> player.getName().equals(nickname)))
             throw new IllegalArgumentException("Nickname is already in use");
+        int index = players.size();
+        if (index >= board.spawnPoints().size()) throw new IllegalStateException("The map has no spawn point for this player");
         Player player = Player.create(UUID.randomUUID(), nickname, tokenHash);
         players.add(player);
-        int index = players.size() - 1;
-        Position position = new Position(index % board.width(), (index / board.width()) % board.height());
-        Vehicle vehicle = new Vehicle(UUID.randomUUID(), player.getId());
-        vehicles.put(player.getId(), new VehicleState(vehicle, position, Direction.SOUTH, 0));
+        SpawnPoint spawn = board.spawnPoints().get(index);
+        Vehicle vehicle = new Vehicle(UUID.randomUUID(), player.getId(), spawn.position(), spawn.orientation());
+        vehicles.put(player.getId(), new VehicleState(vehicle, spawn.position(), spawn.orientation(), 0));
         return player;
     }
 
@@ -81,12 +82,15 @@ public class Game {
 
     public Round startRound(Instant now) {
         if (status == GameStatus.FINISHED) throw new IllegalStateException("The game is finished");
+        if (round != null && round.number() >= configuration.roundLimit())
+            throw new IllegalStateException("The round limit has been reached");
         if (players.isEmpty()) throw new IllegalStateException("A round needs at least one player");
         if (round != null && round.phase() != RoundPhase.PLAYBACK)
             throw new IllegalStateException("The current round is not finished");
         if (round != null) {
             round.finalVehicleStates().forEach(s -> vehicles.put(s.vehicle().playerId(), s));
         }
+        List<RoundEvent> startEvents = respawnCrashedVehicles();
         Map<UUID, PlayerProgram> programs = new LinkedHashMap<>();
         for (Player player : players) {
             VehicleState vehicle = vehicles.get(player.getId());
@@ -98,14 +102,40 @@ public class Game {
                 new GameState(board, getVehicleStates().stream()
                         .filter(VehicleState::isActive)
                         .toList()),List.of(),now.plusSeconds(configuration.planningTimeoutSeconds()),
-                players.stream().collect(java.util.stream.Collectors.toMap(Player::getId, Player::getScore)));
+                players.stream().collect(java.util.stream.Collectors.toMap(Player::getId, Player::getScore)), startEvents);
         status = GameStatus.RUNNING;
         if (programs.isEmpty()) {
             round = new Round(round.number(), RoundPhase.PLAYBACK, programs, initiative,
-                    round.initialState(), List.of(),round.planningDeadline(), round.initialScores());
+                    round.initialState(), List.of(),round.planningDeadline(), round.initialScores(), round.startEvents());
             completeRound();
         }
         return round;
+    }
+
+    private List<RoundEvent> respawnCrashedVehicles() {
+        List<RoundEvent> events = new ArrayList<>();
+        java.util.Set<Position> occupied = vehicles.values().stream().filter(VehicleState::isActive)
+                .map(VehicleState::position).collect(java.util.stream.Collectors.toCollection(java.util.HashSet::new));
+        for (Player player : players) {
+            VehicleState crashed = vehicles.get(player.getId());
+            if (crashed == null || crashed.isActive()) continue;
+            Vehicle vehicle = crashed.vehicle();
+            int own = java.util.stream.IntStream.range(0, board.spawnPoints().size())
+                    .filter(i -> board.spawnPoints().get(i).position().equals(vehicle.spawnPoint()))
+                    .findFirst().orElse(0);
+            SpawnPoint selected = null;
+            for (int offset = 0; offset < board.spawnPoints().size(); offset++) {
+                SpawnPoint candidate = board.spawnPoints().get((own + offset) % board.spawnPoints().size());
+                if (!occupied.contains(candidate.position())) { selected = candidate; break; }
+            }
+            if (selected == null) continue;
+            VehicleState respawned = new VehicleState(vehicle, selected.position(), vehicle.spawnOrientation(), 0,
+                    VehicleStatus.ACTIVE);
+            vehicles.put(player.getId(), respawned);
+            occupied.add(selected.position());
+            events.add(RoundEvent.vehicleRespawned(crashed, respawned).withSequence(events.size() + 1));
+        }
+        return List.copyOf(events);
     }
 
     private List<UUID> nextInitiative(Map<UUID, PlayerProgram> programs) {
@@ -126,6 +156,26 @@ public class Game {
         round.finalVehicleStates().forEach(s -> vehicles.put(s.vehicle().playerId(), s));
         if (round.number() >= configuration.roundLimit())
             status = GameStatus.FINISHED;
+    }
+
+    public List<GamePlacement> getPlacements() {
+        if (status != GameStatus.FINISHED) return List.of();
+        var sorted = players.stream().sorted(java.util.Comparator.comparingInt(Player::getScore).reversed()
+                .thenComparing(java.util.Comparator.comparingInt((Player p) -> p.getVisitedCheckpoints().size()).reversed())
+                .thenComparingInt(Player::getCrashes)).toList();
+        List<GamePlacement> result = new ArrayList<>();
+        Player previous = null;
+        int placement = 0;
+        for (int index = 0; index < sorted.size(); index++) {
+            Player player = sorted.get(index);
+            if (previous == null || player.getScore() != previous.getScore()
+                    || player.getVisitedCheckpoints().size() != previous.getVisitedCheckpoints().size()
+                    || player.getCrashes() != previous.getCrashes()) placement = index + 1;
+            result.add(new GamePlacement(player.getId(), placement, player.getScore(),
+                    player.getVisitedCheckpoints().size(), player.getCrashes(), placement == 1));
+            previous = player;
+        }
+        return List.copyOf(result);
     }
 
     public Player requirePlayer(UUID playerId) {
