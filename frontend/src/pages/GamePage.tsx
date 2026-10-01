@@ -4,6 +4,7 @@ import { CommandHand } from '../components/CommandHand'
 import { GameBoard } from '../components/GameBoard'
 import { RoundPlayback } from '../components/RoundPlayback'
 import { RoundStatus } from '../components/RoundStatus'
+import { ScoreTable } from '../components/ScoreTable'
 import type { Game, GameConfiguration, PlayerGame, PlayerSession, RoundEvent, Vehicle } from '../types/game'
 
 function gameIdFromPath() {
@@ -36,11 +37,13 @@ export function GamePage() {
   const [working, setWorking] = useState(false)
   const [playbackDone, setPlaybackDone] = useState(false)
   const [playbackEvent, setPlaybackEvent] = useState<RoundEvent | undefined>()
+  const [scores, setScores] = useState<Record<string, number>>({})
 
   const refresh = useCallback(async () => {
     if (!session) return
     const next = await getPlayerGame(session)
     setView(next)
+    if (next.round?.state.phase !== 'PLAYBACK') setScores(Object.fromEntries(next.players.map(player => [player.id, player.score])))
     setError(null)
     if (next.round?.state.phase !== 'PLAYBACK') setVehicles(next.vehicles)
   }, [session])
@@ -103,13 +106,13 @@ export function GamePage() {
     const round = view.round?.state
     const displayedVehicles = round?.phase === 'PLAYBACK' ? vehicles : view.vehicles
     const statusVehicles = round?.phase === 'PLAYBACK' && !playbackDone ? round.initialVehicles : view.vehicles
-    const eliminated = view.players.filter(p => !statusVehicles.some(v => v.playerId === p.id && v.damage < view.configuration.programSize)).map(p => p.id)
-    const ownEliminated = eliminated.includes(view.playerId)
+    const eliminated: string[] = []
     const ownCrashed = statusVehicles.some(v => v.playerId === view.playerId && v.status === 'CRASHED')
     const finished = view.status === 'FINISHED' && (round?.phase !== 'PLAYBACK' || playbackDone)
-    const winner = view.players.find(p => !eliminated.includes(p.id))
+    const highestScore = Math.max(...view.players.map(player => player.score))
+    const winners = view.players.filter(player => player.score === highestScore)
     const boardVehicles = displayedVehicles.filter(v => v.status === 'ACTIVE' && !eliminated.includes(v.playerId))
-    return <main className="game-page"><header><div><p className="eyebrow">Wreckage control deck</p><h1>WRECKAGE</h1></div><span className="game-code">Spel {view.id.slice(0, 8)}</span></header>{error && <p className="error" role="alert">{error}</p>}<div className="game-layout"><section><GameBoard board={view.board} vehicles={boardVehicles} players={view.players} currentPlayerId={view.playerId} event={playbackEvent} /></section><div className="sidebar">{!round && <section className="panel"><h2>Spelare anslutna</h2><p>{view.players.map(p => p.name).join(', ')}</p><p>{view.players.length} / {view.configuration.maxPlayers} spelare</p><LobbyCountdown joinDeadline={view.joinDeadline} /></section>}{round && <RoundStatus round={round} players={view.players} eliminated={eliminated} />} {round && ownEliminated && <section className="panel" role="status"><h2>Du är utslagen</h2><p>Du kan följa resten av spelet.</p></section>}{round && ownCrashed && !ownEliminated && <section className="panel" role="status"><h2>Du har kraschat</h2><p>Ditt fordon är borta från spelplanen.</p></section>}{finished && <section className="panel" role="status"><h2>Spelet är slut</h2><p>{winner ? `${winner.name} vann!` : 'Ingen spelare överlevde.'}</p></section>}{round?.phase === 'PLANNING' && !ownEliminated && !ownCrashed && !finished && <CommandHand program={view.round?.program ?? []} programSize={view.configuration.programSize} locked={round.ready[view.playerId]} onReorder={async orders => run(async () => setView(await saveProgramDraft(session, orders)))} onSubmit={async orders => run(async () => setView(await submitProgram(session, orders)))} />} {round?.phase === 'PLAYBACK' && <RoundPlayback key={`${view.id}:${round.number}`} board={view.board} round={round} players={view.players} onVehicles={setVehicles} onEvent={setPlaybackEvent} onFinished={setPlaybackDone} />} {round?.phase === 'PLAYBACK' && playbackDone && !finished && <button onClick={() => void run(async () => { setPlaybackDone(false); setPlaybackEvent(undefined); setView(await startRound(session)) })}>Starta nästa runda</button>}</div></div></main>
+    return <main className="game-page"><header><div><p className="eyebrow">Wreckage control deck</p><h1>WRECKAGE</h1></div><span className="game-code">Spel {view.id.slice(0, 8)}</span></header>{error && <p className="error" role="alert">{error}</p>}<div className="game-layout"><section><GameBoard board={view.board} vehicles={boardVehicles} players={view.players} currentPlayerId={view.playerId} event={playbackEvent} /></section><div className="sidebar"><ScoreTable players={view.players} scores={round?.phase === 'PLAYBACK' ? scores : undefined} />{!round && <section className="panel"><h2>Spelare anslutna</h2><p>{view.players.map(p => p.name).join(', ')}</p><p>{view.players.length} / {view.configuration.maxPlayers} spelare</p><LobbyCountdown joinDeadline={view.joinDeadline} /></section>}{round && <RoundStatus round={round} players={view.players} eliminated={eliminated} />} {round && ownCrashed && <section className="panel" role="status"><h2>Du har kraschat</h2><p>Ditt fordon är borta från spelplanen.</p></section>}{finished && <section className="panel" role="status"><h2>Spelet är slut</h2><p>{winners.length === 1 ? `${winners[0].name} vann med ${highestScore} poäng!` : `${winners.map(player => player.name).join(' och ')} delar segern med ${highestScore} poäng.`}</p></section>}{round?.phase === 'PLANNING' && !ownCrashed && !finished && <CommandHand program={view.round?.program ?? []} programSize={view.configuration.programSize} locked={round.ready[view.playerId]} onReorder={async orders => run(async () => setView(await saveProgramDraft(session, orders)))} onSubmit={async orders => run(async () => setView(await submitProgram(session, orders)))} />} {round?.phase === 'PLAYBACK' && <RoundPlayback key={`${view.id}:${round.number}`} board={view.board} round={round} players={view.players} onVehicles={setVehicles} onScores={setScores} onEvent={setPlaybackEvent} onFinished={setPlaybackDone} />} {round?.phase === 'PLAYBACK' && playbackDone && !finished && <button onClick={() => void run(async () => { setPlaybackDone(false); setPlaybackEvent(undefined); setView(await startRound(session)) })}>Starta nästa runda</button>}</div></div></main>
   }
 
   const gameLink = game ? `${window.location.origin}/game/${game.id}` : ''

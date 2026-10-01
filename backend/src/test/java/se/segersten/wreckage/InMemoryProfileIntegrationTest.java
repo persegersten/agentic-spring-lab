@@ -36,6 +36,37 @@ class InMemoryProfileIntegrationTest {
     private GameRepository gameRepository;
 
     @Test
+    void persistsScoresCheckpointProgressDefinitionsAndScorePlayback() {
+        var now = java.time.Instant.parse("2026-01-01T12:00:00Z");
+        var playerId = java.util.UUID.randomUUID();
+        var player = Player.create(playerId, "Alice", "token");
+        var vehicle = new Vehicle(java.util.UUID.randomUUID(), playerId);
+        var state = new VehicleState(vehicle, new Position(1, 2), Direction.EAST, 0);
+        var checkpoint = new se.segersten.wreckage.game.domain.Checkpoint("cp-1", new Position(2, 2));
+        var board = new Board(5, 5, java.util.Set.of(), java.util.Set.of(), java.util.Set.of(checkpoint));
+        var program = new PlayerProgram(playerId, 1, java.util.List.of(MovementOrder.FORWARD_1), true);
+        var round = new Round(1, RoundPhase.PLANNING, java.util.Map.of(playerId, program),
+                java.util.List.of(playerId), new GameState(board, java.util.List.of(state)), java.util.List.of(),
+                now.plusSeconds(30), java.util.Map.of(playerId, 0));
+        round.resolve(new se.segersten.wreckage.game.engine.MovementEngine(), java.util.List.of(player),
+                GameConfiguration.defaults());
+        var game = new Game(java.util.UUID.randomUUID(), java.util.List.of(player), board, GameStatus.RUNNING,
+                java.util.Map.of(playerId, state), round, GameConfiguration.defaults(), now, now.plusSeconds(60));
+
+        gameRepository.save(game);
+        Game retrieved = gameService.getGame(game.getId());
+
+        assertThat(retrieved.getBoard().checkpoints()).containsExactly(checkpoint);
+        assertThat(retrieved.getPlayers().getFirst().getScore()).isEqualTo(2);
+        assertThat(retrieved.getPlayers().getFirst().getVisitedCheckpoints()).containsExactly("cp-1");
+        assertThat(retrieved.getRound().initialScores()).containsEntry(playerId, 0);
+        assertThat(retrieved.getRound().playback()).extracting(event -> event.type())
+                .containsExactly(se.segersten.wreckage.game.domain.RoundEventType.MOVE,
+                        se.segersten.wreckage.game.domain.RoundEventType.SCORE_CHANGED);
+        assertThat(retrieved.getRound().playback().get(1).newScore()).isEqualTo(2);
+    }
+
+    @Test
     void createsAndRetrievesGameUsingInMemoryDatabase() {
         Game created = gameService.createGame();
 

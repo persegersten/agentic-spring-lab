@@ -49,7 +49,11 @@ public class GameController {
         GameConfiguration configuration = request == null
                 ? GameConfiguration.defaults()
                 : new GameConfiguration(request.maxPlayers(), request.joinTimeoutSeconds(),
-                        request.programSize(), request.planningTimeoutSeconds());
+                        request.programSize(), request.planningTimeoutSeconds(),
+                        request.roundLimit() == null ? GameConfiguration.DEFAULT_ROUND_LIMIT : request.roundLimit(),
+                        request.checkpointScore() == null ? GameConfiguration.DEFAULT_CHECKPOINT_SCORE : request.checkpointScore(),
+                        request.crashPenalty() == null ? GameConfiguration.DEFAULT_CRASH_PENALTY : request.crashPenalty(),
+                        request.pushCrashScore() == null ? GameConfiguration.DEFAULT_PUSH_CRASH_SCORE : request.pushCrashScore());
         return GameResponse.from(gameService.createGame(configuration));
     }
 
@@ -163,7 +167,8 @@ public class GameController {
     public record AddPlayerRequest(String name) {
     }
     public record CreateGameRequest(int maxPlayers, int joinTimeoutSeconds,
-                                    int programSize, int planningTimeoutSeconds) {}
+                                    int programSize, int planningTimeoutSeconds, Integer roundLimit,
+                                    Integer checkpointScore, Integer crashPenalty, Integer pushCrashScore) {}
     public record ProgramRequest(List<MovementOrder> orders) {}
     public record PlayerJoinResponse(UUID id, String name, String token) {}
 

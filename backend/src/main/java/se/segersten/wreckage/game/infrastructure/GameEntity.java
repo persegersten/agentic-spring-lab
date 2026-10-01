@@ -21,10 +21,15 @@ class GameEntity {
     @Column(name = "join_timeout_seconds", nullable = false) private Integer joinTimeoutSeconds;
     @Column(name = "program_size", nullable = false) private Integer programSize;
     @Column(name = "planning_timeout_seconds", nullable = false) private Integer planningTimeoutSeconds;
+    @Column(name = "round_limit", nullable = false) private Integer roundLimit;
+    @Column(name = "checkpoint_score", nullable = false) private Integer checkpointScore;
+    @Column(name = "crash_penalty", nullable = false) private Integer crashPenalty;
+    @Column(name = "push_crash_score", nullable = false) private Integer pushCrashScore;
     @Column(name = "board_width") private Integer boardWidth;
     @Column(name = "board_height") private Integer boardHeight;
     @Column(name = "board_edge_walls", nullable = false) private String boardWalls;
     @Column(name = "board_pits", nullable = false) private String boardPits;
+    @Column(name = "board_checkpoints", nullable = false) private String boardCheckpoints;
     @Enumerated(EnumType.STRING) @Column(name = "status", nullable = false) private GameStatus status;
     @OneToMany(mappedBy = "game", cascade = CascadeType.ALL, orphanRemoval = true) private List<PlayerEntity> players = new ArrayList<>();
     @OneToMany(mappedBy = "game", cascade = CascadeType.ALL, orphanRemoval = true) private List<VehicleEntity> vehicles = new ArrayList<>();
@@ -37,7 +42,9 @@ class GameEntity {
         GameConfiguration configuration = game.getConfiguration();
         maxPlayers = configuration.maxPlayers(); joinTimeoutSeconds = configuration.joinTimeoutSeconds();
         programSize = configuration.programSize(); planningTimeoutSeconds = configuration.planningTimeoutSeconds();
-        joinDeadline = game.getJoinDeadline(); addMissingPlayers(game.getPlayers()); syncVehicles(game.getVehicleStates());
+        roundLimit = configuration.roundLimit(); checkpointScore = configuration.checkpointScore();
+        crashPenalty = configuration.crashPenalty(); pushCrashScore = configuration.pushCrashScore();
+        joinDeadline = game.getJoinDeadline(); syncPlayers(game.getPlayers()); syncVehicles(game.getVehicleStates());
         if (game.getRound() != null) round = round == null ? RoundEntity.fromDomain(game.getRound(), this) : round.updateFrom(game.getRound());
         return this;
     }
@@ -51,10 +58,15 @@ class GameEntity {
                 .collect(Collectors.joining("|"));
         boardPits = board.pits().stream().sorted(java.util.Comparator.comparingInt(Position::x).thenComparingInt(Position::y))
                 .map(position -> position.x() + "," + position.y()).collect(Collectors.joining("|"));
+        boardCheckpoints = board.checkpoints().stream().sorted(java.util.Comparator.comparing(Checkpoint::id))
+                .map(checkpoint -> checkpoint.id() + "," + checkpoint.position().x() + "," + checkpoint.position().y())
+                .collect(Collectors.joining("|"));
     }
-    private void addMissingPlayers(List<Player> domainPlayers) {
-        Set<UUID> ids = players.stream().map(PlayerEntity::getDomainId).collect(Collectors.toSet());
-        domainPlayers.stream().filter(p -> !ids.contains(p.getId())).map(p -> PlayerEntity.fromDomain(p, this)).forEach(players::add);
+    private void syncPlayers(List<Player> domainPlayers) {
+        for (Player player : domainPlayers) {
+            PlayerEntity entity = players.stream().filter(p -> p.getDomainId().equals(player.getId())).findFirst().orElse(null);
+            if (entity == null) players.add(PlayerEntity.fromDomain(player, this)); else entity.updateFrom(player);
+        }
     }
     private void syncVehicles(List<VehicleState> states) {
         for (VehicleState state : states) {
@@ -74,14 +86,19 @@ class GameEntity {
                 .map(value -> value.split(","))
                 .map(parts -> new Position(Integer.parseInt(parts[0]), Integer.parseInt(parts[1])))
                 .collect(Collectors.toUnmodifiableSet());
-        Board board = new Board(boardWidth, boardHeight, walls, pits);
+        java.util.Set<Checkpoint> checkpoints = boardCheckpoints == null || boardCheckpoints.isBlank() ? java.util.Set.of()
+                : java.util.Arrays.stream(boardCheckpoints.split("\\|"))
+                .map(value -> value.split(","))
+                .map(parts -> new Checkpoint(parts[0], new Position(Integer.parseInt(parts[1]), Integer.parseInt(parts[2]))))
+                .collect(Collectors.toUnmodifiableSet());
+        Board board = new Board(boardWidth, boardHeight, walls, pits, checkpoints);
         List<Player> domainPlayers = players.stream().map(PlayerEntity::toDomain).toList();
         var vehicleMap = new LinkedHashMap<UUID, VehicleState>();
         var byVehicleId = new LinkedHashMap<UUID, Vehicle>();
         for (VehicleEntity entity : vehicles) { VehicleState state = entity.toDomain(); vehicleMap.put(state.vehicle().playerId(), state); byVehicleId.put(state.vehicle().id(), state.vehicle()); }
         Round domainRound = round == null ? null : round.toDomain(board, byVehicleId);
         GameConfiguration configuration = new GameConfiguration(maxPlayers, joinTimeoutSeconds,
-                programSize, planningTimeoutSeconds);
+                programSize, planningTimeoutSeconds, roundLimit, checkpointScore, crashPenalty, pushCrashScore);
         return new Game(domainId, domainPlayers, board, status, vehicleMap, domainRound,
                 configuration, createdAt.toInstant(), joinDeadline);
     }

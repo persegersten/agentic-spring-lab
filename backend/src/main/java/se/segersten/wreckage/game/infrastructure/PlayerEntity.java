@@ -13,6 +13,9 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 
 import se.segersten.wreckage.game.domain.Player;
+import java.util.Arrays;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Entity
 @Table(name = "player")
@@ -35,18 +38,34 @@ class PlayerEntity {
     @Column(name = "access_token_hash", nullable = false)
     private String accessTokenHash;
 
+    @Column(name = "score", nullable = false)
+    private int score;
+
+    @Column(name = "visited_checkpoints", nullable = false)
+    private String visitedCheckpoints;
+
     protected PlayerEntity() {
     }
 
-    private PlayerEntity(UUID domainId, GameEntity game, String name, String accessTokenHash) {
+    private PlayerEntity(UUID domainId, GameEntity game, String name, String accessTokenHash,
+                         int score, String visitedCheckpoints) {
         this.domainId = domainId;
         this.game = game;
         this.name = name;
         this.accessTokenHash = accessTokenHash;
+        this.score = score;
+        this.visitedCheckpoints = visitedCheckpoints;
     }
 
     static PlayerEntity fromDomain(Player player, GameEntity game) {
-        return new PlayerEntity(player.getId(), game, player.getName(), player.getAccessTokenHash());
+        return new PlayerEntity(player.getId(), game, player.getName(), player.getAccessTokenHash(),
+                player.getScore(), encodeCheckpoints(player.getVisitedCheckpoints()));
+    }
+
+    PlayerEntity updateFrom(Player player) {
+        score = player.getScore();
+        visitedCheckpoints = encodeCheckpoints(player.getVisitedCheckpoints());
+        return this;
     }
 
     UUID getDomainId() {
@@ -54,6 +73,12 @@ class PlayerEntity {
     }
 
     Player toDomain() {
-        return Player.rehydrate(domainId, name, accessTokenHash);
+        Set<String> checkpoints = visitedCheckpoints == null || visitedCheckpoints.isBlank() ? Set.of()
+                : Arrays.stream(visitedCheckpoints.split("\\|", -1)).collect(Collectors.toUnmodifiableSet());
+        return Player.rehydrate(domainId, name, accessTokenHash, score, checkpoints);
+    }
+
+    private static String encodeCheckpoints(Set<String> checkpoints) {
+        return checkpoints.stream().sorted().collect(Collectors.joining("|"));
     }
 }

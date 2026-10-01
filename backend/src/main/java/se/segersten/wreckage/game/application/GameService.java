@@ -63,7 +63,9 @@ public class GameService {
                 new se.segersten.wreckage.game.domain.Wall(
                         new se.segersten.wreckage.game.domain.Position(0, 0),
                         se.segersten.wreckage.game.domain.Direction.NORTH)),
-                java.util.Set.of(new se.segersten.wreckage.game.domain.Position(4, 5)));
+                java.util.Set.of(new se.segersten.wreckage.game.domain.Position(4, 5)),
+                java.util.Set.of(new se.segersten.wreckage.game.domain.Checkpoint("checkpoint-1",
+                        new se.segersten.wreckage.game.domain.Position(3, 3))));
         Instant createdAt = clock.instant();
         return gameRepository.save(new Game(UUID.randomUUID(), List.of(), board,
                 GameStatus.WAITING_FOR_PLAYERS, Map.of(), null, configuration, createdAt,
@@ -143,7 +145,7 @@ public class GameService {
     private void resolveIfReady(Game game) {
         Round round = game.getRound();
         if (round != null && round.phase() == se.segersten.wreckage.game.domain.RoundPhase.PLANNING
-                && round.allReady()) round.resolve(new MovementEngine());
+                && round.allReady()) round.resolve(new MovementEngine(), game.getPlayers(), game.getConfiguration());
         game.completeRound();
     }
 
