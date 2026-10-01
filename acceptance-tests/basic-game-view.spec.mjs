@@ -14,8 +14,8 @@ test('all players see the same server-owned game board in planning', async ({ br
 
     for (const page of [per, alice]) {
       await expect(page.getByTestId('game-board')).toBeVisible()
-      await expect(page.getByTestId('game-board')).toHaveAttribute('data-width', '20')
-      await expect(page.getByTestId('game-board')).toHaveAttribute('data-height', '20')
+      await expect(page.getByTestId('game-board')).toHaveAttribute('data-width', '10')
+      await expect(page.getByTestId('game-board')).toHaveAttribute('data-height', '10')
       await expect(page.getByTestId('board-pit')).toHaveCount(1)
       await expect(page.getByTestId('board-pit')).toHaveAttribute('data-x', '4')
       await expect(page.getByTestId('board-pit')).toHaveAttribute('data-y', '5')
@@ -23,7 +23,7 @@ test('all players see the same server-owned game board in planning', async ({ br
       await expect(page.getByTestId('board-wall')).toHaveAttribute('data-x', '0')
       await expect(page.getByTestId('board-wall')).toHaveAttribute('data-y', '0')
       await expect(page.getByTestId('board-wall')).toHaveAttribute('data-direction', 'NORTH')
-      await expect(page.getByTestId('round-number')).toHaveText('Runda 1')
+      await expect(page.getByTestId('round-number')).toHaveText('Round 1')
       await expect(page.getByTestId('game-phase')).toHaveText('Fas PLANNING')
       await expect(page.getByTestId('player-vehicle')).toHaveCount(2)
       await expect(page.getByTestId('player-vehicle').filter({ hasText: 'Per' })).toHaveCount(1)
@@ -48,7 +48,7 @@ test('vehicle arrow tips point in the server forward direction', async ({ page }
   const gameId = '10000000-0000-0000-0000-000000000001'
   const playerId = '20000000-0000-0000-0000-000000000001'
   const state = {
-    id: gameId, playerId, status: 'RUNNING', createdAt: '2026-01-01T00:00:00Z', joinDeadline: '2026-01-01T00:05:00Z',
+    id: gameId, playerId, status: 'RUNNING', roundLimit: 7, createdAt: '2026-01-01T00:00:00Z', joinDeadline: '2026-01-01T00:05:00Z',
     configuration: { maxPlayers: 2, programSize: 3, planningTimeoutSeconds: 120, joinTimeoutSeconds: 300 },
     players: [
       { id: playerId, name: 'North' },

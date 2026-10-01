@@ -61,7 +61,7 @@ test('playback finishes quickly across polling, stays paused and can replay', as
   }))
   let polls = 0
   const state = {
-    id: gameId, playerId, status: 'RUNNING',
+    id: gameId, playerId, status: 'RUNNING', roundLimit: 7,
     configuration: { maxPlayers: 1, programSize: 3, planningTimeoutSeconds: 120, joinTimeoutSeconds: 300 },
     players: [{ id: playerId, name: 'Per' }],
     board: { width: 20, height: 20, walls: [], pits: [] },
@@ -116,7 +116,7 @@ test('playback removes a vehicle exactly when its crash event is reached', async
     },
   ]
   const state = {
-    id: gameId, playerId, status: 'RUNNING',
+    id: gameId, playerId, status: 'RUNNING', roundLimit: 7,
     configuration: { maxPlayers: 1, programSize: 3, planningTimeoutSeconds: 120, joinTimeoutSeconds: 300 },
     players: [{ id: playerId, name: 'Per' }],
     board: { width: 2, height: 2, walls: [], pits: [] },

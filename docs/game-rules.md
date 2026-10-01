@@ -175,7 +175,6 @@ maxPlayers
 joinTimeoutSeconds
 planningTimeoutSeconds
 programSize
-roundLimit
 checkpointScore
 controlPointScore
 crashPenalty
@@ -190,7 +189,6 @@ maxPlayers = 6
 joinTimeoutSeconds = 300
 planningTimeoutSeconds = 30
 programSize = 3
-roundLimit = 6
 checkpointScore = 2
 controlPointScore = 1
 crashPenalty = -1
@@ -204,6 +202,17 @@ implementation should support values from 1 to 5 unless a narrower range is
 chosen explicitly elsewhere.
 
 The selected map must support the configured number of players.
+
+When the lobby closes, the server fixes the match settings from the number of
+players that actually joined:
+
+| Players | Board | Rounds |
+|---:|---:|---:|
+| 2–3 | 10×10 | 7 |
+| 4–6 | 12×12 | 6 |
+| 7–10 | 16×16 | 5 |
+
+`maxPlayers` is only the lobby capacity and does not select these settings.
 
 ---
 
@@ -618,13 +627,9 @@ The game ends after `roundLimit` rounds have completed.
 There is no last-vehicle-standing victory condition and no permanent player
 elimination.
 
-The player with the highest score wins.
-
-Tie breakers are applied in this order:
-
-1. most distinct checkpoints visited,
-2. fewest crashes,
-3. shared placement if still tied.
+The player or players with the highest score win. Equal highest scores always
+produce a shared victory; checkpoints, crashes, initiative and identifiers are
+not tie breakers.
 
 No sudden-death round is created automatically.
 
@@ -634,15 +639,13 @@ No sudden-death round is created automatically.
 
 The rules must support short games.
 
-Recommended defaults by player count are:
+The fixed match settings by actual player count are:
 
 | Players | Suggested board | Suggested rounds |
 |---:|---:|---:|
-| 2–3 | about 10×10 | 7 |
-| 4–6 | about 12×12 | 6 |
-| 7–10 | about 16×16 | 5 |
-
-These are map/configuration recommendations, not movement-engine rules.
+| 2–3 | 10×10 | 7 |
+| 4–6 | 12×12 | 6 |
+| 7–10 | 16×16 | 5 |
 
 The target timing for normal play is approximately:
 

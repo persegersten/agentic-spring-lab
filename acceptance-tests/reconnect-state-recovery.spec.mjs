@@ -36,9 +36,9 @@ test('reload during planning restores map, round and private planning state', as
 
     await per.reload()
 
-    await expect(per.getByTestId('game-board')).toHaveAttribute('data-width', '20')
+    await expect(per.getByTestId('game-board')).toHaveAttribute('data-width', '10')
     await expect(per.getByTestId('board-pit')).toHaveAttribute('data-x', '4')
-    await expect(per.getByTestId('round-number')).toHaveText('Runda 1')
+    await expect(per.getByTestId('round-number')).toHaveText('Round 1')
     await expect(per.getByTestId('game-phase')).toHaveText('Fas PLANNING')
     await expect(per.getByTestId('player-vehicle').filter({ hasText: 'Per' }))
       .toHaveAttribute('data-player-id', playerId)
@@ -108,7 +108,7 @@ test('reload between rounds reconstructs playback from server events', async ({ 
 
     await per.reload()
 
-    await expect(per.getByTestId('round-number')).toHaveText('Runda 1')
+    await expect(per.getByTestId('round-number')).toHaveText('Round 1')
     await expect(per.getByTestId('game-phase')).toHaveText('Fas PLAYBACK')
     await expect(per.getByTestId('player-vehicle')).toHaveCount(2)
     await expect(per.getByRole('button', { name: 'Starta nästa runda', exact: true }))

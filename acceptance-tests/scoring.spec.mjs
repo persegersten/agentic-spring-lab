@@ -7,7 +7,7 @@ test('score table follows authoritative score events and shows checkpoint progre
   const configuration = { maxPlayers: 1, joinTimeoutSeconds: 300, programSize: 3,
     planningTimeoutSeconds: 120, roundLimit: 6, checkpointScore: 2, crashPenalty: -1, pushCrashScore: 1 }
   const state = {
-    id: gameId, playerId, status: 'RUNNING', configuration,
+    id: gameId, playerId, status: 'RUNNING', roundLimit: 6, configuration,
     joinDeadline: '2026-01-01T00:05:00Z',
     players: [{ id: playerId, name: 'Per', score: 2, visitedCheckpoints: ['cp-1'] }],
     board: { width: 5, height: 5, walls: [], pits: [], checkpoints: [{ id: 'cp-1', position: { x: 2, y: 2 } }] },
@@ -46,7 +46,7 @@ test('control point is visible and its round-end event updates score after the f
   const playerId = '20000000-0000-0000-0000-000000000051'
   const vehicle = { id: 'vehicle-51', playerId, x: 0, y: 1, direction: 'EAST', status: 'ACTIVE' }
   const state = {
-    id: gameId, playerId, status: 'RUNNING',
+    id: gameId, playerId, status: 'RUNNING', roundLimit: 6,
     configuration: { maxPlayers: 1, joinTimeoutSeconds: 300, programSize: 1,
       planningTimeoutSeconds: 120, roundLimit: 6, checkpointScore: 2, controlPointScore: 1,
       crashPenalty: -1, pushCrashScore: 1 },

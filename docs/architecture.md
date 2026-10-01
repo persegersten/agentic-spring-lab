@@ -19,10 +19,10 @@ The frontend and backend are separate applications. In development, Vite proxies
 ## Game lifecycle
 
 A game starts in `WAITING_FOR_PLAYERS`. Its persisted configuration controls the
-player limit, lobby and planning deadlines, program size, round limit, and score
-values. The lobby starts when it is full or its join deadline expires. A game is
-`RUNNING` while rounds remain and becomes `FINISHED` only after the configured
-round limit.
+player limit, lobby and planning deadlines, program size, and score values. When
+the lobby closes, the domain derives and persists board dimensions and round
+limit from the actual participant count. A game is `RUNNING` while rounds remain
+and becomes `FINISHED` only after that fixed round limit.
 
 Each round moves through three externally visible phases:
 
@@ -64,9 +64,9 @@ configured crash penalty, and may award the configured push-crash score to the
 responsible player. Every mutation emits a `SCORE_CHANGED` event containing the
 old score, new score, delta, reason, and optional checkpoint identifier.
 
-When the round limit is reached, placements are ordered by score, then checkpoints
-visited, then fewest crashes. Exact ties share a placement and may share the win.
-Vehicle count and crash state never finish a game early.
+When the round limit is reached, placements are ordered only by score. Every
+player tied for the highest score shares the win. Vehicle count and crash state
+never finish a game early.
 
 ## Playback model
 
