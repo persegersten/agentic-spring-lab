@@ -13,7 +13,7 @@ test('one browser can play against headless players', async ({ page }) => {
     await expect(page.getByText(name, { exact: true })).toBeVisible()
   }
   for (const name of ['Headless 1', 'Headless 2', 'Headless 3']) {
-    await expect(page.getByRole('listitem').filter({ hasText: name })).toContainText('Redo')
+    await expect(page.getByTestId('player-ready-state').filter({ hasText: name })).toContainText('Redo')
   }
 
   await fillProgram(page)
@@ -25,6 +25,6 @@ test('one browser can play against headless players', async ({ page }) => {
   await expect(page.getByTestId('round-number')).toHaveText('Runda 2')
   await expect(page.getByRole('button', { name: 'Lås program', exact: true })).toBeEnabled()
   for (const name of ['Headless 1', 'Headless 2', 'Headless 3']) {
-    await expect(page.getByRole('listitem').filter({ hasText: name })).toContainText('Redo')
+    await expect(page.getByTestId('player-ready-state').filter({ hasText: name })).toContainText('Redo')
   }
 })

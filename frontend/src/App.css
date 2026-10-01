@@ -13,3 +13,6 @@
 .card[draggable="true"] { cursor: grab; }
 .card-dragging { cursor: grabbing; opacity: .45; }
 .card-drop-target { outline: 3px solid #71d69c; outline-offset: 2px; }
+
+.game-identity{display:grid;justify-items:end;gap:6px}.game-identity strong{color:#71d69c;font-size:.75rem;letter-spacing:.12em}.game-layout{grid-template-columns:minmax(0,1fr) 360px}.vehicle{z-index:4}.round-status h3{margin:18px 0 6px;font-size:.82rem;text-transform:uppercase;letter-spacing:.1em;color:#94a49d}.round-status .initiative{list-style:none;padding:0;margin:0}.round-status li{gap:12px}.round-status strong{text-align:right}.initiative li{color:#d8e1da}.card{grid-template-columns:minmax(90px,auto) 1fr}.program-state{color:#71d69c;font-weight:700}.playback-events{max-height:220px;overflow:auto;padding-left:36px}.playback-events li{padding:5px;color:#94a49d}.playback-events li.current{color:#fff;background:#ffffff0b}.playback-events span{display:inline-block;min-width:24px;color:#f5b642}.final-result{border-color:#f5b642}.final-result h2{color:#f5b642}
+@media(max-width:800px){.game-identity{justify-items:start}}

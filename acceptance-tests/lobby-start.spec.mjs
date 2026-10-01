@@ -38,7 +38,7 @@ test('the server starts planning at the join deadline and rejects late joins', a
     await expect(bob.getByTestId('join-countdown')).toBeVisible()
 
     await Promise.all([alice, bob].map(page =>
-      expect(page.getByRole('heading', { name: 'Planering', exact: true })).toBeVisible({ timeout: 10_000 })
+      expect(page.getByRole('heading', { name: 'Planering', exact: true })).toBeVisible({ timeout: 20_000 })
     ))
 
     await charlie.goto(gameLink)

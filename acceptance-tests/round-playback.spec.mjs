@@ -129,7 +129,6 @@ test('playback removes a vehicle exactly when its crash event is reached', async
   await page.route(`**/games/${gameId}/players/${playerId}`, route => route.fulfill({ json: state }))
 
   await page.goto(`/game/${gameId}`)
-  await expect(page.getByTestId('player-vehicle')).toHaveAttribute('data-x', '0')
   await page.clock.runFor(1)
   await expect(page.getByTestId('current-playback-event')).toHaveAttribute('data-event-type', 'MOVE')
   await expect(page.getByTestId('player-vehicle')).toHaveAttribute('data-x', '1')

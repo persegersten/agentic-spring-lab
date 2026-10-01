@@ -3,10 +3,10 @@
 set -euo pipefail
 
 usage() {
-    echo "Usage: $0 <postgres|in-memory> [headless-players]" >&2
+    echo "Usage: $0 <postgres|in-memory> [headless-players|deterministic-e2e ...]" >&2
 }
 
-if [[ $# -lt 1 || $# -gt 2 ]]; then
+if [[ $# -lt 1 ]]; then
     usage
     exit 1
 fi
@@ -23,14 +23,15 @@ case "$profile" in
 esac
 
 profiles=$profile
-if [[ $# -eq 2 ]]; then
-    if [[ $2 != "headless-players" ]]; then
-        echo "Unknown optional profile: $2" >&2
+shift
+for optional_profile in "$@"; do
+    if [[ $optional_profile != "headless-players" && $optional_profile != "deterministic-e2e" ]]; then
+        echo "Unknown optional profile: $optional_profile" >&2
         usage
         exit 1
     fi
-    profiles="$profiles,$2"
-fi
+    profiles="$profiles,$optional_profile"
+done
 
 script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 cd "$script_dir/backend"

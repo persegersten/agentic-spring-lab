@@ -1,5 +1,47 @@
-import {useEffect,useState} from 'react'
-import type {MovementOrder} from '../types/game'
-const all:MovementOrder[]=['FORWARD_1','FORWARD_2','REVERSE_1','TURN_LEFT','TURN_RIGHT','U_TURN','WAIT']
-const labels:Record<MovementOrder,string>={FORWARD_1:'Framåt 1',FORWARD_2:'Framåt 2',REVERSE_1:'Backa 1',TURN_LEFT:'Sväng vänster',TURN_RIGHT:'Sväng höger',U_TURN:'U-sväng',WAIT:'Vänta'}
-export function CommandHand({program,programSize,locked,onReorder,onSubmit}:{program:MovementOrder[];programSize:number;locked:boolean;onReorder:(v:MovementOrder[])=>Promise<void>;onSubmit:(v:MovementOrder[])=>Promise<void>}){const[draft,setDraft]=useState(program);const[saving,setSaving]=useState(false);useEffect(()=>{if(!saving)setDraft(program)},[program,saving]);async function save(next:MovementOrder[]){setDraft(next);setSaving(true);try{await onReorder(next)}finally{setSaving(false)}}function select(i:number,value:string){const next=[...draft];if(value)next[i]=value as MovementOrder;else next.splice(i,1);void save(next)}return <section className="panel"><h2>Programmera dina kommandon</h2><p>Fyll registren i ordning. Kommandon får upprepas.</p>{saving&&<p role="status">Sparar program…</p>}<ol className="cards">{Array.from({length:programSize},(_,i)=><li className="card" key={i}><b>{i+1}</b><select aria-label={`Register ${i+1}`} disabled={locked||saving||i>draft.length} value={draft[i]??''} onChange={e=>select(i,e.target.value)}><option value="">Välj kommando</option>{all.map(c=><option value={c} key={c}>{labels[c]}</option>)}</select></li>)}</ol><div className="actions"><button disabled={locked||saving||draft.length!==programSize} onClick={()=>void onSubmit(draft)}>{locked?'Program låst':'Lås program'}</button><button className="secondary" disabled={locked||saving||!draft.length} onClick={()=>void save([])}>Rensa</button></div></section>}
+import { useEffect, useState } from 'react'
+import type { MovementOrder } from '../types/game'
+
+const all: MovementOrder[] = ['FORWARD_1', 'FORWARD_2', 'REVERSE_1', 'TURN_LEFT', 'TURN_RIGHT', 'U_TURN', 'WAIT']
+const labels: Record<MovementOrder, string> = { FORWARD_1: 'Framåt 1', FORWARD_2: 'Framåt 2', REVERSE_1: 'Backa 1', TURN_LEFT: 'Sväng vänster', TURN_RIGHT: 'Sväng höger', U_TURN: 'U-sväng', WAIT: 'Vänta' }
+
+export function CommandHand({ program, programSize, locked, onReorder, onSubmit }: {
+  program: MovementOrder[]
+  programSize: number
+  locked: boolean
+  onReorder: (value: MovementOrder[]) => Promise<void>
+  onSubmit: (value: MovementOrder[]) => Promise<void>
+}) {
+  const [draft, setDraft] = useState(program)
+  const [saving, setSaving] = useState(false)
+  useEffect(() => { if (!saving) setDraft(program) }, [program, saving])
+  async function save(next: MovementOrder[]) {
+    setDraft(next); setSaving(true)
+    try { await onReorder(next) } finally { setSaving(false) }
+  }
+  function select(index: number, value: string) {
+    const next = [...draft]
+    if (value) next[index] = value as MovementOrder
+    else next.splice(index, 1)
+    void save(next)
+  }
+
+  return <section className="panel program-panel" data-testid="player-program" data-locked={locked}>
+    <h2>Ditt program</h2>
+    <p>Registren utförs uppifrån och ned. Kommandon får upprepas.</p>
+    <p className="program-state" data-testid="program-lock-state">{locked ? 'Programmet är låst' : 'Programmet kan ändras'}</p>
+    {saving && <p role="status">Sparar program…</p>}
+    <ol className="cards" data-testid="program-slots">
+      {Array.from({ length: programSize }, (_, index) => <li className="card" key={index} data-testid="program-slot" data-slot={index + 1} data-command={draft[index] ?? ''}>
+        <b>Register {index + 1}</b>
+        <select aria-label={`Register ${index + 1}`} disabled={locked || saving || index > draft.length} value={draft[index] ?? ''} onChange={event => select(index, event.target.value)}>
+          <option value="">Välj kommando</option>
+          {all.map(command => <option value={command} key={command}>{labels[command]}</option>)}
+        </select>
+      </li>)}
+    </ol>
+    <div className="actions">
+      <button data-testid="lock-program" disabled={locked || saving || draft.length !== programSize} onClick={() => void onSubmit(draft)}>{locked ? 'Program låst' : 'Lås program'}</button>
+      <button className="secondary" disabled={locked || saving || !draft.length} onClick={() => void save([])}>Rensa</button>
+    </div>
+  </section>
+}

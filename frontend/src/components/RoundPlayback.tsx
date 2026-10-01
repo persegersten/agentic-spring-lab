@@ -72,10 +72,15 @@ export function RoundPlayback({board,round,players,onVehicles,onScores,onFinishe
     setPlaying(true)
   }
 
-  return <section className="panel playback">
+  return <section className="panel playback" data-testid="round-playback" data-playback-state={finished ? 'FINISHED' : playing ? 'PLAYING' : 'PAUSED'}>
     <p className="eyebrow">Uppspelning</p>
     <h2>{finished ? 'Uppspelningen är klar' : eventIndex === 0 ? 'Startposition' : `Händelse ${eventIndex} av ${timeline.playback.length}`}</h2>
     {current && <p data-testid="current-playback-event" data-event-type={current.type} data-sequence={current.sequence}>{describeEvent(current, players)}</p>}
+    <ol className="playback-events" data-testid="playback-events" aria-label="Rundans händelser">
+      {timeline.playback.map(event => <li key={event.sequence} data-testid="playback-event" data-event-type={event.type} data-sequence={event.sequence} className={event.sequence === current?.sequence ? 'current' : ''}>
+        <span>{event.sequence}</span> {describeEvent(event, players)}
+      </li>)}
+    </ol>
     <div className="actions">
       <button disabled={finished} onClick={() => setPlaying(value => !value)}>{playing ? 'Pausa' : 'Fortsätt'}</button>
       <button className="secondary" onClick={replay}>Spela om</button>

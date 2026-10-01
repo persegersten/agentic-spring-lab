@@ -18,7 +18,7 @@ test('Alice creates a game and Bob joins from a separate session', async ({ brow
     await expect(alice.getByText('Max 12 spelare · 3 kort per runda', { exact: true })).toBeVisible()
 
     await joinGame(alice, 'Alice')
-    await expect(alice.getByText('Alice', { exact: true })).toBeVisible()
+    await expect(alice.getByTestId('player-vehicle').filter({ hasText: 'Alice' })).toBeVisible()
     await expect(bob.getByRole('heading', { name: 'Spelare anslutna' })).not.toBeVisible()
 
     await bob.goto(gameLink)
