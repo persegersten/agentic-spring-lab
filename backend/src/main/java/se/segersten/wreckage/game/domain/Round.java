@@ -101,8 +101,27 @@ public final class Round {
             }
             var result=effects.resolve(state);state=result.state();addScoredEvents(events,result.events(),playersById,configuration,false);
         }
+        awardControlPoints(events, state, playersById, configuration);
         playback = List.copyOf(events);
         phase = RoundPhase.PLAYBACK;
+    }
+
+    private void awardControlPoints(List<RoundEvent> target, GameState state, Map<UUID, Player> players,
+                                    GameConfiguration configuration) {
+        Map<UUID, VehicleState> activeByPlayer = state.vehicleStates().stream()
+                .filter(VehicleState::isActive)
+                .collect(java.util.stream.Collectors.toMap(vehicle -> vehicle.vehicle().playerId(), vehicle -> vehicle));
+        for (UUID playerId : initiative) {
+            VehicleState vehicle = activeByPlayer.get(playerId);
+            Player player = players.get(playerId);
+            if (vehicle == null || player == null || !state.board().isControlPoint(vehicle.position())) continue;
+            int oldScore = player.getScore();
+            int newScore = player.changeScore(configuration.controlPointScore());
+            RoundEvent scoreEvent = RoundEvent.scoreChanged(playerId, vehicle.vehicle().id(), playerId,
+                    vehicle.vehicle().id(), vehicle.position(), vehicle.orientation(), oldScore, newScore,
+                    ScoreChangeReason.CONTROL_POINT, null);
+            target.add(scoreEvent.withSequence(target.size() + 1));
+        }
     }
 
     private void addScoredEvents(List<RoundEvent> target, List<RoundEvent> movementEvents,

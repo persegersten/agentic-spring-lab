@@ -65,6 +65,7 @@ class GameApiIntegrationTest {
         assertThat(game.path("configuration").path("programSize").asInt()).isEqualTo(3);
         assertThat(game.path("configuration").path("roundLimit").asInt()).isEqualTo(6);
         assertThat(game.path("configuration").path("checkpointScore").asInt()).isEqualTo(2);
+        assertThat(game.path("configuration").path("controlPointScore").asInt()).isEqualTo(1);
         assertThat(game.path("configuration").path("crashPenalty").asInt()).isEqualTo(-1);
         assertThat(game.path("configuration").path("pushCrashScore").asInt()).isEqualTo(1);
         assertThat(game.path("joinDeadline").asText()).isNotBlank();
@@ -81,6 +82,9 @@ class GameApiIntegrationTest {
         assertThat(game.path("board").path("checkpoints")).hasSize(1);
         assertThat(game.path("board").path("checkpoints").path(0).path("id").asText())
                 .isEqualTo("checkpoint-1");
+        assertThat(game.path("board").path("controlPoints")).hasSize(1);
+        assertThat(game.path("board").path("controlPoints").path(0).path("x").asInt()).isEqualTo(5);
+        assertThat(game.path("board").path("controlPoints").path(0).path("y").asInt()).isEqualTo(5);
 
         JsonNode retrieved = json(get("/games/" + game.path("id").asText()));
         assertThat(retrieved.path("board").path("walls")).isEqualTo(game.path("board").path("walls"));
@@ -89,7 +93,7 @@ class GameApiIntegrationTest {
     @Test
     void createGameWithConfigurationAndRetrieveIt() throws Exception {
         HttpResponse<String> created = post("/games", """
-                {"maxPlayers":4,"joinTimeoutSeconds":90,"programSize":5,"planningTimeoutSeconds":45}
+                {"maxPlayers":4,"joinTimeoutSeconds":90,"programSize":5,"planningTimeoutSeconds":45,"controlPointScore":4}
                 """);
         assertThat(created.statusCode()).isEqualTo(HttpStatus.CREATED.value());
         JsonNode createdGame = json(created);
@@ -101,6 +105,7 @@ class GameApiIntegrationTest {
         assertThat(configuration.path("joinTimeoutSeconds").asInt()).isEqualTo(90);
         assertThat(configuration.path("programSize").asInt()).isEqualTo(5);
         assertThat(configuration.path("planningTimeoutSeconds").asInt()).isEqualTo(45);
+        assertThat(configuration.path("controlPointScore").asInt()).isEqualTo(4);
     }
 
     @Test

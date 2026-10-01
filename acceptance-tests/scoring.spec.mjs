@@ -40,3 +40,47 @@ test('score table follows authoritative score events and shows checkpoint progre
   await expect(page.getByTestId('player-score')).toHaveText('2')
   await expect(page.getByTestId('score-row')).toContainText('1')
 })
+
+test('control point is visible and its round-end event updates score after the final conveyor', async ({ page }) => {
+  const gameId = '10000000-0000-0000-0000-000000000051'
+  const playerId = '20000000-0000-0000-0000-000000000051'
+  const vehicle = { id: 'vehicle-51', playerId, x: 0, y: 1, direction: 'EAST', damage: 0, status: 'ACTIVE' }
+  const state = {
+    id: gameId, playerId, status: 'RUNNING',
+    configuration: { maxPlayers: 1, joinTimeoutSeconds: 300, programSize: 1,
+      planningTimeoutSeconds: 120, roundLimit: 6, checkpointScore: 2, controlPointScore: 1,
+      crashPenalty: -1, pushCrashScore: 1 },
+    joinDeadline: '2026-01-01T00:05:00Z',
+    players: [{ id: playerId, name: 'Per', score: 1, visitedCheckpoints: [] }],
+    board: { width: 4, height: 3, walls: [], pits: [], checkpoints: [], spawnPoints: [],
+      conveyors: [{ position: { x: 0, y: 1 }, direction: 'EAST' }], rotators: [],
+      controlPoints: [{ x: 1, y: 1 }] },
+    vehicles: [{ ...vehicle, x: 1 }],
+    round: { state: { number: 1, phase: 'PLAYBACK', planningDeadline: '2026-01-01T00:02:00Z',
+      ready: { [playerId]: true }, initiative: [playerId], initialVehicles: [vehicle],
+      initialScores: { [playerId]: 0 }, startEvents: [], playback: [
+        { sequence: 1, type: 'CONVEYOR_MOVE', playerId, vehicleId: vehicle.id, sourcePlayerId: playerId,
+          sourceVehicleId: vehicle.id, oldPosition: { x: 0, y: 1 }, newPosition: { x: 1, y: 1 },
+          oldDirection: 'EAST', newDirection: 'EAST', oldDamage: 0, newDamage: 0 },
+        { sequence: 2, type: 'SCORE_CHANGED', playerId, vehicleId: vehicle.id, sourcePlayerId: playerId,
+          sourceVehicleId: vehicle.id, oldPosition: { x: 1, y: 1 }, newPosition: { x: 1, y: 1 },
+          oldDirection: 'EAST', newDirection: 'EAST', oldDamage: 0, newDamage: 0,
+          oldScore: 0, newScore: 1, scoreDelta: 1, scoreReason: 'CONTROL_POINT' },
+      ] }, program: [] },
+  }
+  await page.clock.install()
+  await page.addInitScript(session => sessionStorage.setItem('wreckage-session', JSON.stringify(session)),
+    { gameId, playerId, token: 'test-token' })
+  await page.route(`**/games/${gameId}/players/${playerId}`, route => route.fulfill({ json: state }))
+
+  await page.goto(`/game/${gameId}`)
+  await expect(page.getByTestId('board-control-point')).toHaveAttribute('data-x', '1')
+  await expect(page.getByTestId('board-control-point')).toHaveAttribute('data-y', '1')
+  await expect(page.getByTestId('player-score')).toHaveText('0')
+  await page.clock.runFor(1)
+  await expect(page.getByTestId('current-playback-event')).toHaveAttribute('data-event-type', 'CONVEYOR_MOVE')
+  await expect(page.getByTestId('player-score')).toHaveText('0')
+  await page.clock.runFor(250)
+  await expect(page.getByTestId('current-playback-event')).toHaveAttribute('data-event-type', 'SCORE_CHANGED')
+  await expect(page.getByTestId('player-score')).toHaveText('1')
+})

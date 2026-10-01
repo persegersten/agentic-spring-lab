@@ -1,3 +1,3 @@
 package se.segersten.wreckage.game.domain;
 
-public enum ScoreChangeReason { CHECKPOINT, CRASH_PENALTY, PUSH_CRASH }
+public enum ScoreChangeReason { CHECKPOINT, CONTROL_POINT, CRASH_PENALTY, PUSH_CRASH }

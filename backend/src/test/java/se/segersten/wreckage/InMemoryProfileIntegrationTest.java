@@ -43,7 +43,9 @@ class InMemoryProfileIntegrationTest {
         var vehicle = new Vehicle(java.util.UUID.randomUUID(), playerId);
         var state = new VehicleState(vehicle, new Position(1, 2), Direction.EAST, 0);
         var checkpoint = new se.segersten.wreckage.game.domain.Checkpoint("cp-1", new Position(2, 2));
-        var board = new Board(5, 5, java.util.Set.of(), java.util.Set.of(), java.util.Set.of(checkpoint));
+        var base = new Board(5, 5);
+        var board = new Board(5, 5, java.util.Set.of(), java.util.Set.of(), java.util.Set.of(checkpoint),
+                base.spawnPoints(), java.util.List.of(), java.util.List.of(), java.util.Set.of(new Position(2, 2)));
         var program = new PlayerProgram(playerId, 1, java.util.List.of(MovementOrder.FORWARD_1), true);
         var round = new Round(1, RoundPhase.PLANNING, java.util.Map.of(playerId, program),
                 java.util.List.of(playerId), new GameState(board, java.util.List.of(state)), java.util.List.of(),
@@ -57,13 +59,19 @@ class InMemoryProfileIntegrationTest {
         Game retrieved = gameService.getGame(game.getId());
 
         assertThat(retrieved.getBoard().checkpoints()).containsExactly(checkpoint);
-        assertThat(retrieved.getPlayers().getFirst().getScore()).isEqualTo(2);
+        assertThat(retrieved.getBoard().controlPoints()).containsExactly(new Position(2, 2));
+        assertThat(retrieved.getConfiguration().controlPointScore()).isEqualTo(1);
+        assertThat(retrieved.getPlayers().getFirst().getScore()).isEqualTo(3);
         assertThat(retrieved.getPlayers().getFirst().getVisitedCheckpoints()).containsExactly("cp-1");
         assertThat(retrieved.getRound().initialScores()).containsEntry(playerId, 0);
         assertThat(retrieved.getRound().playback()).extracting(event -> event.type())
                 .containsExactly(se.segersten.wreckage.game.domain.RoundEventType.MOVE,
+                        se.segersten.wreckage.game.domain.RoundEventType.SCORE_CHANGED,
                         se.segersten.wreckage.game.domain.RoundEventType.SCORE_CHANGED);
         assertThat(retrieved.getRound().playback().get(1).newScore()).isEqualTo(2);
+        assertThat(retrieved.getRound().playback().get(2).scoreReason())
+                .isEqualTo(se.segersten.wreckage.game.domain.ScoreChangeReason.CONTROL_POINT);
+        assertThat(retrieved.getRound().playback().get(2).newScore()).isEqualTo(3);
     }
 
     @Test
