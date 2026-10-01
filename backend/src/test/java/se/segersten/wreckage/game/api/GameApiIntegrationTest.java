@@ -62,6 +62,10 @@ class GameApiIntegrationTest {
         assertThat(game.path("status").asText()).isEqualTo("WAITING_FOR_PLAYERS");
         assertThat(game.path("configuration").path("maxPlayers").asInt()).isEqualTo(12);
         assertThat(game.path("configuration").path("programSize").asInt()).isEqualTo(3);
+        assertThat(game.path("configuration").path("roundLimit").asInt()).isEqualTo(6);
+        assertThat(game.path("configuration").path("checkpointScore").asInt()).isEqualTo(2);
+        assertThat(game.path("configuration").path("crashPenalty").asInt()).isEqualTo(-1);
+        assertThat(game.path("configuration").path("pushCrashScore").asInt()).isEqualTo(1);
         assertThat(game.path("joinDeadline").asText()).isNotBlank();
         assertThat(game.path("board").path("width").asInt()).isEqualTo(20);
         assertThat(game.path("board").path("height").asInt()).isEqualTo(20);
@@ -73,6 +77,9 @@ class GameApiIntegrationTest {
         assertThat(game.path("board").path("pits")).hasSize(1);
         assertThat(game.path("board").path("pits").path(0).path("x").asInt()).isEqualTo(4);
         assertThat(game.path("board").path("pits").path(0).path("y").asInt()).isEqualTo(5);
+        assertThat(game.path("board").path("checkpoints")).hasSize(1);
+        assertThat(game.path("board").path("checkpoints").path(0).path("id").asText())
+                .isEqualTo("checkpoint-1");
 
         JsonNode retrieved = json(get("/games/" + game.path("id").asText()));
         assertThat(retrieved.path("board").path("walls")).isEqualTo(game.path("board").path("walls"));
@@ -167,6 +174,12 @@ class GameApiIntegrationTest {
         assertThat(bobGame.path("board")).isEqualTo(publicGame.path("board"));
         assertThat(aliceGame.path("vehicles")).isEqualTo(publicGame.path("vehicles"));
         assertThat(bobGame.path("vehicles")).isEqualTo(publicGame.path("vehicles"));
+        assertThat(publicGame.path("players").valueStream().map(player -> player.path("score").asInt()))
+                .containsOnly(0);
+        assertThat(publicGame.path("players").valueStream()
+                .map(player -> player.path("visitedCheckpoints").isArray())).containsOnly(true);
+        assertThat(aliceGame.path("round").path("state").path("initialScores")
+                .path(alice.path("id").asText()).asInt()).isZero();
     }
 
     @Test

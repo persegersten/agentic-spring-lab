@@ -28,6 +28,7 @@ import se.segersten.wreckage.game.domain.RoundEventType;
 import se.segersten.wreckage.game.domain.Direction;
 import se.segersten.wreckage.game.domain.Position;
 import se.segersten.wreckage.game.domain.Wall;
+import se.segersten.wreckage.game.domain.Checkpoint;
 
 class GameServiceTest {
 
@@ -44,7 +45,8 @@ class GameServiceTest {
         assertThat(game.getConfiguration()).isEqualTo(GameConfiguration.defaults());
         assertThat(game.getBoard()).isEqualTo(new Board(20, 20,
                 java.util.Set.of(new Wall(new Position(0, 0), Direction.NORTH)),
-                java.util.Set.of(new Position(4, 5))));
+                java.util.Set.of(new Position(4, 5)),
+                java.util.Set.of(new Checkpoint("checkpoint-1", new Position(3, 3)))));
         assertThat(repository.findById(game.getId())).containsSame(game);
     }
 
@@ -251,7 +253,7 @@ class GameServiceTest {
     }
 
     @Test
-    void shouldFinishWithoutProgramsWhenEveryPlayerIsEliminated() {
+    void damageDoesNotEliminatePlayersOrFinishTheGame() {
         InMemoryGameRepository repository = new InMemoryGameRepository();
         GameService service = new GameService(repository, Clock.systemUTC());
         Game game = service.createGame(new GameConfiguration(2, 60, 3, 30));
@@ -269,10 +271,10 @@ class GameServiceTest {
 
         var round = service.startRound(game.getId(), alice.player().getId(), alice.token());
 
-        assertThat(round.phase()).isEqualTo(RoundPhase.PLAYBACK);
-        assertThat(round.programs()).isEmpty();
-        assertThat(round.initialState().vehicleStates()).isEmpty();
-        assertThat(service.getGame(game.getId()).getStatus()).isEqualTo(GameStatus.FINISHED);
+        assertThat(round.phase()).isEqualTo(RoundPhase.PLANNING);
+        assertThat(round.programs()).hasSize(2);
+        assertThat(round.initialState().vehicleStates()).hasSize(2);
+        assertThat(service.getGame(game.getId()).getStatus()).isEqualTo(GameStatus.RUNNING);
         assertThat(service.getPlayerGame(game.getId(), alice.player().getId(), alice.token())).isNotNull();
     }
 

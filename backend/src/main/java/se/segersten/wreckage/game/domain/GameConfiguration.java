@@ -4,12 +4,25 @@ public record GameConfiguration(
         int maxPlayers,
         int joinTimeoutSeconds,
         int programSize,
-        int planningTimeoutSeconds) {
+        int planningTimeoutSeconds,
+        int roundLimit,
+        int checkpointScore,
+        int crashPenalty,
+        int pushCrashScore) {
 
     public static final int DEFAULT_MAX_PLAYERS = 12;
     public static final int DEFAULT_JOIN_TIMEOUT_SECONDS = 300;
     public static final int DEFAULT_PROGRAM_SIZE = 3;
     public static final int DEFAULT_PLANNING_TIMEOUT_SECONDS = 120;
+    public static final int DEFAULT_ROUND_LIMIT = 6;
+    public static final int DEFAULT_CHECKPOINT_SCORE = 2;
+    public static final int DEFAULT_CRASH_PENALTY = -1;
+    public static final int DEFAULT_PUSH_CRASH_SCORE = 1;
+
+    public GameConfiguration(int maxPlayers, int joinTimeoutSeconds, int programSize, int planningTimeoutSeconds) {
+        this(maxPlayers, joinTimeoutSeconds, programSize, planningTimeoutSeconds, DEFAULT_ROUND_LIMIT,
+                DEFAULT_CHECKPOINT_SCORE, DEFAULT_CRASH_PENALTY, DEFAULT_PUSH_CRASH_SCORE);
+    }
 
     public GameConfiguration {
         if (maxPlayers < 1) throw new IllegalArgumentException("maxPlayers must be positive");
@@ -18,10 +31,12 @@ public record GameConfiguration(
             throw new IllegalArgumentException("programSize must be between 1 and 5");
         if (planningTimeoutSeconds < 1)
             throw new IllegalArgumentException("planningTimeoutSeconds must be positive");
+        if (roundLimit < 1) throw new IllegalArgumentException("roundLimit must be positive");
     }
 
     public static GameConfiguration defaults() {
         return new GameConfiguration(DEFAULT_MAX_PLAYERS, DEFAULT_JOIN_TIMEOUT_SECONDS,
-                DEFAULT_PROGRAM_SIZE, DEFAULT_PLANNING_TIMEOUT_SECONDS);
+                DEFAULT_PROGRAM_SIZE, DEFAULT_PLANNING_TIMEOUT_SECONDS, DEFAULT_ROUND_LIMIT,
+                DEFAULT_CHECKPOINT_SCORE, DEFAULT_CRASH_PENALTY, DEFAULT_PUSH_CRASH_SCORE);
     }
 }

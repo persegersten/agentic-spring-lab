@@ -125,6 +125,127 @@ class GameRoundTest {
         assertThat(game.getVehicleStates()).extracting(VehicleState::position).doesNotHaveDuplicates();
     }
 
+    @Test
+    void checkpointScoresOncePerPlayerAndScoreEventsRemainInCausalOrder() {
+        UUID aliceId = UUID.randomUUID();
+        Player alice = Player.create(aliceId, "Alice", "a");
+        VehicleState vehicle = state(aliceId, 1, 2);
+        Board board = new Board(5, 5, java.util.Set.of(), java.util.Set.of(),
+                java.util.Set.of(new Checkpoint("cp-1", new Position(2, 2))));
+        Round round = new Round(1, Map.of(aliceId, locked(aliceId,
+                MovementOrder.FORWARD_1, MovementOrder.REVERSE_1, MovementOrder.FORWARD_1)),
+                List.of(aliceId), new GameState(board, List.of(vehicle)));
+
+        round.resolve(new MovementEngine(), List.of(alice), GameConfiguration.defaults());
+
+        assertThat(alice.getScore()).isEqualTo(2);
+        assertThat(alice.getVisitedCheckpoints()).containsExactly("cp-1");
+        assertThat(round.playback()).extracting(RoundEvent::type).containsExactly(
+                RoundEventType.MOVE, RoundEventType.SCORE_CHANGED,
+                RoundEventType.MOVE, RoundEventType.MOVE);
+        assertThat(round.playback().get(1)).satisfies(event -> {
+            assertThat(event.scoreReason()).isEqualTo(ScoreChangeReason.CHECKPOINT);
+            assertThat(event.scoreDelta()).isEqualTo(2);
+            assertThat(event.checkpointId()).isEqualTo("cp-1");
+        });
+    }
+
+    @Test
+    void differentPlayersCanScoreTheSameCheckpoint() {
+        UUID aliceId = UUID.randomUUID();
+        UUID bobId = UUID.randomUUID();
+        Player alice = Player.create(aliceId, "Alice", "a");
+        Player bob = Player.create(bobId, "Bob", "b");
+        Board board = new Board(5, 5, java.util.Set.of(), java.util.Set.of(),
+                java.util.Set.of(new Checkpoint("cp-1", new Position(2, 2))));
+        resolveSinglePlayer(board, alice, state(aliceId, 1, 2), MovementOrder.FORWARD_1);
+        resolveSinglePlayer(board, bob, new VehicleState(new Vehicle(UUID.randomUUID(), bobId),
+                new Position(2, 3), Direction.SOUTH, 0), MovementOrder.FORWARD_1);
+
+        assertThat(alice.getScore()).isEqualTo(2);
+        assertThat(bob.getScore()).isEqualTo(2);
+    }
+
+    @Test
+    void forwardTwoAwardsPenaltiesAndOnePushScoreForEachOpponentCrashed() {
+        UUID pusherId = UUID.randomUUID(); UUID middleId = UUID.randomUUID(); UUID frontId = UUID.randomUUID();
+        Player pusher = Player.create(pusherId, "Pusher", "p");
+        Player middle = Player.create(middleId, "Middle", "m");
+        Player front = Player.create(frontId, "Front", "f");
+        VehicleState pusherState = state(pusherId, 0, 1);
+        VehicleState middleState = state(middleId, 1, 1);
+        VehicleState frontState = state(frontId, 2, 1);
+        Round round = new Round(1, Map.of(pusherId, locked(pusherId, MovementOrder.FORWARD_2)),
+                List.of(pusherId), new GameState(new Board(3, 3), List.of(pusherState, middleState, frontState)));
+
+        round.resolve(new MovementEngine(), List.of(pusher, middle, front), GameConfiguration.defaults());
+
+        assertThat(pusher.getScore()).isEqualTo(2);
+        assertThat(middle.getScore()).isEqualTo(-1);
+        assertThat(front.getScore()).isEqualTo(-1);
+        assertThat(round.playback()).filteredOn(event -> event.type() == RoundEventType.SCORE_CHANGED)
+                .extracting(RoundEvent::scoreReason).containsExactly(
+                        ScoreChangeReason.CRASH_PENALTY, ScoreChangeReason.PUSH_CRASH,
+                        ScoreChangeReason.CRASH_PENALTY, ScoreChangeReason.PUSH_CRASH);
+        assertThat(round.playback()).extracting(RoundEvent::sequence)
+                .containsExactlyElementsOf(java.util.stream.IntStream.rangeClosed(1, round.playback().size()).boxed().toList());
+    }
+
+    @Test
+    void pushedVehicleCanScoreACheckpoint() {
+        UUID pusherId = UUID.randomUUID(); UUID pushedId = UUID.randomUUID();
+        Player pusher = Player.create(pusherId, "Pusher", "p");
+        Player pushed = Player.create(pushedId, "Pushed", "v");
+        Board board = new Board(5, 5, java.util.Set.of(), java.util.Set.of(),
+                java.util.Set.of(new Checkpoint("cp", new Position(2, 1))));
+        Round round = new Round(1, Map.of(pusherId, locked(pusherId, MovementOrder.FORWARD_1)),
+                List.of(pusherId), new GameState(board, List.of(state(pusherId, 0, 1), state(pushedId, 1, 1))));
+
+        round.resolve(new MovementEngine(), List.of(pusher, pushed), GameConfiguration.defaults());
+
+        assertThat(pushed.getScore()).isEqualTo(2);
+        assertThat(pusher.getScore()).isZero();
+        assertThat(round.playback()).extracting(RoundEvent::type).containsExactly(
+                RoundEventType.PUSH, RoundEventType.SCORE_CHANGED, RoundEventType.RAM);
+    }
+
+    @Test
+    void ownCrashOnlyAppliesCrashPenalty() {
+        UUID playerId = UUID.randomUUID();
+        Player player = Player.create(playerId, "Alice", "a");
+        Round round = new Round(1, Map.of(playerId, locked(playerId, MovementOrder.FORWARD_1)),
+                List.of(playerId), new GameState(new Board(2, 2), List.of(state(playerId, 1, 1))));
+
+        round.resolve(new MovementEngine(), List.of(player), GameConfiguration.defaults());
+
+        assertThat(player.getScore()).isEqualTo(-1);
+        assertThat(round.playback()).extracting(RoundEvent::type)
+                .containsExactly(RoundEventType.CRASH, RoundEventType.SCORE_CHANGED);
+        assertThat(round.playback().getLast().scoreReason()).isEqualTo(ScoreChangeReason.CRASH_PENALTY);
+    }
+
+    @Test
+    void gameFinishesAtRoundLimitInsteadOfByDamage() {
+        Instant now = Instant.parse("2099-01-01T00:00:00Z");
+        GameConfiguration configuration = new GameConfiguration(2, 60, 1, 30, 1, 2, -1, 1);
+        Game game = new Game(UUID.randomUUID(), List.of(), new Board(5, 5), GameStatus.RUNNING,
+                Map.of(), null, configuration, now, now.plusSeconds(60));
+        Player player = game.addPlayer("Alice", "a", now);
+        Round round = game.startRound(now);
+        round.lock(player.getId(), List.of(MovementOrder.WAIT));
+        round.resolve(new MovementEngine(), game.getPlayers(), configuration);
+
+        game.completeRound();
+
+        assertThat(game.getStatus()).isEqualTo(GameStatus.FINISHED);
+    }
+
+    private void resolveSinglePlayer(Board board, Player player, VehicleState state, MovementOrder order) {
+        Round round = new Round(1, Map.of(player.getId(), locked(player.getId(), order)),
+                List.of(player.getId()), new GameState(board, List.of(state)));
+        round.resolve(new MovementEngine(), List.of(player), GameConfiguration.defaults());
+    }
+
     private Game game(int programSize, Instant now) {
         return new Game(UUID.randomUUID(), List.of(), new Board(8, 8), GameStatus.RUNNING,
                 Map.of(), null, new GameConfiguration(6, 60, programSize, 30),

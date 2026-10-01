@@ -9,7 +9,7 @@ import org.junit.jupiter.api.Test;
 import se.segersten.wreckage.game.domain.*;
 
 class EliminatedPlayerResponseTest {
-    @Test void spectatorReceivesRoundWithoutAHand() {
+    @Test void damageDoesNotRemoveAPlayerFromV2Planning() {
         Game original = new Game(UUID.randomUUID(), new Board(5, 5));
         Player spectator = original.addPlayer("Spectator", "a");
         original.addPlayer("Alice", "b");
@@ -27,8 +27,8 @@ class EliminatedPlayerResponseTest {
         PlayerGameResponse response = PlayerGameResponse.from(game, spectator.getId());
 
         assertThat(response.round().program()).isEmpty();
-        assertThat(response.round().state().ready()).hasSize(2).doesNotContainKey(spectator.getId());
-        assertThat(response.round().state().initialVehicles()).hasSize(2);
+        assertThat(response.round().state().ready()).hasSize(3).containsKey(spectator.getId());
+        assertThat(response.round().state().initialVehicles()).hasSize(3);
         assertThat(response.players()).hasSize(3);
     }
 }
