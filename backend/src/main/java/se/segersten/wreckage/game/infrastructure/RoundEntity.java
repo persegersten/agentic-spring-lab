@@ -16,9 +16,10 @@ class RoundEntity {
     @Column(name="playback_payload", nullable=false, length=30000) private String playbackPayload;
     @Column(name="planning_deadline",nullable=false) private java.time.Instant planningDeadline;
     @Column(name="initial_scores_payload",nullable=false,length=20000) private String initialScoresPayload;
+    @Column(name="start_events_payload",nullable=false,length=30000) private String startEventsPayload;
     protected RoundEntity() {}
     static RoundEntity fromDomain(Round round, GameEntity game) { var e=new RoundEntity(); e.game=game; return e.updateFrom(round); }
-    RoundEntity updateFrom(Round round) { number=round.number(); phase=round.phase(); planningDeadline=round.planningDeadline();programPayload=encodePrograms(round.programs()); initiativePayload=round.initiative().stream().map(UUID::toString).collect(java.util.stream.Collectors.joining(",")); initialStatePayload=encodeStates(round.initialState().vehicleStates()); playbackPayload=encodePlayback(round.playback()); initialScoresPayload=encodeScores(round.initialScores()); return this; }
+    RoundEntity updateFrom(Round round) { number=round.number(); phase=round.phase(); planningDeadline=round.planningDeadline();programPayload=encodePrograms(round.programs()); initiativePayload=round.initiative().stream().map(UUID::toString).collect(java.util.stream.Collectors.joining(",")); initialStatePayload=encodeStates(round.initialState().vehicleStates()); playbackPayload=encodePlayback(round.playback()); initialScoresPayload=encodeScores(round.initialScores()); startEventsPayload=encodePlayback(round.startEvents()); return this; }
     Round toDomain(Board board, Map<UUID, Vehicle> vehicles) {
         GameState initial = new GameState(board, decodeStates(initialStatePayload, vehicles));
         Map<UUID,PlayerProgram> programs = decodePrograms(programPayload);
@@ -26,7 +27,8 @@ class RoundEntity {
                 ? List.copyOf(programs.keySet())
                 : Arrays.stream(initiativePayload.split(",")).map(UUID::fromString).toList();
         return new Round(number, phase, programs, initiative, initial,
-                decodePlayback(playbackPayload, vehicles),planningDeadline,decodeScores(initialScoresPayload));
+                decodePlayback(playbackPayload, vehicles),planningDeadline,decodeScores(initialScoresPayload),
+                decodePlayback(startEventsPayload, vehicles));
     }
     private static String encodePrograms(Map<UUID,PlayerProgram> programs) { return programs.values().stream().map(p -> p.playerId()+":"+p.programSize()+":"+p.locked()+":"+csv(p.commands())).collect(java.util.stream.Collectors.joining(";")); }
     private static Map<UUID,PlayerProgram> decodePrograms(String value) { var result=new LinkedHashMap<UUID,PlayerProgram>(); if(value.isBlank()) return result; for(String row:value.split(";")){String[] p=row.split(":",-1); UUID id=UUID.fromString(p[0]); result.put(id,new PlayerProgram(id,Integer.parseInt(p[1]),orders(p[3]),Boolean.parseBoolean(p[2])));} return result; }

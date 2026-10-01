@@ -30,6 +30,7 @@ class GameEntity {
     @Column(name = "board_edge_walls", nullable = false) private String boardWalls;
     @Column(name = "board_pits", nullable = false) private String boardPits;
     @Column(name = "board_checkpoints", nullable = false) private String boardCheckpoints;
+    @Column(name = "board_spawn_points", nullable = false) private String boardSpawnPoints;
     @Enumerated(EnumType.STRING) @Column(name = "status", nullable = false) private GameStatus status;
     @OneToMany(mappedBy = "game", cascade = CascadeType.ALL, orphanRemoval = true) private List<PlayerEntity> players = new ArrayList<>();
     @OneToMany(mappedBy = "game", cascade = CascadeType.ALL, orphanRemoval = true) private List<VehicleEntity> vehicles = new ArrayList<>();
@@ -61,6 +62,9 @@ class GameEntity {
         boardCheckpoints = board.checkpoints().stream().sorted(java.util.Comparator.comparing(Checkpoint::id))
                 .map(checkpoint -> checkpoint.id() + "," + checkpoint.position().x() + "," + checkpoint.position().y())
                 .collect(Collectors.joining("|"));
+        boardSpawnPoints = board.spawnPoints().stream()
+                .map(spawn -> spawn.position().x() + "," + spawn.position().y() + "," + spawn.orientation())
+                .collect(Collectors.joining("|"));
     }
     private void syncPlayers(List<Player> domainPlayers) {
         for (Player player : domainPlayers) {
@@ -91,7 +95,13 @@ class GameEntity {
                 .map(value -> value.split(","))
                 .map(parts -> new Checkpoint(parts[0], new Position(Integer.parseInt(parts[1]), Integer.parseInt(parts[2]))))
                 .collect(Collectors.toUnmodifiableSet());
-        Board board = new Board(boardWidth, boardHeight, walls, pits, checkpoints);
+        List<SpawnPoint> spawnPoints = boardSpawnPoints == null || boardSpawnPoints.isBlank()
+                ? new Board(boardWidth, boardHeight).spawnPoints()
+                : java.util.Arrays.stream(boardSpawnPoints.split("\\|"))
+                .map(value -> value.split(","))
+                .map(parts -> new SpawnPoint(new Position(Integer.parseInt(parts[0]), Integer.parseInt(parts[1])),
+                        Direction.valueOf(parts[2]))).toList();
+        Board board = new Board(boardWidth, boardHeight, walls, pits, checkpoints, spawnPoints);
         List<Player> domainPlayers = players.stream().map(PlayerEntity::toDomain).toList();
         var vehicleMap = new LinkedHashMap<UUID, VehicleState>();
         var byVehicleId = new LinkedHashMap<UUID, Vehicle>();

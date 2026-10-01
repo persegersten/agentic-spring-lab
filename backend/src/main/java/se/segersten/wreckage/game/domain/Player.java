@@ -12,12 +12,13 @@ public class Player {
     private final String accessTokenHash;
     private int score;
     private final Set<String> visitedCheckpoints;
+    private int crashes;
 
     Player(UUID id, String name, String accessTokenHash) {
-        this(id, name, accessTokenHash, 0, Set.of());
+        this(id, name, accessTokenHash, 0, Set.of(), 0);
     }
 
-    Player(UUID id, String name, String accessTokenHash, int score, Set<String> visitedCheckpoints) {
+    Player(UUID id, String name, String accessTokenHash, int score, Set<String> visitedCheckpoints, int crashes) {
         this.id = Objects.requireNonNull(id, "id must not be null");
         if (name == null || name.isBlank()) {
             throw new IllegalArgumentException("Player name must not be blank");
@@ -26,6 +27,8 @@ public class Player {
         this.accessTokenHash = Objects.requireNonNull(accessTokenHash, "accessTokenHash must not be null");
         this.score = score;
         this.visitedCheckpoints = new LinkedHashSet<>(Objects.requireNonNull(visitedCheckpoints));
+        if (crashes < 0) throw new IllegalArgumentException("crashes must not be negative");
+        this.crashes = crashes;
     }
 
     public static Player create(UUID id, String name, String accessTokenHash) {
@@ -37,7 +40,12 @@ public class Player {
     }
 
     public static Player rehydrate(UUID id, String name, String accessTokenHash, int score, Set<String> visitedCheckpoints) {
-        return new Player(id, name, accessTokenHash, score, visitedCheckpoints);
+        return new Player(id, name, accessTokenHash, score, visitedCheckpoints, 0);
+    }
+
+    public static Player rehydrate(UUID id, String name, String accessTokenHash, int score,
+                                   Set<String> visitedCheckpoints, int crashes) {
+        return new Player(id, name, accessTokenHash, score, visitedCheckpoints, crashes);
     }
 
     public UUID getId() {
@@ -53,4 +61,6 @@ public class Player {
     public Set<String> getVisitedCheckpoints() { return Set.copyOf(visitedCheckpoints); }
     public boolean visitCheckpoint(String checkpointId) { return visitedCheckpoints.add(checkpointId); }
     public int changeScore(int delta) { score += delta; return score; }
+    public int getCrashes() { return crashes; }
+    public void recordCrash() { crashes++; }
 }

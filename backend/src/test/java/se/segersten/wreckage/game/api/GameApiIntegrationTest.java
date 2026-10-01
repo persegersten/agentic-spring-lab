@@ -26,6 +26,7 @@ import se.segersten.wreckage.TestcontainersConfiguration;
 import se.segersten.wreckage.game.domain.Game;
 import se.segersten.wreckage.game.domain.GameRepository;
 import se.segersten.wreckage.game.domain.GameState;
+import se.segersten.wreckage.game.domain.GameStatus;
 import se.segersten.wreckage.game.domain.Round;
 import se.segersten.wreckage.game.domain.RoundPhase;
 import se.segersten.wreckage.game.domain.VehicleState;
@@ -375,6 +376,42 @@ class GameApiIntegrationTest {
                 .findFirst().orElseThrow();
         assertThat(crashed.path("status").asText()).isEqualTo("CRASHED");
         assertThat(crashed.path("x").asInt()).isEqualTo(-1);
+    }
+
+    @Test
+    void exposesAuthoritativeFinishedPlacementsAndWinners() throws Exception {
+        HttpResponse<String> created = post("/games", """
+                {"maxPlayers":2,"joinTimeoutSeconds":90,"programSize":1,"planningTimeoutSeconds":45,"roundLimit":1}
+                """);
+        UUID gameId = UUID.fromString(json(created).path("id").asText());
+        UUID firstId = UUID.fromString(json(post("/games/%s/players".formatted(gameId),
+                "{\"name\":\"Per\"}")).path("id").asText());
+        UUID secondId = UUID.fromString(json(post("/games/%s/players".formatted(gameId),
+                "{\"name\":\"Alice\"}")).path("id").asText());
+        TransactionTemplate transaction = new TransactionTemplate(transactionManager);
+        transaction.executeWithoutResult(status -> {
+            Game current = gameRepository.findById(gameId).orElseThrow();
+            current.requirePlayer(firstId).changeScore(4);
+            current.requirePlayer(firstId).visitCheckpoint("one");
+            current.requirePlayer(secondId).changeScore(4);
+            current.requirePlayer(secondId).visitCheckpoint("one");
+            gameRepository.save(new Game(current.getId(), current.getPlayers(), current.getBoard(),
+                    GameStatus.FINISHED, current.getVehicleStates().stream().collect(java.util.stream.Collectors.toMap(
+                            state -> state.vehicle().playerId(), state -> state, (a, b) -> a, LinkedHashMap::new)),
+                    current.getRound(), current.getConfiguration(), current.getCreatedAt(), current.getJoinDeadline()));
+        });
+
+        JsonNode game = json(get("/games/" + gameId));
+
+        assertThat(game.path("placements")).hasSize(2);
+        assertThat(game.path("placements")).allSatisfy(result -> {
+            assertThat(result.path("placement").asInt()).isEqualTo(1);
+            assertThat(result.path("winner").asBoolean()).isTrue();
+            assertThat(result.path("score").asInt()).isEqualTo(4);
+            assertThat(result.path("checkpointsVisited").asInt()).isEqualTo(1);
+            assertThat(result.path("crashes").asInt()).isZero();
+        });
+        assertThat(game.path("players")).allSatisfy(player -> assertThat(player.path("crashes").asInt()).isZero());
     }
 
     @Test

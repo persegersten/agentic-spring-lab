@@ -16,22 +16,28 @@ public final class Round {
     private List<RoundEvent> playback;
     private final Instant planningDeadline;
     private final Map<UUID, Integer> initialScores;
+    private final List<RoundEvent> startEvents;
 
     public Round(int number, Map<UUID, PlayerProgram> programs, List<UUID> initiative, GameState initialState) {
-        this(number, RoundPhase.PLANNING, programs, initiative, initialState, List.of(), Instant.EPOCH, Map.of());
+        this(number, RoundPhase.PLANNING, programs, initiative, initialState, List.of(), Instant.EPOCH, Map.of(), List.of());
     }
     public Round(int number, RoundPhase phase, Map<UUID, PlayerProgram> programs,
                  List<UUID> initiative, GameState initialState, List<RoundEvent> playback) {
-        this(number, phase, programs, initiative, initialState, playback, Instant.EPOCH, Map.of());
+        this(number, phase, programs, initiative, initialState, playback, Instant.EPOCH, Map.of(), List.of());
     }
     public Round(int number, RoundPhase phase, Map<UUID, PlayerProgram> programs,
                  List<UUID> initiative, GameState initialState, List<RoundEvent> playback,
                  Instant planningDeadline) {
-        this(number, phase, programs, initiative, initialState, playback, planningDeadline, Map.of());
+        this(number, phase, programs, initiative, initialState, playback, planningDeadline, Map.of(), List.of());
     }
     public Round(int number, RoundPhase phase, Map<UUID, PlayerProgram> programs,
                  List<UUID> initiative, GameState initialState, List<RoundEvent> playback,
                  Instant planningDeadline, Map<UUID, Integer> initialScores) {
+        this(number, phase, programs, initiative, initialState, playback, planningDeadline, initialScores, List.of());
+    }
+    public Round(int number, RoundPhase phase, Map<UUID, PlayerProgram> programs,
+                 List<UUID> initiative, GameState initialState, List<RoundEvent> playback,
+                 Instant planningDeadline, Map<UUID, Integer> initialScores, List<RoundEvent> startEvents) {
         this.number = number; this.phase = phase;
         this.programs = new LinkedHashMap<>(programs);
         this.initiative = List.copyOf(initiative);
@@ -41,6 +47,7 @@ public final class Round {
         }
         this.initialState = initialState; this.playback = List.copyOf(playback);this.planningDeadline=planningDeadline;
         this.initialScores = Map.copyOf(initialScores);
+        this.startEvents = List.copyOf(startEvents);
     }
     public int number() { return number; }
     public RoundPhase phase() { return phase; }
@@ -50,6 +57,7 @@ public final class Round {
     public List<RoundEvent> playback() { return playback; }
     public Instant planningDeadline(){return planningDeadline;}
     public Map<UUID, Integer> initialScores() { return initialScores; }
+    public List<RoundEvent> startEvents() { return startEvents; }
     public void reorder(UUID playerId, List<MovementOrder> orders) {
         if (phase != RoundPhase.PLANNING) throw new IllegalStateException("Round is not accepting programs");
         var current = programs.get(playerId);
@@ -108,6 +116,7 @@ public final class Round {
                 }
             }
             if (subject != null && event.type() == RoundEventType.CRASH) {
+                subject.recordCrash();
                 addScoreEvent(target, event, subject, configuration.crashPenalty(),
                         ScoreChangeReason.CRASH_PENALTY, null);
                 if (!event.playerId().equals(event.sourcePlayerId()) && rewardedCrashes.add(event.playerId())) {

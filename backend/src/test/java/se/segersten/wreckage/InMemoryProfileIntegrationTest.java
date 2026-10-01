@@ -168,6 +168,33 @@ class InMemoryProfileIntegrationTest {
     }
 
     @Test
+    void persistsSpawnAssignmentCrashCountAndRoundStartRespawnEvent() {
+        var now = java.time.Instant.parse("2026-01-01T12:00:00Z");
+        var player = Player.create(java.util.UUID.randomUUID(), "Alice", "token");
+        player.recordCrash();
+        var spawn = new se.segersten.wreckage.game.domain.SpawnPoint(new Position(3, 2), Direction.WEST);
+        var board = new Board(5, 5, java.util.Set.of(), java.util.Set.of(), java.util.Set.of(),
+                java.util.List.of(spawn));
+        var vehicle = new Vehicle(java.util.UUID.randomUUID(), player.getId(), spawn.position(), spawn.orientation());
+        var crashed = new VehicleState(vehicle, new Position(-1, 2), Direction.NORTH, 2,
+                se.segersten.wreckage.game.domain.VehicleStatus.CRASHED);
+        var game = new Game(java.util.UUID.randomUUID(), java.util.List.of(player), board, GameStatus.RUNNING,
+                java.util.Map.of(player.getId(), crashed), null, new GameConfiguration(1, 60, 1, 30), now,
+                now.plusSeconds(60));
+        game.startRound(now);
+
+        gameRepository.save(game);
+        Game retrieved = gameService.getGame(game.getId());
+
+        assertThat(retrieved.getPlayers().getFirst().getCrashes()).isEqualTo(1);
+        assertThat(retrieved.getVehicleStates().getFirst().vehicle().spawnPoint()).isEqualTo(spawn.position());
+        assertThat(retrieved.getVehicleStates().getFirst().vehicle().spawnOrientation()).isEqualTo(Direction.WEST);
+        assertThat(retrieved.getRound().startEvents()).singleElement()
+                .extracting(event -> event.type())
+                .isEqualTo(se.segersten.wreckage.game.domain.RoundEventType.VEHICLE_RESPAWNED);
+    }
+
+    @Test
     void persistsProgramDraftUsingInMemoryDatabase() {
         var now = java.time.Instant.parse("2026-01-01T12:00:00Z");
         var playerId = java.util.UUID.randomUUID();
