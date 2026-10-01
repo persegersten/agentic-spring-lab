@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test'
 test('score table follows authoritative score events and shows checkpoint progress', async ({ page }) => {
   const gameId = '10000000-0000-0000-0000-000000000050'
   const playerId = '20000000-0000-0000-0000-000000000050'
-  const vehicle = { id: 'vehicle-50', playerId, x: 1, y: 2, direction: 'EAST', damage: 0, status: 'ACTIVE' }
+  const vehicle = { id: 'vehicle-50', playerId, x: 1, y: 2, direction: 'EAST', status: 'ACTIVE' }
   const configuration = { maxPlayers: 1, joinTimeoutSeconds: 300, programSize: 3,
     planningTimeoutSeconds: 120, roundLimit: 6, checkpointScore: 2, crashPenalty: -1, pushCrashScore: 1 }
   const state = {
@@ -17,10 +17,10 @@ test('score table follows authoritative score events and shows checkpoint progre
       playback: [
         { sequence: 1, type: 'MOVE', playerId, vehicleId: vehicle.id, sourcePlayerId: playerId,
           sourceVehicleId: vehicle.id, oldPosition: { x: 1, y: 2 }, newPosition: { x: 2, y: 2 },
-          oldDirection: 'EAST', newDirection: 'EAST', oldDamage: 0, newDamage: 0 },
+          oldDirection: 'EAST', newDirection: 'EAST' },
         { sequence: 2, type: 'SCORE_CHANGED', playerId, vehicleId: vehicle.id, sourcePlayerId: playerId,
           sourceVehicleId: vehicle.id, oldPosition: { x: 2, y: 2 }, newPosition: { x: 2, y: 2 },
-          oldDirection: 'EAST', newDirection: 'EAST', oldDamage: 0, newDamage: 0,
+          oldDirection: 'EAST', newDirection: 'EAST',
           oldScore: 0, newScore: 2, scoreDelta: 2, scoreReason: 'CHECKPOINT', checkpointId: 'cp-1' },
       ] }, program: [] },
   }
@@ -44,7 +44,7 @@ test('score table follows authoritative score events and shows checkpoint progre
 test('control point is visible and its round-end event updates score after the final conveyor', async ({ page }) => {
   const gameId = '10000000-0000-0000-0000-000000000051'
   const playerId = '20000000-0000-0000-0000-000000000051'
-  const vehicle = { id: 'vehicle-51', playerId, x: 0, y: 1, direction: 'EAST', damage: 0, status: 'ACTIVE' }
+  const vehicle = { id: 'vehicle-51', playerId, x: 0, y: 1, direction: 'EAST', status: 'ACTIVE' }
   const state = {
     id: gameId, playerId, status: 'RUNNING',
     configuration: { maxPlayers: 1, joinTimeoutSeconds: 300, programSize: 1,
@@ -61,10 +61,10 @@ test('control point is visible and its round-end event updates score after the f
       initialScores: { [playerId]: 0 }, startEvents: [], playback: [
         { sequence: 1, type: 'CONVEYOR_MOVE', playerId, vehicleId: vehicle.id, sourcePlayerId: playerId,
           sourceVehicleId: vehicle.id, oldPosition: { x: 0, y: 1 }, newPosition: { x: 1, y: 1 },
-          oldDirection: 'EAST', newDirection: 'EAST', oldDamage: 0, newDamage: 0 },
+          oldDirection: 'EAST', newDirection: 'EAST' },
         { sequence: 2, type: 'SCORE_CHANGED', playerId, vehicleId: vehicle.id, sourcePlayerId: playerId,
           sourceVehicleId: vehicle.id, oldPosition: { x: 1, y: 1 }, newPosition: { x: 1, y: 1 },
-          oldDirection: 'EAST', newDirection: 'EAST', oldDamage: 0, newDamage: 0,
+          oldDirection: 'EAST', newDirection: 'EAST',
           oldScore: 0, newScore: 1, scoreDelta: 1, scoreReason: 'CONTROL_POINT' },
       ] }, program: [] },
   }

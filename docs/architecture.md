@@ -1,211 +1,145 @@
-# Wreckage Architecture
+# Wreckage v2 Architecture
 
-Wreckage is a small web application for a turn-based multiplayer vehicle combat
-game. The system creates configured games, exposes a shareable lobby link, adds
-players, and reads game state.
-Movement and basic automatic cannon combat are resolved authoritatively by the backend.
-
-```text
-Browser
-   |
-   v
-React frontend
-   |
-   | HTTP / JSON
-   v
-Spring Boot backend
-   |
-   +-- API
-   +-- Application
-   +-- Domain
-   +-- Infrastructure
-           |
-           v
-       PostgreSQL
-```
-
-The frontend and backend are separate applications. During local development,
-Vite proxies requests under `/games` to Spring Boot on port 8080. The browser
-therefore uses the same relative REST paths regardless of whether a request is
-made directly or through the development server.
-
-## Round and player views
-
-Joining a game returns a one-time player token. The browser stores it in
-`sessionStorage` and sends it in `X-Player-Token`; mutations also identify the
-player with `X-Player-Id`. Only the authenticated player endpoint returns that
-player's private program. The public game response contains readiness but no
-unrevealed programs. Tokens are stored server-side only as SHA-256
-hashes.
-
-On reload, the game URL selects the matching stored player credential and the
-browser rebuilds the complete view from the authenticated player endpoint. The
-credential identifies the player but is not game state: the board, vehicles,
-current round, readiness, and the player's current private program draft are
-all persisted by the server. Editing registers during planning uses
-an authenticated `PUT` to the existing current-program resource; locking the
-program remains the existing `POST`. The normal polling loop retries after a
-temporary connection failure and replaces the rendered view with fresh server
-state without changing other players or the game aggregate.
-
-The aggregate persists the current round, programs, the round's authoritative
-initiative order, and an authoritative ordered event stream. Round one uses
-stable player join order; each later round rotates the previous persisted order
-left by one position. After all programs are locked, the round moves through
-the externally meaningful `PLANNING`, `RESOLVING`, and `PLAYBACK` phases.
-Resolution is synchronous and atomic from the client's point of view.
-`MovementEngine` resolves every active player's command in initiative order for
-one register, then `BoardEffectEngine` resolves ordered conveyors and rotators before starting the next register. `FORWARD_2` applies two complete
-one-cell movement steps and therefore produces two movement interactions and
-events rather than teleporting. Automatic cannon fire and premature board
-effects are not part of round resolution. The resulting MOVE, TURN, RAM, and
-PUSH events contain enough state for React to visualize the persisted sequence
-without predicting a result.
-When a round starts, every active player receives an empty private program with
-the configured number of registers and fills it from the complete v2 command set.
-Damage does not alter the available planning commands.
-The same event stream is returned to every client and also drives the
-development debug view.
-
-## Backend layers
-
-Backend code is grouped by the `game` feature and then by responsibility:
-
-- **API** contains the REST controller, JSON response types, and exception
-  handling. It translates HTTP requests into application calls and domain
-  results into HTTP responses.
-- **Application** contains `GameService` and application-level errors. The
-  service coordinates use cases and transaction boundaries.
-- **Domain** contains `Game`, `Player`, `Board`, and the `GameRepository`
-  interface. Domain code owns business rules and does not depend on Spring,
-  HTTP, JPA, or PostgreSQL.
-- **Infrastructure** implements the domain repository with Spring Data JPA and
-  maps between domain objects and persistence entities.
-
-Dependencies point inward: API and infrastructure may use application or
-domain types, while the domain does not know about outer layers. New game rules
-should normally enter the domain model rather than controllers or JPA entities.
-
-`PlayerAutomation` is an application-layer profile seam used only for local
-manual testing. The default implementation is a no-op. With the
-`headless-players` Spring profile, the first player remains browser-controlled,
-the lobby is filled to `maxPlayers`, and every later player's program is locked
-using its program draft without reordering. The stable aggregate player order
-identifies the first player, so no client session or additional persistence
-field is needed for automated players. `GameService` invokes the automation
-after joining and after starting each later round, before saving the aggregate.
-
-A typical request follows this path:
+Wreckage is a turn-based multiplayer programming game. Players privately plan a
+fixed sequence of vehicle commands, the backend resolves those programs against
+the board, and every browser plays back the same authoritative event stream.
 
 ```text
-POST /games/{gameId}/players
-        |
-        v
-GameController
-        |
-        v
-GameService.addPlayer
-        |
-        v
-Game.addPlayer
-        |
-        v
-GameRepository (domain interface)
-        |
-        v
-JpaGameRepository -> Spring Data JPA -> PostgreSQL
+React frontend -- HTTP / JSON --> Spring Boot backend --> PostgreSQL
+                                   API
+                                   Application
+                                   Domain
+                                   Infrastructure
 ```
 
-The REST API currently exposes:
+The frontend and backend are separate applications. In development, Vite proxies
+`/games` to Spring Boot on port 8080. PostgreSQL is the normal database; the
+`in-memory` profile uses H2 in PostgreSQL compatibility mode.
 
-- `GET /games/configuration/defaults` — read server-owned defaults for the create-game form.
-- `POST /games` — create a waiting game with a validated configuration, empty player list and a 20 × 20 board.
-- `POST /games/{gameId}/players` — add a named player to an existing game.
-- `GET /games/{gameId}` — read the current game state.
-- `GET /games/{gameId}/players/{playerId}` — rebuild an authenticated player's public and private game view.
-- `PUT /games/{gameId}/rounds/current/program` — persist the authenticated player's private planning order without locking it.
-- `GET /games/running` — list all running games, or an empty list when none exist.
-- `GET /games/finished` — list all finished games, or an empty list when none exist.
+## Game lifecycle
 
-Missing games produce HTTP 404. Invalid domain input, such as a blank player
-name, produces HTTP 400.
+A game starts in `WAITING_FOR_PLAYERS`. Its persisted configuration controls the
+player limit, lobby and planning deadlines, program size, round limit, and score
+values. The lobby starts when it is full or its join deadline expires. A game is
+`RUNNING` while rounds remain and becomes `FINISHED` only after the configured
+round limit.
 
-## Current domain
+Each round moves through three externally visible phases:
 
-`Game` is the aggregate root. Code outside the aggregate adds players through
-`Game.addPlayer`; it does not modify the player collection directly.
+1. `PLANNING`: every active vehicle owner edits a private program and locks it.
+   A planning timeout fills missing registers with `WAIT` and locks the program.
+2. `RESOLVING`: the backend synchronously resolves each register. Players act in
+   the persisted initiative order, which rotates between rounds.
+3. `PLAYBACK`: the completed, ordered event stream is public and immutable. Each
+   client independently animates that same stream before requesting the next round.
 
-A `Game` contains:
+Programs use the complete v2 command set: `FORWARD_1`, `FORWARD_2`, `REVERSE_1`,
+`TURN_LEFT`, `TURN_RIGHT`, `U_TURN`, and `WAIT`. Programs do not depend on a
+vehicle's previous interactions.
 
-- a stable UUID used by the REST API and domain;
-- zero or more `Player` objects, each with a UUID and non-blank name;
-- a `Board` value with width and height.
-- a persistent `GameConfiguration` containing player capacity, join timeout,
-  program size, and planning timeout;
-- a creation time and authoritative join deadline;
-- a lifecycle status of `WAITING_FOR_PLAYERS`, `RUNNING`, or `FINISHED`;
-  newly created games wait in the lobby.
+## Resolution and board effects
 
-The aggregate rejects blank or duplicate nicknames, joins after the deadline,
-and joins beyond the configured capacity. The database additionally enforces
-nickname uniqueness per game. A browser opens a lobby directly at
-`/game/{gameId}`; the frontend does not embed configuration defaults.
+`MovementEngine` applies vehicle commands one cell at a time. It enforces board
+edges and edge walls, resolves chains of rams and pushes, and emits movement,
+turn, ram, push, or crash events. `FORWARD_2` performs two complete one-cell
+steps, so either step can interact with another vehicle or board boundary.
 
-The database also uses internal numeric primary keys. These are persistence
-details and are not exposed through the domain or API. Domain UUIDs are stored
-in unique `domain_id` columns.
+After every register, `BoardEffectEngine` resolves conveyors in board order and
+then rotators. Conveyors reuse the movement and pushing rules and have explicit
+move, ram, push, and crash event types. Rotators update orientation. A vehicle
+that leaves the board or enters a pit is `CRASHED` and does not act again during
+that round.
 
-`Vehicle` and `VehicleSegment` exist as placeholders in the domain model, and
-corresponding tables exist in the initial schema. They are not connected to the
-current aggregate behavior or returned by the API. Their eventual rules and
-ownership should be decided when gameplay is introduced, rather than inferred
-from the placeholder classes or schema alone.
+Crashed vehicles are not removed from the match. At the start of the next round,
+the aggregate tries their assigned spawn first and then checks the remaining
+spawn points in stable wrapped order. A successful respawn emits a
+`VEHICLE_RESPAWNED` event. If every spawn is occupied, the vehicle remains
+crashed and waits for a later round.
 
-## Frontend
+## Scoring and results
 
-The React application is deliberately thin:
+The domain owns all scoring. A vehicle scores the first time its player reaches
+each checkpoint, scores for occupying a control point at round end, loses the
+configured crash penalty, and may award the configured push-crash score to the
+responsible player. Every mutation emits a `SCORE_CHANGED` event containing the
+old score, new score, delta, reason, and optional checkpoint identifier.
 
-- `api/` contains calls to the REST API;
-- `types/` mirrors the JSON contract used by the UI;
-- `pages/` coordinates the create-game and add-player flow;
-- `components/` renders game state;
-- `App.tsx` selects the current page.
+When the round limit is reached, placements are ordered by score, then checkpoints
+visited, then fewest crashes. Exact ties share a placement and may share the win.
+Vehicle count and crash state never finish a game early.
 
-After a mutation, the frontend fetches the game again with `GET /games/{id}`.
-This makes the displayed state reflect what was persisted rather than relying
-only on a locally predicted update. There is currently no router, global state
-store, data-fetching framework, or board renderer.
+## Playback model
 
-## Database and migrations
+`RoundEvent` is generic playback infrastructure shared by movement, board effects,
+respawning, crashes, and scoring. Events carry their sequence, subject and source
+identities, old and new position and orientation, plus optional scoring details.
+The round persists its initial vehicle state, initial scores, start events, and
+resolution playback so reconnecting clients reconstruct the same timeline without
+predicting domain behavior.
 
-PostgreSQL is the default database. For local development, the `in-memory`
-Spring profile selects an H2 database in PostgreSQL compatibility mode; its
-data is discarded when the backend process exits. Flyway owns schema creation
-for both databases and runs before Hibernate validates the mappings. Hibernate
-is configured with `ddl-auto=validate`; it must not silently create or alter
-the schema. Schema changes therefore require a new Flyway migration that works
-with both supported database modes.
+React's `RoundPlayback` copies the initial state and applies events in sequence.
+`GameBoard` renders the current derived positions and orientations, while the
+debug view exposes the persisted initial state and ordered events. Once playback
+finishes, the server's current aggregate remains the source of truth.
+
+## API and authentication
+
+Joining returns a one-time player token. The browser keeps it in `sessionStorage`
+and sends it as `X-Player-Token`; mutations also send `X-Player-Id`. Only the
+authenticated player response contains that player's private program. Public
+responses expose readiness and resolved playback but never unrevealed programs.
+The server stores only SHA-256 token hashes.
+
+The principal endpoints are:
+
+- `GET /games/configuration/defaults`
+- `POST /games`
+- `POST /games/{gameId}/players`
+- `GET /games/{gameId}`
+- `GET /games/{gameId}/players/{playerId}`
+- `PUT /games/{gameId}/rounds/current/program`
+- `POST /games/{gameId}/rounds/current/program`
+- `POST /games/{gameId}/rounds`
+- `GET /games/running`
+- `GET /games/finished`
+
+Polling and reconnects replace the browser view with authenticated server state.
+The player credential identifies the caller; it is not a second source of game
+state.
+
+## Backend boundaries
+
+- `api` maps HTTP requests and domain results to JSON.
+- `application` coordinates use cases, authentication, automation, transactions,
+  and repository calls.
+- `domain` contains the `Game` aggregate, round rules, board model, scoring, and
+  the repository interface. It has no Spring, HTTP, JPA, or database dependency.
+- `infrastructure` maps aggregates to JPA entities and implements persistence.
+
+Dependencies point inward. `Game` is the aggregate root and owns player, vehicle,
+round, scoring, respawn, and completion invariants. `PlayerAutomation` is an
+application-layer profile seam: the default implementation does nothing, while
+the `headless-players` profile fills the lobby and locks non-human programs for
+manual and acceptance testing.
+
+## Persistence and migrations
+
+Flyway owns schema creation and evolution for PostgreSQL and H2. Hibernate uses
+`ddl-auto=validate`, so entity changes require a versioned migration that works in
+both database profiles. Numeric database identifiers remain infrastructure
+details; domain and API identities are UUIDs.
+
+The current round, private programs, initiative, initial state, scores, and event
+streams are persisted with the game. Persistence readers tolerate the previous
+serialized round layout during upgrades, discard obsolete event kinds, and always
+write the v2 layout.
 
 ## Testing boundaries
 
-The project uses three complementary test levels:
-
-- Domain/application unit tests exercise isolated rules quickly.
-- Backend integration tests start Spring Boot on a random port and use a real
-  PostgreSQL Testcontainer. They cover HTTP, Flyway, JPA, repository mappings,
-  and responses together.
-- Playwright tests in `acceptance-tests/` exercise user-visible behavior through
-  Chromium. The first scenario creates a game through the GUI, adds Alice and
-  Bob, and verifies that both players are rendered from the server-backed game
-  state. Multiplayer scenarios give each player a separate browser context so
-  cookies, local storage, and other client state are isolated.
-
-This separation is intentional: unit tests explain individual rules,
-integration tests protect technical wiring, and Playwright tests state what the
-system does from a user's point of view. The Playwright configuration starts the
-backend with the in-memory profile and the Vite frontend for repeatable local
-end-to-end runs.
-
-The separate `playwright.headless.config.mjs` configuration additionally
-activates the `headless-players` profile and verifies the complete flow using
-one browser.
+Domain and application tests exercise rules directly. Spring integration tests
+use PostgreSQL Testcontainers to cover Flyway, Hibernate validation, repository
+mapping, authentication, and JSON responses. The in-memory integration test
+covers the H2 profile. Playwright starts the H2-backed backend and Vite frontend
+to test planning, resolution, board effects, scoring, playback, reconnects,
+results, and respawning. A separate Playwright configuration covers the
+`headless-players` profile.

@@ -34,7 +34,6 @@ test('players receive and play the same server ordered event sequence', async ({
     const aliceEvents = await alice.getByTestId('round-event').allTextContents()
     expect(aliceEvents).toEqual(perEvents)
     expect(perEvents.some(event => event.includes('MOVE'))).toBe(true)
-    expect(perEvents.some(event => event.includes('FIRE'))).toBe(false)
     const sequences = await per.getByTestId('round-event').evaluateAll(events =>
       events.map(event => Number(event.getAttribute('data-sequence'))))
     expect(sequences).toEqual(sequences.map((_, index) => index + 1))
@@ -53,12 +52,12 @@ test('players receive and play the same server ordered event sequence', async ({
 test('playback finishes quickly across polling, stays paused and can replay', async ({ page }) => {
   const gameId = '10000000-0000-0000-0000-000000000001'
   const playerId = '20000000-0000-0000-0000-000000000001'
-  const vehicle = { id: 'vehicle-1', playerId, x: 0, y: 0, direction: 'EAST', damage: 0, status: 'ACTIVE' }
+  const vehicle = { id: 'vehicle-1', playerId, x: 0, y: 0, direction: 'EAST', status: 'ACTIVE' }
   const playback = Array.from({ length: 12 }, (_, index) => ({
     sequence: index + 1, type: 'MOVE', playerId, vehicleId: vehicle.id,
     sourcePlayerId: playerId, sourceVehicleId: vehicle.id,
     oldPosition: { x: index, y: 0 }, newPosition: { x: index + 1, y: 0 },
-    oldDirection: 'EAST', newDirection: 'EAST', oldDamage: 0, newDamage: 0,
+    oldDirection: 'EAST', newDirection: 'EAST',
   }))
   let polls = 0
   const state = {
@@ -101,19 +100,19 @@ test('playback finishes quickly across polling, stays paused and can replay', as
 test('playback removes a vehicle exactly when its crash event is reached', async ({ page }) => {
   const gameId = '10000000-0000-0000-0000-000000000002'
   const playerId = '20000000-0000-0000-0000-000000000002'
-  const vehicle = { id: 'vehicle-crash', playerId, x: 0, y: 0, direction: 'EAST', damage: 0, status: 'ACTIVE' }
+  const vehicle = { id: 'vehicle-crash', playerId, x: 0, y: 0, direction: 'EAST', status: 'ACTIVE' }
   const playback = [
     {
       sequence: 1, type: 'MOVE', playerId, vehicleId: vehicle.id,
       sourcePlayerId: playerId, sourceVehicleId: vehicle.id,
       oldPosition: { x: 0, y: 0 }, newPosition: { x: 1, y: 0 },
-      oldDirection: 'EAST', newDirection: 'EAST', oldDamage: 0, newDamage: 0,
+      oldDirection: 'EAST', newDirection: 'EAST',
     },
     {
       sequence: 2, type: 'CRASH', playerId, vehicleId: vehicle.id,
       sourcePlayerId: playerId, sourceVehicleId: vehicle.id,
       oldPosition: { x: 1, y: 0 }, newPosition: { x: 2, y: 0 },
-      oldDirection: 'EAST', newDirection: 'EAST', oldDamage: 0, newDamage: 0,
+      oldDirection: 'EAST', newDirection: 'EAST',
     },
   ]
   const state = {
@@ -142,4 +141,4 @@ test('playback removes a vehicle exactly when its crash event is reached', async
   await expect(page.getByTestId('player-vehicle')).toHaveAttribute('data-x', '0')
 })
 
-test('playback visibly applies a conveyor event',async({page})=>{const gameId='10000000-0000-0000-0000-000000000007',playerId='20000000-0000-0000-0000-000000000007',vehicle={id:'v',playerId,x:0,y:0,direction:'EAST',damage:0,status:'ACTIVE'};const playback=[{sequence:1,type:'CONVEYOR_MOVE',playerId,vehicleId:'v',sourcePlayerId:playerId,sourceVehicleId:'v',oldPosition:{x:0,y:0},newPosition:{x:1,y:0},oldDirection:'EAST',newDirection:'EAST',oldDamage:0,newDamage:0}];const state={id:gameId,playerId,status:'RUNNING',configuration:{maxPlayers:1,programSize:1,planningTimeoutSeconds:30,joinTimeoutSeconds:30},players:[{id:playerId,name:'Per'}],board:{width:3,height:2,walls:[],pits:[],checkpoints:[],spawnPoints:[],conveyors:[{position:{x:0,y:0},direction:'EAST'}],rotators:[]},vehicles:[{...vehicle,x:1}],round:{state:{number:1,phase:'PLAYBACK',ready:{[playerId]:true},initiative:[playerId],initialVehicles:[vehicle],playback},program:[]}};await page.clock.install();await page.addInitScript(s=>sessionStorage.setItem('wreckage-session',JSON.stringify(s)),{gameId,playerId,token:'t'});await page.route(`**/games/${gameId}/players/${playerId}`,r=>r.fulfill({json:state}));await page.goto(`/game/${gameId}`);await expect(page.getByTestId('board-conveyor')).toHaveAttribute('data-direction','EAST');await page.clock.runFor(1);await expect(page.getByTestId('player-vehicle')).toHaveAttribute('data-x','1')})
+test('playback visibly applies a conveyor event',async({page})=>{const gameId='10000000-0000-0000-0000-000000000007',playerId='20000000-0000-0000-0000-000000000007',vehicle={id:'v',playerId,x:0,y:0,direction:'EAST',status:'ACTIVE'};const playback=[{sequence:1,type:'CONVEYOR_MOVE',playerId,vehicleId:'v',sourcePlayerId:playerId,sourceVehicleId:'v',oldPosition:{x:0,y:0},newPosition:{x:1,y:0},oldDirection:'EAST',newDirection:'EAST'}];const state={id:gameId,playerId,status:'RUNNING',configuration:{maxPlayers:1,programSize:1,planningTimeoutSeconds:30,joinTimeoutSeconds:30},players:[{id:playerId,name:'Per'}],board:{width:3,height:2,walls:[],pits:[],checkpoints:[],spawnPoints:[],conveyors:[{position:{x:0,y:0},direction:'EAST'}],rotators:[]},vehicles:[{...vehicle,x:1}],round:{state:{number:1,phase:'PLAYBACK',ready:{[playerId]:true},initiative:[playerId],initialVehicles:[vehicle],playback},program:[]}};await page.clock.install();await page.addInitScript(s=>sessionStorage.setItem('wreckage-session',JSON.stringify(s)),{gameId,playerId,token:'t'});await page.route(`**/games/${gameId}/players/${playerId}`,r=>r.fulfill({json:state}));await page.goto(`/game/${gameId}`);await expect(page.getByTestId('board-conveyor')).toHaveAttribute('data-direction','EAST');await page.clock.runFor(1);await expect(page.getByTestId('player-vehicle')).toHaveAttribute('data-x','1')})

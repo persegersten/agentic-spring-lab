@@ -26,7 +26,6 @@ export function RoundEventDebugView({ board, events, initialVehicles, players }:
     <ol>{events.map(event => <li key={event.sequence} data-testid="round-event" data-sequence={event.sequence}>
       <code>#{event.sequence} {event.type} {names[event.playerId] ?? event.playerId} {event.type === 'TURN'||event.type==='ROTATOR_TURN'
         ? `${event.oldDirection} → ${event.newDirection}`
-        : event.type === 'DAMAGE' ? `${event.oldDamage} → ${event.newDamage} damage`
         : event.type === 'SCORE_CHANGED' ? `${event.oldScore} → ${event.newScore} score (${event.scoreReason})`
         : `(${event.oldPosition.x},${event.oldPosition.y}) → (${event.newPosition.x},${event.newPosition.y})`}</code>
     </li>)}</ol>

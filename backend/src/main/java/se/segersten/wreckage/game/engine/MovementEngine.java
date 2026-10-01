@@ -76,8 +76,7 @@ public class MovementEngine {
     private MovementResult applyTurn(GameState gameState, int vehicleIndex, Direction orientation) {
         List<VehicleState> result = new ArrayList<>(gameState.vehicleStates());
         VehicleState state = result.get(vehicleIndex);
-        VehicleState updated = new VehicleState(state.vehicle(), state.position(), orientation, state.damage(),
-                state.status());
+        VehicleState updated = new VehicleState(state.vehicle(), state.position(), orientation, state.status());
         result.set(vehicleIndex, updated);
         return new MovementResult(new GameState(gameState.board(), List.copyOf(result)),
                 List.of(event(RoundEventType.TURN, state, updated)));
@@ -114,7 +113,7 @@ public class MovementEngine {
                     ? moving
                     : currentStates.get(pushedIndexes.get(lastPushedIndex));
             VehicleState updated = new VehicleState(crashed.vehicle(), destination, crashed.orientation(),
-                    crashed.damage(), VehicleStatus.CRASHED);
+                    VehicleStatus.CRASHED);
             result.set(pushedIndexes.isEmpty() ? vehicleIndex : pushedIndexes.get(lastPushedIndex), updated);
             events.add(event(conveyor?RoundEventType.CONVEYOR_CRASH:RoundEventType.CRASH,moving,crashed,updated));
             if (pushedIndexes.isEmpty()) {
@@ -127,14 +126,13 @@ public class MovementEngine {
             int pushedIndex = pushedIndexes.get(index);
             VehicleState pushed = currentStates.get(pushedIndex);
             VehicleState updated = new VehicleState(pushed.vehicle(),
-                    pushed.position().move(movementDirection), pushed.orientation(), pushed.damage(),
-                    pushed.status());
+                    pushed.position().move(movementDirection), pushed.orientation(), pushed.status());
             result.set(pushedIndex, updated);
             events.add(event(conveyor?RoundEventType.CONVEYOR_PUSH:RoundEventType.PUSH,pushed,updated));
         }
 
         VehicleState updatedMoving = new VehicleState(moving.vehicle(),
-                moving.position().move(movementDirection), moving.orientation(), moving.damage(), moving.status());
+                moving.position().move(movementDirection), moving.orientation(), moving.status());
         result.set(vehicleIndex, updatedMoving);
         RoundEventType type=pushedIndexes.isEmpty()?(conveyor?RoundEventType.CONVEYOR_MOVE:RoundEventType.MOVE):(conveyor?RoundEventType.CONVEYOR_RAM:RoundEventType.RAM);
         events.add(event(type, moving, updatedMoving));
@@ -149,7 +147,7 @@ public class MovementEngine {
         Vehicle vehicle = oldState.vehicle();
         return new RoundEvent(0, type, vehicle.playerId(), vehicle.id(),
                 vehicle.playerId(), vehicle.id(), oldState.position(), newState.position(),
-                oldState.orientation(), newState.orientation(), oldState.damage(), newState.damage());
+                oldState.orientation(), newState.orientation());
     }
 
     private RoundEvent event(RoundEventType type, VehicleState source, VehicleState oldState,
@@ -158,7 +156,7 @@ public class MovementEngine {
         Vehicle sourceVehicle = source.vehicle();
         return new RoundEvent(0, type, subject.playerId(), subject.id(), sourceVehicle.playerId(),
                 sourceVehicle.id(), oldState.position(), newState.position(), oldState.orientation(),
-                newState.orientation(), oldState.damage(), newState.damage());
+                newState.orientation());
     }
 
     private int indexOf(List<VehicleState> states, Vehicle vehicle) {

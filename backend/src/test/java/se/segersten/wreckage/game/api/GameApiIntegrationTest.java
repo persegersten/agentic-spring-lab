@@ -236,8 +236,6 @@ class GameApiIntegrationTest {
                 .isEqualTo("PLAYBACK");
         JsonNode resolvedPlayback = json(resolved).path("round").path("state").path("playback");
         assertThat(resolvedPlayback.isArray()).isTrue();
-        assertThat(resolvedPlayback.valueStream().map(event -> event.path("type").asText()))
-                .doesNotContain("FIRE", "HIT", "DAMAGE");
         assertThat(json(resolved).path("round").path("state").path("initiative").valueStream()
                 .map(JsonNode::asText)).containsExactly(per.path("id").asText(), alice.path("id").asText());
         JsonNode publicResolved = json(get("/games/" + gameId));
@@ -273,45 +271,6 @@ class GameApiIntegrationTest {
         assertThat(recovered.path("round").path("state").path("ready")
                 .path(per.path("id").asText()).asBoolean()).isFalse();
         assertThat(json(get("/games/" + gameId)).toString()).doesNotContain("\"program\":", "orders");
-    }
-
-    @Test
-    void damageDoesNotChangeTheAvailablePlanningProgram() throws Exception {
-        HttpResponse<String> created = post("/games", """
-                {"maxPlayers":2,"joinTimeoutSeconds":90,"programSize":3,"planningTimeoutSeconds":45}
-                """);
-        String gameId = json(created).path("id").asText();
-        JsonNode per = json(post("/games/%s/players".formatted(gameId), "{\"name\":\"Per\"}"));
-        JsonNode alice = json(post("/games/%s/players".formatted(gameId), "{\"name\":\"Alice\"}"));
-
-        TransactionTemplate transaction = new TransactionTemplate(transactionManager);
-        Game current = transaction.execute(status ->
-                gameRepository.findById(UUID.fromString(gameId)).orElseThrow());
-        UUID perId = UUID.fromString(per.path("id").asText());
-        List<VehicleState> damagedStates = current.getVehicleStates().stream()
-                .map(state -> state.vehicle().playerId().equals(perId)
-                        ? new VehicleState(state.vehicle(), state.position(), state.orientation(), 1)
-                        : state)
-                .toList();
-        Map<UUID, VehicleState> vehicles = new LinkedHashMap<>();
-        damagedStates.forEach(state -> vehicles.put(state.vehicle().playerId(), state));
-        Round completedRound = new Round(current.getRound().number(), RoundPhase.PLAYBACK,
-                current.getRound().programs(), current.getRound().initiative(),
-                new GameState(current.getBoard(), damagedStates), List.of());
-        transaction.executeWithoutResult(status -> gameRepository.save(new Game(current.getId(),
-                current.getPlayers(), current.getBoard(), current.getStatus(), vehicles, completedRound,
-                current.getConfiguration(), current.getCreatedAt(), current.getJoinDeadline())));
-
-        HttpResponse<String> nextRound = postPlayer("/games/%s/rounds".formatted(gameId), per, "");
-
-        assertThat(nextRound.statusCode()).isEqualTo(HttpStatus.CREATED.value());
-        JsonNode perGame = json(nextRound);
-        JsonNode aliceGame = json(getPlayerGame(gameId, alice));
-        JsonNode publicGame = json(get("/games/" + gameId));
-        assertThat(perGame.path("round").path("program")).isEmpty();
-        assertThat(aliceGame.path("round").path("program")).isEmpty();
-        assertThat(aliceGame.toString()).doesNotContain("MALFUNCTION_NO_OP");
-        assertThat(publicGame.toString()).doesNotContain("MALFUNCTION_NO_OP", "\"program\":", "orders");
     }
 
     @Test
@@ -366,7 +325,7 @@ class GameApiIntegrationTest {
             current.getVehicleStates().forEach(state -> vehicles.put(state.vehicle().playerId(),
                     state.vehicle().playerId().equals(perId)
                             ? new VehicleState(state.vehicle(), new se.segersten.wreckage.game.domain.Position(-1, 0),
-                                    state.orientation(), state.damage(), VehicleStatus.CRASHED)
+                                    state.orientation(), VehicleStatus.CRASHED)
                             : state));
             gameRepository.save(new Game(current.getId(), current.getPlayers(), current.getBoard(),
                     current.getStatus(), vehicles, current.getRound(), current.getConfiguration(),

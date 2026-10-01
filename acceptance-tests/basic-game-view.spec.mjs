@@ -58,10 +58,10 @@ test('vehicle arrow tips point in the server forward direction', async ({ page }
     ],
     board: { width: 5, height: 5, walls: [{ cell: { x: 1, y: 1 }, direction: 'NORTH' }], pits: [] },
     vehicles: [
-      { id: 'vehicle-north', playerId, x: 1, y: 1, direction: 'NORTH', damage: 0, status: 'ACTIVE' },
-      { id: 'vehicle-east', playerId: 'player-east', x: 3, y: 1, direction: 'EAST', damage: 0, status: 'ACTIVE' },
-      { id: 'vehicle-south', playerId: 'player-south', x: 3, y: 3, direction: 'SOUTH', damage: 0, status: 'ACTIVE' },
-      { id: 'vehicle-west', playerId: 'player-west', x: 1, y: 3, direction: 'WEST', damage: 0, status: 'ACTIVE' },
+      { id: 'vehicle-north', playerId, x: 1, y: 1, direction: 'NORTH', status: 'ACTIVE' },
+      { id: 'vehicle-east', playerId: 'player-east', x: 3, y: 1, direction: 'EAST', status: 'ACTIVE' },
+      { id: 'vehicle-south', playerId: 'player-south', x: 3, y: 3, direction: 'SOUTH', status: 'ACTIVE' },
+      { id: 'vehicle-west', playerId: 'player-west', x: 1, y: 3, direction: 'WEST', status: 'ACTIVE' },
     ],
     round: null,
   }

@@ -4,7 +4,6 @@ import { RoundEventDebugView } from './RoundEventDebugView'
 
 function describeEvent(event: RoundEvent, players: Player[]) {
   const name = players.find(player => player.id === event.playerId)?.name ?? 'Fordonet'
-  const source = players.find(player => player.id === event.sourcePlayerId)?.name ?? 'Fordonet'
   switch (event.type) {
     case 'MOVE': return `${name} kör`
     case 'TURN': return `${name} svänger`
@@ -14,15 +13,12 @@ function describeEvent(event: RoundEvent, players: Player[]) {
     case 'CONVEYOR_PUSH':return `${name} knuffas av transportbandet`
     case 'CONVEYOR_CRASH':return `${name} kraschar på transportbandet`
     case 'ROTATOR_TURN':return `Rotatorn vrider ${name}`
-    case 'FIRE': return `${name} skjuter`
-    case 'HIT': return `${source} träffar ${name}`
-    case 'DAMAGE': return `${name} får ${event.newDamage - event.oldDamage} skada`
     case 'CRASH': return `${name} kraschar`
     case 'SCORE_CHANGED': return `${name} ${event.scoreDelta && event.scoreDelta > 0 ? '+' : ''}${event.scoreDelta ?? 0} poäng`
   }
 }
 
-export function RoundPlayback({board,round,players,onVehicles,onScores,onEvent,onFinished}:{board:Board;round:PublicRound;players:Player[];onVehicles:(v:Vehicle[])=>void;onScores:(scores:Record<string,number>)=>void;onEvent:(event?:RoundEvent)=>void;onFinished:(done:boolean)=>void}) {
+export function RoundPlayback({board,round,players,onVehicles,onScores,onFinished}:{board:Board;round:PublicRound;players:Player[];onVehicles:(v:Vehicle[])=>void;onScores:(scores:Record<string,number>)=>void;onFinished:(done:boolean)=>void}) {
   // The parent keys this component by round. Polling must not replace its timeline.
   const [timeline] = useState(round)
   const [eventIndex, setEventIndex] = useState(0)
@@ -46,20 +42,17 @@ export function RoundPlayback({board,round,players,onVehicles,onScores,onEvent,o
         vehicle.y = event.newPosition.y
         vehicle.direction = event.newDirection
       }
-      if (vehicle && event.type === 'DAMAGE') vehicle.damage = event.newDamage
       if(vehicle&&['CRASH','CONVEYOR_CRASH'].includes(event.type))vehicles.splice(vehicleIndex,1)
       if (event.type === 'SCORE_CHANGED' && event.newScore !== undefined) scores[event.playerId] = event.newScore
     }
     onVehicles(vehicles)
     onScores(scores)
-    onEvent(timeline.playback[eventIndex - 1])
-  }, [eventIndex, timeline, players, onVehicles, onScores, onEvent])
+  }, [eventIndex, timeline, players, onVehicles, onScores])
 
   useEffect(() => {
     if (!playing || finished) return
-    // Keep a shot and its consequences close together, with time to read the damage.
-    const duration = !current ? 0 : current.type === 'FIRE' || current.type === 'HIT' ? 120
-      : current.type === 'DAMAGE' || current.type === 'CRASH' || current.type === 'SCORE_CHANGED' ? 450 : 250
+    const duration = !current ? 0
+      : current.type === 'CRASH' || current.type === 'SCORE_CHANGED' ? 450 : 250
     const id = window.setTimeout(() => {
       if (eventIndex >= timeline.playback.length) {
         setFinished(true)

@@ -12,10 +12,10 @@ export type SpawnPoint = { position: Position; orientation: Direction }
 export type Conveyor={position:Position;direction:Direction};export type Rotator={position:Position;rotation:'CLOCKWISE'|'COUNTER_CLOCKWISE'}
 export type Board={width:number;height:number;walls:Wall[];pits:Position[];checkpoints:Checkpoint[];spawnPoints:SpawnPoint[];conveyors:Conveyor[];rotators:Rotator[];controlPoints:Position[]}
 export type VehicleStatus = 'ACTIVE' | 'CRASHED'
-export type Vehicle = { id: string; playerId: string; x: number; y: number; direction: Direction; damage: number; status: VehicleStatus; spawnPoint: Position; spawnOrientation: Direction }
-export type RoundEventType='VEHICLE_RESPAWNED'|'MOVE'|'TURN'|'RAM'|'PUSH'|'CONVEYOR_MOVE'|'CONVEYOR_RAM'|'CONVEYOR_PUSH'|'CONVEYOR_CRASH'|'ROTATOR_TURN'|'FIRE'|'HIT'|'DAMAGE'|'CRASH'|'SCORE_CHANGED'
+export type Vehicle = { id: string; playerId: string; x: number; y: number; direction: Direction; status: VehicleStatus; spawnPoint: Position; spawnOrientation: Direction }
+export type RoundEventType='VEHICLE_RESPAWNED'|'MOVE'|'TURN'|'RAM'|'PUSH'|'CONVEYOR_MOVE'|'CONVEYOR_RAM'|'CONVEYOR_PUSH'|'CONVEYOR_CRASH'|'ROTATOR_TURN'|'CRASH'|'SCORE_CHANGED'
 export type ScoreChangeReason = 'CHECKPOINT' | 'CONTROL_POINT' | 'CRASH_PENALTY' | 'PUSH_CRASH'
-export type RoundEvent = { sequence: number; type: RoundEventType; playerId: string; vehicleId: string; sourcePlayerId: string; sourceVehicleId: string; oldPosition: Position; newPosition: Position; oldDirection: Direction; newDirection: Direction; oldDamage: number; newDamage: number; oldScore?: number; newScore?: number; scoreDelta?: number; scoreReason?: ScoreChangeReason; checkpointId?: string }
+export type RoundEvent = { sequence: number; type: RoundEventType; playerId: string; vehicleId: string; sourcePlayerId: string; sourceVehicleId: string; oldPosition: Position; newPosition: Position; oldDirection: Direction; newDirection: Direction; oldScore?: number; newScore?: number; scoreDelta?: number; scoreReason?: ScoreChangeReason; checkpointId?: string }
 export type PublicRound = { number: number; phase: RoundPhase; planningDeadline:string; ready: Record<string, boolean>; initiative: string[]; initialVehicles: Vehicle[]; initialScores: Record<string, number>; startEvents: RoundEvent[]; playback: RoundEvent[] }
 export type Placement = { playerId: string; placement: number; score: number; checkpointsVisited: number; crashes: number; winner: boolean }
 export type Game = { id: string; status: GameStatus; configuration: GameConfiguration; createdAt: string; joinDeadline: string; players: Player[]; board: Board; vehicles: Vehicle[]; round: PublicRound | null; placements: Placement[] }

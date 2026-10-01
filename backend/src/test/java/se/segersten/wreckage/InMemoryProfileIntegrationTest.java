@@ -41,7 +41,7 @@ class InMemoryProfileIntegrationTest {
         var playerId = java.util.UUID.randomUUID();
         var player = Player.create(playerId, "Alice", "token");
         var vehicle = new Vehicle(java.util.UUID.randomUUID(), playerId);
-        var state = new VehicleState(vehicle, new Position(1, 2), Direction.EAST, 0);
+        var state = new VehicleState(vehicle, new Position(1, 2), Direction.EAST);
         var checkpoint = new se.segersten.wreckage.game.domain.Checkpoint("cp-1", new Position(2, 2));
         var base = new Board(5, 5);
         var board = new Board(5, 5, java.util.Set.of(), java.util.Set.of(), java.util.Set.of(checkpoint),
@@ -118,7 +118,7 @@ class InMemoryProfileIntegrationTest {
         var now = java.time.Instant.parse("2026-01-01T12:00:00Z");
         var playerId = java.util.UUID.randomUUID();
         var vehicle = new Vehicle(java.util.UUID.randomUUID(), playerId);
-        var state = new VehicleState(vehicle, new Position(2, 2), Direction.NORTH, 3);
+        var state = new VehicleState(vehicle, new Position(2, 2), Direction.NORTH);
         var board = new Board(6, 6, java.util.Set.of(new Wall(new Position(3, 1), Direction.EAST)),
                 java.util.Set.of(new Position(4, 5)));
         var program = new se.segersten.wreckage.game.domain.PlayerProgram(playerId, 1,
@@ -137,7 +137,6 @@ class InMemoryProfileIntegrationTest {
         assertThat(retrieved.getBoard().walls())
                 .containsExactly(new Wall(new Position(3, 1), Direction.EAST));
         assertThat(retrieved.getBoard().pits()).containsExactly(new Position(4, 5));
-        assertThat(retrieved.getVehicleStates()).extracting(VehicleState::damage).containsExactly(3);
         assertThat(retrieved.getVehicleStates()).extracting(VehicleState::status)
                 .containsExactly(se.segersten.wreckage.game.domain.VehicleStatus.ACTIVE);
         assertThat(retrieved.getRound().phase()).isEqualTo(RoundPhase.PLAYBACK);
@@ -152,7 +151,7 @@ class InMemoryProfileIntegrationTest {
         var now = java.time.Instant.parse("2026-01-01T12:00:00Z");
         var playerId = java.util.UUID.randomUUID();
         var vehicle = new Vehicle(java.util.UUID.randomUUID(), playerId);
-        var active = new VehicleState(vehicle, new Position(2, 2), Direction.NORTH, 0);
+        var active = new VehicleState(vehicle, new Position(2, 2), Direction.NORTH);
         var board = new Board(5, 5, java.util.Set.of(), java.util.Set.of(new Position(2, 3)));
         var program = new PlayerProgram(playerId, 1, java.util.List.of(MovementOrder.FORWARD_1), true);
         var round = new Round(1, java.util.Map.of(playerId, program), java.util.List.of(playerId),
@@ -184,8 +183,7 @@ class InMemoryProfileIntegrationTest {
         var board = new Board(5, 5, java.util.Set.of(), java.util.Set.of(), java.util.Set.of(),
                 java.util.List.of(spawn));
         var vehicle = new Vehicle(java.util.UUID.randomUUID(), player.getId(), spawn.position(), spawn.orientation());
-        var crashed = new VehicleState(vehicle, new Position(-1, 2), Direction.NORTH, 2,
-                se.segersten.wreckage.game.domain.VehicleStatus.CRASHED);
+        var crashed = new VehicleState(vehicle, new Position(-1, 2), Direction.NORTH, se.segersten.wreckage.game.domain.VehicleStatus.CRASHED);
         var game = new Game(java.util.UUID.randomUUID(), java.util.List.of(player), board, GameStatus.RUNNING,
                 java.util.Map.of(player.getId(), crashed), null, new GameConfiguration(1, 60, 1, 30), now,
                 now.plusSeconds(60));
@@ -207,7 +205,7 @@ class InMemoryProfileIntegrationTest {
         var now = java.time.Instant.parse("2026-01-01T12:00:00Z");
         var playerId = java.util.UUID.randomUUID();
         var vehicle = new Vehicle(java.util.UUID.randomUUID(), playerId);
-        var state = new VehicleState(vehicle, new Position(2, 2), Direction.NORTH, 1);
+        var state = new VehicleState(vehicle, new Position(2, 2), Direction.NORTH);
         var board = new Board(5, 5);
         var program = new PlayerProgram(playerId, 2,
                 java.util.List.of(MovementOrder.WAIT, MovementOrder.FORWARD_1), false);

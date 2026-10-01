@@ -37,9 +37,9 @@ test('finished game shows authoritative shared placements and scores', async ({ 
 })
 
 test('crashed player is waiting for respawn and does not receive a program', async ({ page }) => {
-  const crashed = { id: 'vehicle-1', playerId, x: -1, y: 0, direction: 'EAST', damage: 0,
+  const crashed = { id: 'vehicle-1', playerId, x: -1, y: 0, direction: 'EAST',
     status: 'CRASHED', spawnPoint: { x: 0, y: 0 }, spawnOrientation: 'EAST' }
-  const active = { id: 'vehicle-2', playerId: otherId, x: 0, y: 0, direction: 'SOUTH', damage: 0,
+  const active = { id: 'vehicle-2', playerId: otherId, x: 0, y: 0, direction: 'SOUTH',
     status: 'ACTIVE', spawnPoint: { x: 1, y: 0 }, spawnOrientation: 'SOUTH' }
   await openPlayer(page, {
     id: gameId, playerId, status: 'RUNNING', configuration, players, board, vehicles: [crashed, active], placements: [],
