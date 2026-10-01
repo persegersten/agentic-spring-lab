@@ -66,7 +66,7 @@ public class GameService {
                 java.util.Set.of(new se.segersten.wreckage.game.domain.Position(4, 5)),
                 java.util.Set.of(new se.segersten.wreckage.game.domain.Checkpoint("checkpoint-1",
                         new se.segersten.wreckage.game.domain.Position(3, 3))));
-        Board board=new Board(base.width(),base.height(),base.walls(),base.pits(),base.checkpoints(),base.spawnPoints(),List.of(new se.segersten.wreckage.game.domain.Conveyor(new se.segersten.wreckage.game.domain.Position(0,0),se.segersten.wreckage.game.domain.Direction.EAST)),List.of(new se.segersten.wreckage.game.domain.Rotator(new se.segersten.wreckage.game.domain.Position(2,0),se.segersten.wreckage.game.domain.Rotation.CLOCKWISE)));
+        Board board=new Board(base.width(),base.height(),base.walls(),base.pits(),base.checkpoints(),base.spawnPoints(),List.of(new se.segersten.wreckage.game.domain.Conveyor(new se.segersten.wreckage.game.domain.Position(0,0),se.segersten.wreckage.game.domain.Direction.EAST)),List.of(new se.segersten.wreckage.game.domain.Rotator(new se.segersten.wreckage.game.domain.Position(2,0),se.segersten.wreckage.game.domain.Rotation.CLOCKWISE)),java.util.Set.of(new se.segersten.wreckage.game.domain.Position(5,5)));
         Instant createdAt = clock.instant();
         return gameRepository.save(new Game(UUID.randomUUID(), List.of(), board,
                 GameStatus.WAITING_FOR_PLAYERS, Map.of(), null, configuration, createdAt,

@@ -164,6 +164,82 @@ class GameRoundTest {
     }
 
     @Test
+    void controlPointScoresExactlyOnceAtRoundEndWithConfiguredValue() {
+        UUID playerId = UUID.randomUUID();
+        Player player = Player.create(playerId, "Alice", "a");
+        Board base = new Board(5, 5);
+        Board board = new Board(5, 5, java.util.Set.of(), java.util.Set.of(), java.util.Set.of(),
+                base.spawnPoints(), List.of(), List.of(), java.util.Set.of(new Position(2, 2)));
+        Round round = new Round(1, Map.of(playerId, locked(playerId, MovementOrder.WAIT, MovementOrder.WAIT)),
+                List.of(playerId), new GameState(board, List.of(state(playerId, 2, 2))));
+        GameConfiguration configuration = new GameConfiguration(2, 60, 2, 30, 6, 2, 3, -1, 1);
+
+        round.resolve(new MovementEngine(), List.of(player), configuration);
+
+        assertThat(GameConfiguration.defaults().controlPointScore()).isEqualTo(1);
+        assertThat(player.getScore()).isEqualTo(3);
+        assertThat(round.playback()).singleElement().satisfies(event -> {
+            assertThat(event.type()).isEqualTo(RoundEventType.SCORE_CHANGED);
+            assertThat(event.scoreReason()).isEqualTo(ScoreChangeReason.CONTROL_POINT);
+            assertThat(event.scoreDelta()).isEqualTo(3);
+            assertThat(event.newPosition()).isEqualTo(new Position(2, 2));
+        });
+    }
+
+    @Test
+    void finalConveyorPositionDeterminesControlPointScoring() {
+        UUID movedOnId = UUID.randomUUID();
+        UUID movedOffId = UUID.randomUUID();
+        Player movedOn = Player.create(movedOnId, "On", "a");
+        Player movedOff = Player.create(movedOffId, "Off", "b");
+        Board base = new Board(4, 3);
+        Board board = new Board(4, 3, java.util.Set.of(), java.util.Set.of(), java.util.Set.of(),
+                base.spawnPoints(), List.of(
+                        new Conveyor(new Position(0, 1), Direction.EAST),
+                        new Conveyor(new Position(2, 1), Direction.EAST)), List.of(),
+                java.util.Set.of(new Position(1, 1), new Position(2, 1)));
+        Map<UUID, PlayerProgram> programs = new LinkedHashMap<>();
+        programs.put(movedOnId, locked(movedOnId, MovementOrder.WAIT));
+        programs.put(movedOffId, locked(movedOffId, MovementOrder.WAIT));
+        Round round = new Round(1, programs, List.of(movedOnId, movedOffId), new GameState(board,
+                List.of(state(movedOnId, 0, 1), state(movedOffId, 2, 1))));
+
+        round.resolve(new MovementEngine(), List.of(movedOn, movedOff), GameConfiguration.defaults());
+
+        assertThat(movedOn.getScore()).isEqualTo(1);
+        assertThat(movedOff.getScore()).isZero();
+        assertThat(round.playback()).extracting(RoundEvent::type).containsExactly(
+                RoundEventType.CONVEYOR_MOVE, RoundEventType.CONVEYOR_MOVE, RoundEventType.SCORE_CHANGED);
+        assertThat(round.playback().getLast().playerId()).isEqualTo(movedOnId);
+        assertThat(round.playback().getLast().newPosition()).isEqualTo(new Position(1, 1));
+    }
+
+    @Test
+    void crashedVehiclesAndBoardsWithoutControlPointsReceiveNoControlPointScore() {
+        UUID crashedId = UUID.randomUUID();
+        Player crashed = Player.create(crashedId, "Crashed", "a");
+        Board base = new Board(3, 3);
+        Board controlBoard = new Board(3, 3, java.util.Set.of(), java.util.Set.of(), java.util.Set.of(),
+                base.spawnPoints(), List.of(), List.of(), java.util.Set.of(new Position(1, 1)));
+        VehicleState crashedState = new VehicleState(new Vehicle(UUID.randomUUID(), crashedId),
+                new Position(1, 1), Direction.EAST, 0, VehicleStatus.CRASHED);
+        Round crashedRound = new Round(1, Map.of(crashedId, locked(crashedId, MovementOrder.WAIT)),
+                List.of(crashedId), new GameState(controlBoard, List.of(crashedState)));
+        crashedRound.resolve(new MovementEngine(), List.of(crashed), GameConfiguration.defaults());
+
+        UUID activeId = UUID.randomUUID();
+        Player active = Player.create(activeId, "Active", "b");
+        Round emptyBoardRound = new Round(1, Map.of(activeId, locked(activeId, MovementOrder.WAIT)),
+                List.of(activeId), new GameState(new Board(3, 3), List.of(state(activeId, 1, 1))));
+        emptyBoardRound.resolve(new MovementEngine(), List.of(active), GameConfiguration.defaults());
+
+        assertThat(crashed.getScore()).isZero();
+        assertThat(crashedRound.playback()).isEmpty();
+        assertThat(active.getScore()).isZero();
+        assertThat(emptyBoardRound.playback()).isEmpty();
+    }
+
+    @Test
     void forwardTwoAwardsPenaltiesAndOnePushScoreForEachOpponentCrashed() {
         UUID pusherId = UUID.randomUUID(); UUID middleId = UUID.randomUUID(); UUID frontId = UUID.randomUUID();
         Player pusher = Player.create(pusherId, "Pusher", "p");
