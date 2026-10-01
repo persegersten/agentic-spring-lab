@@ -33,6 +33,30 @@ import se.segersten.wreckage.game.domain.Checkpoint;
 class GameServiceTest {
 
     @Test
+    void createsGamesWithTheInjectedBoardFixture() {
+        InMemoryGameRepository repository = new InMemoryGameRepository();
+        Board fixture = new Board(3, 2);
+        GameService service = new GameService(repository, Clock.systemUTC(), new NoOpPlayerAutomation(),
+                () -> fixture);
+
+        assertThat(service.createGame().getBoard()).isSameAs(fixture);
+    }
+
+    @Test
+    void deterministicFixtureSupportsTheTwoPlayerPushAndContainsEveryBoardFeature() {
+        Board board = new DeterministicTestGameBoardFactory().createBoard();
+
+        assertThat(board.spawnPoints().subList(0, 2)).extracting(spawn -> spawn.position())
+                .containsExactly(new Position(0, 0), new Position(1, 0));
+        assertThat(board.checkpointAt(new Position(2, 0))).isNotNull();
+        assertThat(board.walls()).isNotEmpty();
+        assertThat(board.pits()).isNotEmpty();
+        assertThat(board.conveyors()).isNotEmpty();
+        assertThat(board.rotators()).isNotEmpty();
+        assertThat(board.controlPoints()).isNotEmpty();
+    }
+
+    @Test
     void shouldCreateGame() {
         InMemoryGameRepository repository = new InMemoryGameRepository();
         GameService service = new GameService(repository);

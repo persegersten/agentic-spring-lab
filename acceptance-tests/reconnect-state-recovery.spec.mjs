@@ -12,7 +12,7 @@ test('a player reloads the waiting lobby as the same player', async ({ page }) =
   await page.reload()
 
   await expect(page.getByRole('heading', { name: 'Spelare anslutna', exact: true })).toBeVisible()
-  await expect(page.getByText('Per', { exact: true })).toBeVisible()
+  await expect(page.getByTestId('player-vehicle').filter({ hasText: 'Per' })).toBeVisible()
   await expect(page.getByTestId('player-vehicle').filter({ hasText: 'Per' }))
     .toHaveAttribute('data-player-id', playerId)
 })
@@ -67,7 +67,7 @@ test('a temporary player disconnect does not change another players state', asyn
     const positionsAfter = await alice.getByTestId('player-vehicle').evaluateAll(vehicles =>
       vehicles.map(vehicle => `${vehicle.dataset.playerId}:${vehicle.dataset.x}:${vehicle.dataset.y}`).sort())
     expect(positionsAfter).toEqual(positionsBefore)
-    await expect(alice.getByRole('button', { name: 'Lås program', exact: true })).toBeEnabled()
+    await expect(alice.getByRole('combobox', { name: 'Register 1' })).toBeEnabled()
   })
 })
 

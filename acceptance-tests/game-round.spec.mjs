@@ -12,7 +12,7 @@ test('players fill private repeatable programs and share readiness only', async 
     for (let i=0;i<3;i++) await registers.nth(i).selectOption('WAIT')
     await alice.getByRole('button', { name: 'Lås program', exact: true }).click()
     await expect(alice.getByRole('button', { name: 'Program låst', exact: true })).toBeDisabled()
-    await expect(bob.getByRole('listitem').filter({ hasText: 'Alice' })).toContainText('Redo')
+    await expect(bob.getByTestId('player-ready-state').filter({ hasText: 'Alice' })).toContainText('Redo')
     await expect(bob.getByRole('combobox', { name: /^Register / })).toHaveCount(3)
   })
 })

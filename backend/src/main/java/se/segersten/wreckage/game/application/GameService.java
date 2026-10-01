@@ -28,30 +28,35 @@ import se.segersten.wreckage.game.engine.MovementEngine;
 @Transactional
 public class GameService {
 
-    private static final int DEFAULT_BOARD_WIDTH = 20;
-    private static final int DEFAULT_BOARD_HEIGHT = 20;
-
     private final GameRepository gameRepository;
     private final Clock clock;
     private final PlayerAutomation playerAutomation;
+    private final GameBoardFactory gameBoardFactory;
 
     @Autowired
-    public GameService(GameRepository gameRepository, PlayerAutomation playerAutomation) {
-        this(gameRepository, Clock.systemUTC(), playerAutomation);
+    public GameService(GameRepository gameRepository, PlayerAutomation playerAutomation,
+                       GameBoardFactory gameBoardFactory) {
+        this(gameRepository, Clock.systemUTC(), playerAutomation, gameBoardFactory);
     }
 
     public GameService(GameRepository gameRepository) {
-        this(gameRepository, Clock.systemUTC(), new NoOpPlayerAutomation());
+        this(gameRepository, Clock.systemUTC(), new NoOpPlayerAutomation(), new DefaultGameBoardFactory());
     }
 
     GameService(GameRepository gameRepository, Clock clock) {
-        this(gameRepository, clock, new NoOpPlayerAutomation());
+        this(gameRepository, clock, new NoOpPlayerAutomation(), new DefaultGameBoardFactory());
     }
 
     GameService(GameRepository gameRepository, Clock clock, PlayerAutomation playerAutomation) {
+        this(gameRepository, clock, playerAutomation, new DefaultGameBoardFactory());
+    }
+
+    GameService(GameRepository gameRepository, Clock clock, PlayerAutomation playerAutomation,
+                GameBoardFactory gameBoardFactory) {
         this.gameRepository = gameRepository;
         this.clock = clock;
         this.playerAutomation = java.util.Objects.requireNonNull(playerAutomation);
+        this.gameBoardFactory = java.util.Objects.requireNonNull(gameBoardFactory);
     }
 
     public Game createGame() {
@@ -59,14 +64,7 @@ public class GameService {
     }
 
     public Game createGame(GameConfiguration configuration) {
-        Board base = new Board(DEFAULT_BOARD_WIDTH, DEFAULT_BOARD_HEIGHT, java.util.Set.of(
-                new se.segersten.wreckage.game.domain.Wall(
-                        new se.segersten.wreckage.game.domain.Position(0, 0),
-                        se.segersten.wreckage.game.domain.Direction.NORTH)),
-                java.util.Set.of(new se.segersten.wreckage.game.domain.Position(4, 5)),
-                java.util.Set.of(new se.segersten.wreckage.game.domain.Checkpoint("checkpoint-1",
-                        new se.segersten.wreckage.game.domain.Position(3, 3))));
-        Board board=new Board(base.width(),base.height(),base.walls(),base.pits(),base.checkpoints(),base.spawnPoints(),List.of(new se.segersten.wreckage.game.domain.Conveyor(new se.segersten.wreckage.game.domain.Position(0,0),se.segersten.wreckage.game.domain.Direction.EAST)),List.of(new se.segersten.wreckage.game.domain.Rotator(new se.segersten.wreckage.game.domain.Position(2,0),se.segersten.wreckage.game.domain.Rotation.CLOCKWISE)),java.util.Set.of(new se.segersten.wreckage.game.domain.Position(5,5)));
+        Board board = gameBoardFactory.createBoard();
         Instant createdAt = clock.instant();
         return gameRepository.save(new Game(UUID.randomUUID(), List.of(), board,
                 GameStatus.WAITING_FOR_PLAYERS, Map.of(), null, configuration, createdAt,
