@@ -10,6 +10,10 @@ function describeEvent(event: RoundEvent, players: Player[]) {
     case 'TURN': return `${name} svänger`
     case 'RAM': return `${name} rammar`
     case 'PUSH': return `${name} knuffas`
+    case 'CONVEYOR_MOVE':case 'CONVEYOR_RAM':return `Transportbandet flyttar ${name}`
+    case 'CONVEYOR_PUSH':return `${name} knuffas av transportbandet`
+    case 'CONVEYOR_CRASH':return `${name} kraschar på transportbandet`
+    case 'ROTATOR_TURN':return `Rotatorn vrider ${name}`
     case 'FIRE': return `${name} skjuter`
     case 'HIT': return `${source} träffar ${name}`
     case 'DAMAGE': return `${name} får ${event.newDamage - event.oldDamage} skada`
@@ -37,13 +41,13 @@ export function RoundPlayback({board,round,players,onVehicles,onScores,onEvent,o
     for (const event of timeline.playback.slice(0, eventIndex)) {
       const vehicleIndex = vehicles.findIndex(candidate => candidate.id === event.vehicleId)
       const vehicle = vehicles[vehicleIndex]
-      if (vehicle && ['MOVE', 'TURN', 'RAM', 'PUSH'].includes(event.type)) {
+      if(vehicle&&['MOVE','TURN','RAM','PUSH','CONVEYOR_MOVE','CONVEYOR_RAM','CONVEYOR_PUSH','ROTATOR_TURN'].includes(event.type)){
         vehicle.x = event.newPosition.x
         vehicle.y = event.newPosition.y
         vehicle.direction = event.newDirection
       }
       if (vehicle && event.type === 'DAMAGE') vehicle.damage = event.newDamage
-      if (vehicle && event.type === 'CRASH') vehicles.splice(vehicleIndex, 1)
+      if(vehicle&&['CRASH','CONVEYOR_CRASH'].includes(event.type))vehicles.splice(vehicleIndex,1)
       if (event.type === 'SCORE_CHANGED' && event.newScore !== undefined) scores[event.playerId] = event.newScore
     }
     onVehicles(vehicles)

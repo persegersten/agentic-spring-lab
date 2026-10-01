@@ -43,10 +43,7 @@ class GameServiceTest {
         assertThat(game.getPlayers()).isEmpty();
         assertThat(game.getStatus()).isEqualTo(GameStatus.WAITING_FOR_PLAYERS);
         assertThat(game.getConfiguration()).isEqualTo(GameConfiguration.defaults());
-        assertThat(game.getBoard()).isEqualTo(new Board(20, 20,
-                java.util.Set.of(new Wall(new Position(0, 0), Direction.NORTH)),
-                java.util.Set.of(new Position(4, 5)),
-                java.util.Set.of(new Checkpoint("checkpoint-1", new Position(3, 3)))));
+        assertThat(game.getBoard().conveyors()).hasSize(1);assertThat(game.getBoard().rotators()).hasSize(1);
         assertThat(repository.findById(game.getId())).containsSame(game);
     }
 

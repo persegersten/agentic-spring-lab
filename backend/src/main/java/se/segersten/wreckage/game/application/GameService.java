@@ -59,13 +59,14 @@ public class GameService {
     }
 
     public Game createGame(GameConfiguration configuration) {
-        Board board = new Board(DEFAULT_BOARD_WIDTH, DEFAULT_BOARD_HEIGHT, java.util.Set.of(
+        Board base = new Board(DEFAULT_BOARD_WIDTH, DEFAULT_BOARD_HEIGHT, java.util.Set.of(
                 new se.segersten.wreckage.game.domain.Wall(
                         new se.segersten.wreckage.game.domain.Position(0, 0),
                         se.segersten.wreckage.game.domain.Direction.NORTH)),
                 java.util.Set.of(new se.segersten.wreckage.game.domain.Position(4, 5)),
                 java.util.Set.of(new se.segersten.wreckage.game.domain.Checkpoint("checkpoint-1",
                         new se.segersten.wreckage.game.domain.Position(3, 3))));
+        Board board=new Board(base.width(),base.height(),base.walls(),base.pits(),base.checkpoints(),base.spawnPoints(),List.of(new se.segersten.wreckage.game.domain.Conveyor(new se.segersten.wreckage.game.domain.Position(0,0),se.segersten.wreckage.game.domain.Direction.EAST)),List.of(new se.segersten.wreckage.game.domain.Rotator(new se.segersten.wreckage.game.domain.Position(2,0),se.segersten.wreckage.game.domain.Rotation.CLOCKWISE)));
         Instant createdAt = clock.instant();
         return gameRepository.save(new Game(UUID.randomUUID(), List.of(), board,
                 GameStatus.WAITING_FOR_PLAYERS, Map.of(), null, configuration, createdAt,
@@ -145,7 +146,7 @@ public class GameService {
     private void resolveIfReady(Game game) {
         Round round = game.getRound();
         if (round != null && round.phase() == se.segersten.wreckage.game.domain.RoundPhase.PLANNING
-                && round.allReady()) round.resolve(new MovementEngine(), game.getPlayers(), game.getConfiguration());
+                &&round.allReady()){var movement=new MovementEngine();round.resolve(movement,new se.segersten.wreckage.game.engine.BoardEffectEngine(movement),game.getPlayers(),game.getConfiguration());}
         game.completeRound();
     }
 

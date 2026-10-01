@@ -6,23 +6,24 @@ import java.util.List;
 import java.util.stream.IntStream;
 
 public record Board(int width, int height, Set<Wall> walls, Set<Position> pits,
-                    Set<Checkpoint> checkpoints, List<SpawnPoint> spawnPoints) {
+                    Set<Checkpoint> checkpoints,List<SpawnPoint> spawnPoints,List<Conveyor> conveyors,List<Rotator> rotators) {
 
     public Board(int width, int height) {
-        this(width, height, Set.of(), Set.of(), Set.of(), defaultSpawnPoints(width, height));
+        this(width,height,Set.of(),Set.of(),Set.of(),defaultSpawnPoints(width,height),List.of(),List.of());
     }
 
     public Board(int width, int height, Set<Wall> walls) {
-        this(width, height, walls, Set.of(), Set.of(), defaultSpawnPoints(width, height));
+        this(width,height,walls,Set.of(),Set.of(),defaultSpawnPoints(width,height),List.of(),List.of());
     }
 
     public Board(int width, int height, Set<Wall> walls, Set<Position> pits) {
-        this(width, height, walls, pits, Set.of(), defaultSpawnPoints(width, height));
+        this(width,height,walls,pits,Set.of(),defaultSpawnPoints(width,height),List.of(),List.of());
     }
 
     public Board(int width, int height, Set<Wall> walls, Set<Position> pits, Set<Checkpoint> checkpoints) {
-        this(width, height, walls, pits, checkpoints, defaultSpawnPoints(width, height));
+        this(width,height,walls,pits,checkpoints,defaultSpawnPoints(width,height),List.of(),List.of());
     }
+    public Board(int w,int h,Set<Wall>walls,Set<Position>pits,Set<Checkpoint>checkpoints,List<SpawnPoint>spawns){this(w,h,walls,pits,checkpoints,spawns,List.of(),List.of());}
 
     public Board {
         if (width <= 0 || height <= 0) throw new IllegalArgumentException("Board dimensions must be positive");
@@ -30,6 +31,7 @@ public record Board(int width, int height, Set<Wall> walls, Set<Position> pits,
         pits = Set.copyOf(Objects.requireNonNull(pits));
         checkpoints = Set.copyOf(Objects.requireNonNull(checkpoints));
         spawnPoints = List.copyOf(Objects.requireNonNull(spawnPoints));
+        conveyors=List.copyOf(Objects.requireNonNull(conveyors));rotators=List.copyOf(Objects.requireNonNull(rotators));
         if (walls.stream().anyMatch(wall -> !isWithinBounds(wall.cell(), width, height)))
             throw new IllegalArgumentException("Wall cells must be inside the board");
         if (pits.stream().anyMatch(position -> !isWithinBounds(position, width, height)))
@@ -45,6 +47,10 @@ public record Board(int width, int height, Set<Wall> walls, Set<Position> pits,
             throw new IllegalArgumentException("Spawn points must be inside the board");
         if (spawnPoints.stream().map(SpawnPoint::position).distinct().count() != spawnPoints.size())
             throw new IllegalArgumentException("Spawn positions must be unique");
+        if(conveyors.stream().anyMatch(c->!isWithinBounds(c.position(),width,height)))throw new IllegalArgumentException("Conveyors must be inside the board");
+        if(conveyors.stream().map(Conveyor::position).distinct().count()!=conveyors.size())throw new IllegalArgumentException("Conveyor positions must be unique");
+        if(rotators.stream().anyMatch(r->!isWithinBounds(r.position(),width,height)))throw new IllegalArgumentException("Rotators must be inside the board");
+        if(rotators.stream().map(Rotator::position).distinct().count()!=rotators.size())throw new IllegalArgumentException("Rotator positions must be unique");
     }
 
     public boolean isValidPosition(Position position) {
@@ -63,6 +69,7 @@ public record Board(int width, int height, Set<Wall> walls, Set<Position> pits,
     public Checkpoint checkpointAt(Position position) {
         return checkpoints.stream().filter(checkpoint -> checkpoint.position().equals(position)).findFirst().orElse(null);
     }
+    public Rotator rotatorAt(Position p){return rotators.stream().filter(r->r.position().equals(p)).findFirst().orElse(null);}
 
     private boolean isWithinBounds(Position position) {
         return isWithinBounds(position, width, height);

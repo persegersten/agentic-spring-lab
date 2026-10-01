@@ -24,7 +24,7 @@ export function RoundEventDebugView({ board, events, initialVehicles, players }:
     <p className="debug-copy-status" aria-live="polite">{copyStatus === 'copied' ? 'Game-state kopierat' : copyStatus === 'failed' ? 'Kunde inte kopiera game-state' : ''}</p>
     <pre data-testid="initial-game-state"><code>{initialState}</code></pre>
     <ol>{events.map(event => <li key={event.sequence} data-testid="round-event" data-sequence={event.sequence}>
-      <code>#{event.sequence} {event.type} {names[event.playerId] ?? event.playerId} {event.type === 'TURN'
+      <code>#{event.sequence} {event.type} {names[event.playerId] ?? event.playerId} {event.type === 'TURN'||event.type==='ROTATOR_TURN'
         ? `${event.oldDirection} → ${event.newDirection}`
         : event.type === 'DAMAGE' ? `${event.oldDamage} → ${event.newDamage} damage`
         : event.type === 'SCORE_CHANGED' ? `${event.oldScore} → ${event.newScore} score (${event.scoreReason})`

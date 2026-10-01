@@ -3,6 +3,7 @@ package se.segersten.wreckage.game.engine;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.UUID;
 
 import se.segersten.wreckage.game.domain.Direction;
 import se.segersten.wreckage.game.domain.GameState;
@@ -49,10 +50,10 @@ public class MovementEngine {
             return new MovementResult(gameState, List.of());
         }
         return switch (vehicleTurn.movementOrder()) {
-            case FORWARD_1 -> applyTranslation(gameState, vehicleIndex, state.orientation());
+            case FORWARD_1 -> applyTranslation(gameState,vehicleIndex,state.orientation(),false);
             case WAIT -> new MovementResult(gameState, List.of());
             case REVERSE_1 ->
-                    applyTranslation(gameState, vehicleIndex, state.orientation().reverse());
+                    applyTranslation(gameState,vehicleIndex,state.orientation().reverse(),false);
             case TURN_LEFT -> applyTurn(gameState, vehicleIndex, state.orientation().turnLeft());
             case TURN_RIGHT -> applyTurn(gameState, vehicleIndex, state.orientation().turnRight());
             case FORWARD_2 -> applyForwardTwo(gameState, vehicleIndex, state);
@@ -61,12 +62,12 @@ public class MovementEngine {
     }
 
     private MovementResult applyForwardTwo(GameState gameState, int vehicleIndex, VehicleState state) {
-        MovementResult first = applyTranslation(gameState, vehicleIndex, state.orientation());
+        MovementResult first=applyTranslation(gameState,vehicleIndex,state.orientation(),false);
         int currentIndex = indexOf(first.state().vehicleStates(), state.vehicle());
         if (currentIndex < 0 || !first.state().vehicleStates().get(currentIndex).isActive()) {
             return first;
         }
-        MovementResult second = applyTranslation(first.state(), currentIndex, state.orientation());
+        MovementResult second=applyTranslation(first.state(),currentIndex,state.orientation(),false);
         List<RoundEvent> events = new ArrayList<>(first.events());
         events.addAll(second.events());
         return new MovementResult(second.state(), List.copyOf(events));
@@ -82,8 +83,8 @@ public class MovementEngine {
                 List.of(event(RoundEventType.TURN, state, updated)));
     }
 
-    private MovementResult applyTranslation(
-            GameState gameState, int vehicleIndex, Direction movementDirection) {
+    MovementResult applyConveyor(GameState state,UUID id,Direction direction){for(int i=0;i<state.vehicleStates().size();i++)if(state.vehicleStates().get(i).vehicle().id().equals(id)&&state.vehicleStates().get(i).isActive())return applyTranslation(state,i,direction,true);return new MovementResult(state,List.of());}
+    private MovementResult applyTranslation(GameState gameState,int vehicleIndex,Direction movementDirection,boolean conveyor) {
         List<VehicleState> currentStates = gameState.vehicleStates();
         VehicleState moving = currentStates.get(vehicleIndex);
         Position destination = moving.position().move(movementDirection);
@@ -115,7 +116,7 @@ public class MovementEngine {
             VehicleState updated = new VehicleState(crashed.vehicle(), destination, crashed.orientation(),
                     crashed.damage(), VehicleStatus.CRASHED);
             result.set(pushedIndexes.isEmpty() ? vehicleIndex : pushedIndexes.get(lastPushedIndex), updated);
-            events.add(event(RoundEventType.CRASH, moving, crashed, updated));
+            events.add(event(conveyor?RoundEventType.CONVEYOR_CRASH:RoundEventType.CRASH,moving,crashed,updated));
             if (pushedIndexes.isEmpty()) {
                 return new MovementResult(new GameState(gameState.board(), List.copyOf(result)), events);
             }
@@ -129,13 +130,13 @@ public class MovementEngine {
                     pushed.position().move(movementDirection), pushed.orientation(), pushed.damage(),
                     pushed.status());
             result.set(pushedIndex, updated);
-            events.add(event(RoundEventType.PUSH, pushed, updated));
+            events.add(event(conveyor?RoundEventType.CONVEYOR_PUSH:RoundEventType.PUSH,pushed,updated));
         }
 
         VehicleState updatedMoving = new VehicleState(moving.vehicle(),
                 moving.position().move(movementDirection), moving.orientation(), moving.damage(), moving.status());
         result.set(vehicleIndex, updatedMoving);
-        RoundEventType type = pushedIndexes.isEmpty() ? RoundEventType.MOVE : RoundEventType.RAM;
+        RoundEventType type=pushedIndexes.isEmpty()?(conveyor?RoundEventType.CONVEYOR_MOVE:RoundEventType.MOVE):(conveyor?RoundEventType.CONVEYOR_RAM:RoundEventType.RAM);
         events.add(event(type, moving, updatedMoving));
         return new MovementResult(new GameState(gameState.board(), List.copyOf(result)), events);
     }

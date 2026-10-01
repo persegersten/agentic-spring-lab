@@ -31,6 +31,7 @@ class GameEntity {
     @Column(name = "board_pits", nullable = false) private String boardPits;
     @Column(name = "board_checkpoints", nullable = false) private String boardCheckpoints;
     @Column(name = "board_spawn_points", nullable = false) private String boardSpawnPoints;
+    @Column(name="board_conveyors",nullable=false)private String boardConveyors;@Column(name="board_rotators",nullable=false)private String boardRotators;
     @Enumerated(EnumType.STRING) @Column(name = "status", nullable = false) private GameStatus status;
     @OneToMany(mappedBy = "game", cascade = CascadeType.ALL, orphanRemoval = true) private List<PlayerEntity> players = new ArrayList<>();
     @OneToMany(mappedBy = "game", cascade = CascadeType.ALL, orphanRemoval = true) private List<VehicleEntity> vehicles = new ArrayList<>();
@@ -57,6 +58,7 @@ class GameEntity {
                         .thenComparing(Wall::direction))
                 .map(wall -> wall.cell().x() + "," + wall.cell().y() + "," + wall.direction())
                 .collect(Collectors.joining("|"));
+        boardConveyors=board.conveyors().stream().map(c->c.position().x()+","+c.position().y()+","+c.direction()).collect(Collectors.joining("|"));boardRotators=board.rotators().stream().map(r->r.position().x()+","+r.position().y()+","+r.rotation()).collect(Collectors.joining("|"));
         boardPits = board.pits().stream().sorted(java.util.Comparator.comparingInt(Position::x).thenComparingInt(Position::y))
                 .map(position -> position.x() + "," + position.y()).collect(Collectors.joining("|"));
         boardCheckpoints = board.checkpoints().stream().sorted(java.util.Comparator.comparing(Checkpoint::id))
@@ -101,7 +103,8 @@ class GameEntity {
                 .map(value -> value.split(","))
                 .map(parts -> new SpawnPoint(new Position(Integer.parseInt(parts[0]), Integer.parseInt(parts[1])),
                         Direction.valueOf(parts[2]))).toList();
-        Board board = new Board(boardWidth, boardHeight, walls, pits, checkpoints, spawnPoints);
+        List<Conveyor> conveyors=boardConveyors==null||boardConveyors.isBlank()?List.of():java.util.Arrays.stream(boardConveyors.split("\\|")).map(v->v.split(",")).map(p->new Conveyor(new Position(Integer.parseInt(p[0]),Integer.parseInt(p[1])),Direction.valueOf(p[2]))).toList();List<Rotator> rotators=boardRotators==null||boardRotators.isBlank()?List.of():java.util.Arrays.stream(boardRotators.split("\\|")).map(v->v.split(",")).map(p->new Rotator(new Position(Integer.parseInt(p[0]),Integer.parseInt(p[1])),Rotation.valueOf(p[2]))).toList();
+        Board board=new Board(boardWidth,boardHeight,walls,pits,checkpoints,spawnPoints,conveyors,rotators);
         List<Player> domainPlayers = players.stream().map(PlayerEntity::toDomain).toList();
         var vehicleMap = new LinkedHashMap<UUID, VehicleState>();
         var byVehicleId = new LinkedHashMap<UUID, Vehicle>();
