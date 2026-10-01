@@ -65,7 +65,7 @@ public class Game {
         players.add(player);
         SpawnPoint spawn = board.spawnPoints().get(index);
         Vehicle vehicle = new Vehicle(UUID.randomUUID(), player.getId(), spawn.position(), spawn.orientation());
-        vehicles.put(player.getId(), new VehicleState(vehicle, spawn.position(), spawn.orientation(), 0));
+        vehicles.put(player.getId(), new VehicleState(vehicle, spawn.position(), spawn.orientation()));
         return player;
     }
 
@@ -129,7 +129,7 @@ public class Game {
                 if (!occupied.contains(candidate.position())) { selected = candidate; break; }
             }
             if (selected == null) continue;
-            VehicleState respawned = new VehicleState(vehicle, selected.position(), vehicle.spawnOrientation(), 0,
+            VehicleState respawned = new VehicleState(vehicle, selected.position(), vehicle.spawnOrientation(),
                     VehicleStatus.ACTIVE);
             vehicles.put(player.getId(), respawned);
             occupied.add(selected.position());

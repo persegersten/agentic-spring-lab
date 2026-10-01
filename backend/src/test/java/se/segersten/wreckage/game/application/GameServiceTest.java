@@ -199,8 +199,6 @@ class GameServiceTest {
 
         assertThat(game.getRound().allReady()).isTrue();
         assertThat(game.getRound().phase()).isEqualTo(RoundPhase.PLAYBACK);
-        assertThat(game.getRound().playback()).extracting(RoundEvent::type)
-                .doesNotContain(RoundEventType.FIRE, RoundEventType.HIT, RoundEventType.DAMAGE);
         assertThat(game.getRound().programs().get(alice.player().getId()).commands())
                 .containsExactlyElementsOf(fiveCards);
     }
@@ -250,33 +248,7 @@ class GameServiceTest {
     }
 
     @Test
-    void damageDoesNotEliminatePlayersOrFinishTheGame() {
-        InMemoryGameRepository repository = new InMemoryGameRepository();
-        GameService service = new GameService(repository, Clock.systemUTC());
-        Game game = service.createGame(new GameConfiguration(2, 60, 3, 30));
-        var alice = service.addPlayer(game.getId(), "Alice");
-        service.addPlayer(game.getId(), "Bob");
-        game = repository.findById(game.getId()).orElseThrow();
-        var damaged = game.getVehicleStates().stream().map(state ->
-                new se.segersten.wreckage.game.domain.VehicleState(state.vehicle(), state.position(),
-                        state.orientation(), 3)).toList();
-        var previous = new se.segersten.wreckage.game.domain.Round(1, RoundPhase.PLAYBACK,
-                game.getRound().programs(), game.getRound().initiative(), new se.segersten.wreckage.game.domain.GameState(game.getBoard(), damaged),
-                List.of());
-        repository.save(new Game(game.getId(), game.getPlayers(), game.getBoard(), GameStatus.RUNNING,
-                Map.of(), previous, game.getConfiguration(), game.getCreatedAt(), game.getJoinDeadline()));
-
-        var round = service.startRound(game.getId(), alice.player().getId(), alice.token());
-
-        assertThat(round.phase()).isEqualTo(RoundPhase.PLANNING);
-        assertThat(round.programs()).hasSize(2);
-        assertThat(round.initialState().vehicleStates()).hasSize(2);
-        assertThat(service.getGame(game.getId()).getStatus()).isEqualTo(GameStatus.RUNNING);
-        assertThat(service.getPlayerGame(game.getId(), alice.player().getId(), alice.token())).isNotNull();
-    }
-
-    @Test
-    void shouldLockHeadlessMalfunctionInItsDealtPosition() {
+    void shouldLockHeadlessProgramInItsExistingOrder() {
         UUID humanId = UUID.randomUUID();
         UUID headlessId = UUID.randomUUID();
         Player human = Player.create(humanId, "Alice", "human-token-hash");
@@ -287,10 +259,10 @@ class GameServiceTest {
         var vehicles = Map.of(
                 humanId, new se.segersten.wreckage.game.domain.VehicleState(humanVehicle,
                         new se.segersten.wreckage.game.domain.Position(0, 0),
-                        se.segersten.wreckage.game.domain.Direction.SOUTH, 0),
+                        se.segersten.wreckage.game.domain.Direction.SOUTH),
                 headlessId, new se.segersten.wreckage.game.domain.VehicleState(headlessVehicle,
                         new se.segersten.wreckage.game.domain.Position(1, 0),
-                        se.segersten.wreckage.game.domain.Direction.SOUTH, 1));
+                        se.segersten.wreckage.game.domain.Direction.SOUTH));
         Instant now = Instant.parse("2026-01-01T12:00:00Z");
         Game game = new Game(UUID.randomUUID(), List.of(human, headless), board,
                 GameStatus.RUNNING, vehicles, null, new GameConfiguration(2, 60, 3, 30),

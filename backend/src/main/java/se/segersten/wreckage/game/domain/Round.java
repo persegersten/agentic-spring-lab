@@ -170,13 +170,10 @@ public final class Round {
             if (event.type() == RoundEventType.MOVE || event.type() == RoundEventType.TURN
                     ||event.type()==RoundEventType.RAM||event.type()==RoundEventType.PUSH||event.type()==RoundEventType.CONVEYOR_MOVE||event.type()==RoundEventType.CONVEYOR_RAM||event.type()==RoundEventType.CONVEYOR_PUSH||event.type()==RoundEventType.ROTATOR_TURN) {
                 result.put(event.vehicleId(), new VehicleState(current.vehicle(), event.newPosition(),
-                        event.newDirection(), current.damage(), current.status()));
-            } else if (event.type() == RoundEventType.DAMAGE) {
-                result.put(event.vehicleId(), new VehicleState(current.vehicle(), current.position(),
-                        current.orientation(), event.newDamage(), current.status()));
+                        event.newDirection(), current.status()));
             }else if(event.type()==RoundEventType.CRASH||event.type()==RoundEventType.CONVEYOR_CRASH){
                 result.put(event.vehicleId(), new VehicleState(current.vehicle(), event.newPosition(),
-                        event.newDirection(), current.damage(), VehicleStatus.CRASHED));
+                        event.newDirection(), VehicleStatus.CRASHED));
             }
         }
         return List.copyOf(result.values());

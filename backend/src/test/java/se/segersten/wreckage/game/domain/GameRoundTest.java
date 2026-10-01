@@ -157,7 +157,7 @@ class GameRoundTest {
                 java.util.Set.of(new Checkpoint("cp-1", new Position(2, 2))));
         resolveSinglePlayer(board, alice, state(aliceId, 1, 2), MovementOrder.FORWARD_1);
         resolveSinglePlayer(board, bob, new VehicleState(new Vehicle(UUID.randomUUID(), bobId),
-                new Position(2, 3), Direction.SOUTH, 0), MovementOrder.FORWARD_1);
+                new Position(2, 3), Direction.SOUTH), MovementOrder.FORWARD_1);
 
         assertThat(alice.getScore()).isEqualTo(2);
         assertThat(bob.getScore()).isEqualTo(2);
@@ -222,7 +222,7 @@ class GameRoundTest {
         Board controlBoard = new Board(3, 3, java.util.Set.of(), java.util.Set.of(), java.util.Set.of(),
                 base.spawnPoints(), List.of(), List.of(), java.util.Set.of(new Position(1, 1)));
         VehicleState crashedState = new VehicleState(new Vehicle(UUID.randomUUID(), crashedId),
-                new Position(1, 1), Direction.EAST, 0, VehicleStatus.CRASHED);
+                new Position(1, 1), Direction.EAST, VehicleStatus.CRASHED);
         Round crashedRound = new Round(1, Map.of(crashedId, locked(crashedId, MovementOrder.WAIT)),
                 List.of(crashedId), new GameState(controlBoard, List.of(crashedState)));
         crashedRound.resolve(new MovementEngine(), List.of(crashed), GameConfiguration.defaults());
@@ -298,7 +298,7 @@ class GameRoundTest {
     }
 
     @Test
-    void gameFinishesAtRoundLimitInsteadOfByDamage() {
+    void gameFinishesAtRoundLimit() {
         Instant now = Instant.parse("2099-01-01T00:00:00Z");
         GameConfiguration configuration = new GameConfiguration(2, 60, 1, 30, 1, 2, -1, 1);
         Game game = new Game(UUID.randomUUID(), List.of(), new Board(5, 5), GameStatus.RUNNING,
@@ -325,8 +325,7 @@ class GameRoundTest {
         Player player = Player.create(UUID.randomUUID(), "Alice", "a");
         Vehicle vehicle = new Vehicle(UUID.randomUUID(), player.getId(), assigned.position(), assigned.orientation());
         Game game = new Game(UUID.randomUUID(), List.of(player), board, GameStatus.RUNNING,
-                Map.of(player.getId(), new VehicleState(vehicle, new Position(-1, 1), Direction.SOUTH, 2,
-                        VehicleStatus.CRASHED)), null, new GameConfiguration(2, 60, 1, 30), now, now.plusSeconds(60));
+                Map.of(player.getId(), new VehicleState(vehicle, new Position(-1, 1), Direction.SOUTH, VehicleStatus.CRASHED)), null, new GameConfiguration(2, 60, 1, 30), now, now.plusSeconds(60));
 
         Round round = game.startRound(now);
 
@@ -334,7 +333,6 @@ class GameRoundTest {
             assertThat(state.position()).isEqualTo(assigned.position());
             assertThat(state.orientation()).isEqualTo(Direction.WEST);
             assertThat(state.status()).isEqualTo(VehicleStatus.ACTIVE);
-            assertThat(state.damage()).isZero();
         });
         assertThat(round.programs()).containsKey(player.getId());
         assertThat(round.startEvents()).singleElement()
@@ -354,7 +352,7 @@ class GameRoundTest {
         Vehicle crashedVehicle = new Vehicle(UUID.randomUUID(), crashedPlayer.getId(), spawns.getFirst().position(), Direction.WEST);
         Vehicle activeVehicle = new Vehicle(UUID.randomUUID(), occupant.getId(), spawns.getFirst().position(), Direction.NORTH);
         Map<UUID, VehicleState> states = new LinkedHashMap<>();
-        states.put(crashedPlayer.getId(), new VehicleState(crashedVehicle, new Position(-1, 0), Direction.SOUTH, 0, VehicleStatus.CRASHED));
+        states.put(crashedPlayer.getId(), new VehicleState(crashedVehicle, new Position(-1, 0), Direction.SOUTH, VehicleStatus.CRASHED));
         states.put(occupant.getId(), new VehicleState(activeVehicle, spawns.getFirst().position(), Direction.NORTH));
         Game game = new Game(UUID.randomUUID(), List.of(crashedPlayer, occupant), board, GameStatus.RUNNING,
                 states, null, new GameConfiguration(2, 60, 1, 30), now, now.plusSeconds(60));
@@ -375,7 +373,7 @@ class GameRoundTest {
         Player first = Player.create(UUID.randomUUID(), "First", "a");
         Player second = Player.create(UUID.randomUUID(), "Second", "b");
         Map<UUID, VehicleState> states = new LinkedHashMap<>();
-        states.put(waiting.getId(), new VehicleState(new Vehicle(UUID.randomUUID(), waiting.getId(), spawns.getFirst().position(), Direction.SOUTH), new Position(-1, 0), Direction.SOUTH, 0, VehicleStatus.CRASHED));
+        states.put(waiting.getId(), new VehicleState(new Vehicle(UUID.randomUUID(), waiting.getId(), spawns.getFirst().position(), Direction.SOUTH), new Position(-1, 0), Direction.SOUTH, VehicleStatus.CRASHED));
         states.put(first.getId(), new VehicleState(new Vehicle(UUID.randomUUID(), first.getId(), spawns.getFirst().position(), Direction.NORTH), spawns.getFirst().position(), Direction.NORTH));
         states.put(second.getId(), new VehicleState(new Vehicle(UUID.randomUUID(), second.getId(), spawns.get(1).position(), Direction.EAST), spawns.get(1).position(), Direction.EAST));
         Game game = new Game(UUID.randomUUID(), List.of(waiting, first, second), board, GameStatus.RUNNING,
@@ -440,6 +438,6 @@ class GameRoundTest {
 
     private VehicleState state(UUID playerId, int x, int y) {
         return new VehicleState(new Vehicle(UUID.randomUUID(), playerId),
-                new Position(x, y), Direction.EAST, 0);
+                new Position(x, y), Direction.EAST);
     }
 }

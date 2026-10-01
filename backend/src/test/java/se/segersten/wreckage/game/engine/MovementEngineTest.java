@@ -150,7 +150,7 @@ class MovementEngineTest {
     }
 
     @Test
-    void malfunctionNoOpLeavesAllVehiclesUnchangedWithoutEvents() {
+    void waitLeavesAllVehiclesUnchangedWithoutEvents() {
         VehicleState moving = state(3, 2, Direction.EAST);
         VehicleState pushed = state(2, 2, Direction.SOUTH);
 
