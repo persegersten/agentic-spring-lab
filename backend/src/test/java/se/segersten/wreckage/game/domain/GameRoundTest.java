@@ -80,17 +80,13 @@ class GameRoundTest {
     }
 
     @Test
-    void roundResolutionDoesNotProduceAutomaticCannonOrBoardEffectEvents() {
+    void boardEffectsOccurBetweenRegistersAndChangeNextRegisterState() {
         UUID playerId = UUID.randomUUID();
-        VehicleState vehicle = state(playerId, 2, 2);
-        Round round = new Round(1, Map.of(playerId, locked(playerId, MovementOrder.WAIT)),
-                List.of(playerId), new GameState(
-                        new Board(5, 5, java.util.Set.of(), java.util.Set.of(vehicle.position())),
-                        List.of(vehicle)));
+        VehicleState vehicle=state(playerId,0,2);Board base=new Board(5,5);Board board=new Board(5,5,java.util.Set.of(),java.util.Set.of(),java.util.Set.of(),base.spawnPoints(),List.of(new Conveyor(new Position(1,2),Direction.EAST)),List.of(new Rotator(new Position(2,2),Rotation.CLOCKWISE)));Round round=new Round(1,Map.of(playerId,locked(playerId,MovementOrder.FORWARD_1,MovementOrder.FORWARD_1)),List.of(playerId),new GameState(board,List.of(vehicle)));
 
         round.resolve(new MovementEngine());
 
-        assertThat(round.playback()).isEmpty();
+        assertThat(round.playback()).extracting(RoundEvent::type).containsExactly(RoundEventType.MOVE,RoundEventType.CONVEYOR_MOVE,RoundEventType.ROTATOR_TURN,RoundEventType.MOVE);assertThat(round.playback().getLast().newPosition()).isEqualTo(new Position(2,1));
     }
 
     @Test

@@ -55,7 +55,7 @@ left by one position. After all programs are locked, the round moves through
 the externally meaningful `PLANNING`, `RESOLVING`, and `PLAYBACK` phases.
 Resolution is synchronous and atomic from the client's point of view.
 `MovementEngine` resolves every active player's command in initiative order for
-one register before starting the next register. `FORWARD_2` applies two complete
+one register, then `BoardEffectEngine` resolves ordered conveyors and rotators before starting the next register. `FORWARD_2` applies two complete
 one-cell movement steps and therefore produces two movement interactions and
 events rather than teleporting. Automatic cannon fire and premature board
 effects are not part of round resolution. The resulting MOVE, TURN, RAM, and

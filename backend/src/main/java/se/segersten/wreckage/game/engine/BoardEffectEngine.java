@@ -9,10 +9,15 @@ import se.segersten.wreckage.game.domain.VehicleState;
 import se.segersten.wreckage.game.domain.VehicleStatus;
 
 public final class BoardEffectEngine {
+    private final MovementEngine movement;
+    public BoardEffectEngine(){this(new MovementEngine());}public BoardEffectEngine(MovementEngine movement){this.movement=java.util.Objects.requireNonNull(movement);}
 
     public BoardEffectResult resolve(GameState state) {
         List<RoundEvent> events = new ArrayList<>();
-        List<VehicleState> vehicles = new ArrayList<>(state.vehicleStates());
+        GameState current=state;
+        for(var c:state.board().conveyors()){var v=current.vehicleStates().stream().filter(VehicleState::isActive).filter(x->x.position().equals(c.position())).findFirst().orElse(null);if(v!=null){var m=movement.applyConveyor(current,v.vehicle().id(),c.direction());current=m.state();events.addAll(m.events());}}
+        List<VehicleState> vehicles=new ArrayList<>(current.vehicleStates());
+        for(int i=0;i<vehicles.size();i++){var v=vehicles.get(i);if(!v.isActive())continue;var r=state.board().rotatorAt(v.position());if(r==null)continue;var d=r.rotation()==se.segersten.wreckage.game.domain.Rotation.CLOCKWISE?v.orientation().turnRight():v.orientation().turnLeft();vehicles.set(i,new VehicleState(v.vehicle(),v.position(),d,v.damage(),v.status()));events.add(new RoundEvent(0,RoundEventType.ROTATOR_TURN,v.vehicle().playerId(),v.vehicle().id(),v.position(),v.position(),v.orientation(),d));}
         for (int index = 0; index < vehicles.size(); index++) {
             VehicleState vehicle = vehicles.get(index);
             if (vehicle.isActive() && state.board().isPit(vehicle.position())) {

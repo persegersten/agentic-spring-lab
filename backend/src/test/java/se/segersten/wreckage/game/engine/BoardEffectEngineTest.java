@@ -15,6 +15,7 @@ import se.segersten.wreckage.game.domain.RoundEventType;
 import se.segersten.wreckage.game.domain.Vehicle;
 import se.segersten.wreckage.game.domain.VehicleState;
 import se.segersten.wreckage.game.domain.VehicleStatus;
+import se.segersten.wreckage.game.domain.Conveyor;import se.segersten.wreckage.game.domain.Rotator;import se.segersten.wreckage.game.domain.Rotation;
 
 class BoardEffectEngineTest {
     private final BoardEffectEngine engine = new BoardEffectEngine();
@@ -59,6 +60,8 @@ class BoardEffectEngineTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Pits must be inside the board");
     }
+    @Test void conveyorPushesRespectsWallsCrashesAndRotates(){var a=vehicleAt(new Position(0,1));var b=vehicleAt(new Position(1,1));var base=new Board(4,3);var board=new Board(4,3,Set.of(),Set.of(new Position(3,1)),Set.of(),base.spawnPoints(),List.of(new Conveyor(new Position(0,1),Direction.EAST),new Conveyor(new Position(1,1),Direction.EAST)),List.of(new Rotator(new Position(2,1),Rotation.CLOCKWISE)));assertThat(engine.resolve(new GameState(board,List.of(a,b))).events()).extracting(e->e.type()).contains(RoundEventType.CONVEYOR_PUSH,RoundEventType.CONVEYOR_RAM,RoundEventType.ROTATOR_TURN);var wall=new Board(4,3,Set.of(new se.segersten.wreckage.game.domain.Wall(new Position(0,1),Direction.EAST)),Set.of(),Set.of(),base.spawnPoints(),List.of(new Conveyor(new Position(0,1),Direction.EAST)),List.of());assertThat(engine.resolve(new GameState(wall,List.of(a))).events()).isEmpty();}
+    @Test void conveyorCanCrashAtOpenEdge(){var base=new Board(2,2);var board=new Board(2,2,Set.of(),Set.of(),Set.of(),base.spawnPoints(),List.of(new Conveyor(new Position(1,0),Direction.EAST)),List.of());assertThat(engine.resolve(new GameState(board,List.of(vehicleAt(new Position(1,0))))).events()).extracting(e->e.type()).containsExactly(RoundEventType.CONVEYOR_CRASH);}
 
     private static VehicleState vehicleAt(Position position) {
         UUID playerId = UUID.randomUUID();
