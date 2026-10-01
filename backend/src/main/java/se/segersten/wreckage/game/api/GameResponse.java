@@ -12,6 +12,7 @@ import se.segersten.wreckage.game.domain.GamePlacement;
 public record GameResponse(
         UUID id,
         GameStatus status,
+        int roundLimit,
         GameConfiguration configuration,
         Instant createdAt,
         Instant joinDeadline,
@@ -28,7 +29,7 @@ public record GameResponse(
         BoardResponse board = game.getBoard() == null
                 ? null
                 : BoardResponse.from(game.getBoard());
-        return new GameResponse(game.getId(), game.getStatus(), game.getConfiguration(),
+        return new GameResponse(game.getId(), game.getStatus(), game.getConfiguration().roundLimit(), game.getConfiguration(),
                 game.getCreatedAt(), game.getJoinDeadline(), players, board,
                 game.getVehicleStates().stream().map(VehicleResponse::from).toList(),
                 PublicRoundResponse.from(game.getRound()), game.getPlacements());

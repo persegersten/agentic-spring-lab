@@ -11,9 +11,9 @@ import java.time.Instant;
 public class Game {
     private final UUID id;
     private final List<Player> players;
-    private final Board board;
+    private Board board;
     private GameStatus status;
-    private final GameConfiguration configuration;
+    private GameConfiguration configuration;
     private final Instant createdAt;
     private final Instant joinDeadline;
     private final Map<UUID, VehicleState> vehicles;
@@ -76,6 +76,9 @@ public class Game {
         boolean full = players.size() >= configuration.maxPlayers();
         boolean expired = !now.isBefore(joinDeadline);
         if (!full && !expired) return false;
+        MatchSettings settings = MatchSettings.forPlayerCount(players.size());
+        board = board.withDimensions(settings.boardWidth(), settings.boardHeight());
+        configuration = configuration.withRoundLimit(settings.roundLimit());
         startRound(now);
         return true;
     }
@@ -160,17 +163,13 @@ public class Game {
 
     public List<GamePlacement> getPlacements() {
         if (status != GameStatus.FINISHED) return List.of();
-        var sorted = players.stream().sorted(java.util.Comparator.comparingInt(Player::getScore).reversed()
-                .thenComparing(java.util.Comparator.comparingInt((Player p) -> p.getVisitedCheckpoints().size()).reversed())
-                .thenComparingInt(Player::getCrashes)).toList();
+        var sorted = players.stream().sorted(java.util.Comparator.comparingInt(Player::getScore).reversed()).toList();
         List<GamePlacement> result = new ArrayList<>();
         Player previous = null;
         int placement = 0;
         for (int index = 0; index < sorted.size(); index++) {
             Player player = sorted.get(index);
-            if (previous == null || player.getScore() != previous.getScore()
-                    || player.getVisitedCheckpoints().size() != previous.getVisitedCheckpoints().size()
-                    || player.getCrashes() != previous.getCrashes()) placement = index + 1;
+            if (previous == null || player.getScore() != previous.getScore()) placement = index + 1;
             result.add(new GamePlacement(player.getId(), placement, player.getScore(),
                     player.getVisitedCheckpoints().size(), player.getCrashes(), placement == 1));
             previous = player;

@@ -391,7 +391,7 @@ class GameRoundTest {
     }
 
     @Test
-    void finishedPlacementsApplyAllTieBreakersAndShareCompleteTies() {
+    void finishedPlacementsUseScoreOnlyAndShareTopScore() {
         Instant now = Instant.parse("2099-01-01T00:00:00Z");
         GameConfiguration configuration = new GameConfiguration(4, 60, 1, 30, 1, 2, -1, 1);
         Game game = new Game(UUID.randomUUID(), List.of(), new Board(5, 5), GameStatus.RUNNING,
@@ -408,11 +408,44 @@ class GameRoundTest {
         resolveWithWait(round);
         game.completeRound();
 
-        assertThat(game.getPlacements()).extracting(GamePlacement::placement).containsExactly(1, 2, 2, 4);
-        assertThat(game.getPlacements()).extracting(GamePlacement::playerId)
-                .containsExactly(first.getId(), second.getId(), tied.getId(), fourth.getId());
-        assertThat(game.getPlacements()).filteredOn(GamePlacement::winner).singleElement()
-                .extracting(GamePlacement::playerId).isEqualTo(first.getId());
+        assertThat(game.getPlacements()).extracting(GamePlacement::placement).containsExactly(1, 1, 1, 4);
+        assertThat(game.getPlacements()).filteredOn(GamePlacement::winner)
+                .extracting(GamePlacement::playerId).containsExactly(first.getId(), second.getId(), tied.getId());
+    }
+
+    @Test
+    void allZeroScoresProduceJointWinners() {
+        Player alice = Player.create(UUID.randomUUID(), "Alice", "a");
+        Player bob = Player.create(UUID.randomUUID(), "Bob", "b");
+        Game game = new Game(UUID.randomUUID(), List.of(alice, bob), new Board(10, 10), GameStatus.FINISHED);
+
+        assertThat(game.getPlacements()).filteredOn(GamePlacement::winner)
+                .extracting(GamePlacement::playerId).containsExactly(alice.getId(), bob.getId());
+    }
+
+    @Test
+    void survivorCountDoesNotFinishBeforeRoundLimit() {
+        Instant now = Instant.parse("2099-01-01T00:00:00Z");
+        Player active = Player.create(UUID.randomUUID(), "Active", "a");
+        Player crashed = Player.create(UUID.randomUUID(), "Crashed", "b");
+        Vehicle activeVehicle = new Vehicle(UUID.randomUUID(), active.getId());
+        Vehicle crashedVehicle = new Vehicle(UUID.randomUUID(), crashed.getId());
+        Map<UUID, VehicleState> states = new LinkedHashMap<>();
+        states.put(active.getId(), new VehicleState(activeVehicle, new Position(0, 0), Direction.SOUTH));
+        states.put(crashed.getId(), new VehicleState(crashedVehicle, new Position(-1, 0), Direction.SOUTH,
+                VehicleStatus.CRASHED));
+        Board board = new Board(10, 10, java.util.Set.of(), java.util.Set.of(), java.util.Set.of(),
+                List.of(new SpawnPoint(new Position(0, 0), Direction.SOUTH)));
+        Game game = new Game(UUID.randomUUID(), List.of(active, crashed), board, GameStatus.RUNNING,
+                states, null, new GameConfiguration(2, 60, 1, 30, 7, 2, -1, 1), now,
+                now.plusSeconds(60));
+
+        Round round = game.startRound(now);
+        round.lock(active.getId(), List.of(MovementOrder.WAIT));
+        round.resolve(new MovementEngine(), game.getPlayers(), game.getConfiguration());
+        game.completeRound();
+
+        assertThat(game.getStatus()).isEqualTo(GameStatus.RUNNING);
     }
 
     private void resolveSinglePlayer(Board board, Player player, VehicleState state, MovementOrder order) {

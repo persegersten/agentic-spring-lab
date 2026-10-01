@@ -185,7 +185,7 @@ class InMemoryProfileIntegrationTest {
         var vehicle = new Vehicle(java.util.UUID.randomUUID(), player.getId(), spawn.position(), spawn.orientation());
         var crashed = new VehicleState(vehicle, new Position(-1, 2), Direction.NORTH, se.segersten.wreckage.game.domain.VehicleStatus.CRASHED);
         var game = new Game(java.util.UUID.randomUUID(), java.util.List.of(player), board, GameStatus.RUNNING,
-                java.util.Map.of(player.getId(), crashed), null, new GameConfiguration(1, 60, 1, 30), now,
+                java.util.Map.of(player.getId(), crashed), null, new GameConfiguration(2, 60, 1, 30), now,
                 now.plusSeconds(60));
         game.startRound(now);
 

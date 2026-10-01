@@ -61,7 +61,7 @@ class GameApiIntegrationTest {
         assertThat(game.path("id").asText()).isNotBlank();
         assertThat(game.path("players").isEmpty()).isTrue();
         assertThat(game.path("status").asText()).isEqualTo("WAITING_FOR_PLAYERS");
-        assertThat(game.path("configuration").path("maxPlayers").asInt()).isEqualTo(12);
+        assertThat(game.path("configuration").path("maxPlayers").asInt()).isEqualTo(6);
         assertThat(game.path("configuration").path("programSize").asInt()).isEqualTo(3);
         assertThat(game.path("configuration").path("roundLimit").asInt()).isEqualTo(6);
         assertThat(game.path("configuration").path("checkpointScore").asInt()).isEqualTo(2);
@@ -133,16 +133,17 @@ class GameApiIntegrationTest {
     @Test
     void rejectPlayerWhenLobbyIsFull() throws Exception {
         HttpResponse<String> created = post("/games", """
-                {"maxPlayers":1,"joinTimeoutSeconds":90,"programSize":3,"planningTimeoutSeconds":45}
+                {"maxPlayers":2,"joinTimeoutSeconds":90,"programSize":3,"planningTimeoutSeconds":45}
                 """);
         String gameId = json(created).path("id").asText();
         post("/games/%s/players".formatted(gameId), "{\"name\":\"Alice\"}");
+        post("/games/%s/players".formatted(gameId), "{\"name\":\"Bob\"}");
 
         HttpResponse<String> response = post("/games/%s/players".formatted(gameId),
-                "{\"name\":\"Bob\"}");
+                "{\"name\":\"Carol\"}");
 
         assertThat(response.statusCode()).isEqualTo(HttpStatus.CONFLICT.value());
-        assertThat(json(response).path("message").asText()).isEqualTo("The lobby is full");
+        assertThat(json(response).path("message").asText()).isEqualTo("The lobby is closed");
     }
 
     @Test
@@ -158,6 +159,10 @@ class GameApiIntegrationTest {
 
         JsonNode game = json(retrieved);
         assertThat(game.path("status").asText()).isEqualTo("RUNNING");
+        assertThat(game.path("board").path("width").asInt()).isEqualTo(10);
+        assertThat(game.path("board").path("height").asInt()).isEqualTo(10);
+        assertThat(game.path("roundLimit").asInt()).isEqualTo(7);
+        assertThat(game.path("configuration").path("roundLimit").asInt()).isEqualTo(7);
         assertThat(game.path("round").path("phase").asText()).isEqualTo("PLANNING");
     }
 

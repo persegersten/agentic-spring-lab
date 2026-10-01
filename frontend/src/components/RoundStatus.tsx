@@ -17,7 +17,7 @@ export function RoundStatus({ round, roundLimit, players, crashed = [] }: {
 
   return <aside className="round-status panel" data-testid="round-status">
     <p className="eyebrow" data-testid="round-progress" data-round={round.number} data-round-limit={roundLimit}>
-      <span data-testid="round-number">Runda {round.number}</span> av <span data-testid="round-limit">{roundLimit}</span>
+      <span data-testid="round-number">Round {round.number}</span> / <span data-testid="round-limit">{roundLimit}</span>
     </p>
     <h2>{round.phase === 'PLANNING' ? 'Planering' : round.phase === 'RESOLVING' ? 'Rundan beräknas' : 'Uppspelning'}</h2>
     <p data-testid="game-phase" data-phase={round.phase}>Fas {round.phase}</p>

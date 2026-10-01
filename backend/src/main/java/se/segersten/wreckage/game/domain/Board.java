@@ -77,6 +77,23 @@ public record Board(int width, int height, Set<Wall> walls, Set<Position> pits,
     public Rotator rotatorAt(Position p){return rotators.stream().filter(r->r.position().equals(p)).findFirst().orElse(null);}
     public boolean isControlPoint(Position position) { return controlPoints.contains(position); }
 
+    public Board withDimensions(int selectedWidth, int selectedHeight) {
+        java.util.function.Predicate<Position> inside = position ->
+                isWithinBounds(position, selectedWidth, selectedHeight);
+        List<SpawnPoint> selectedSpawns = spawnPoints.stream()
+                .filter(spawn -> inside.test(spawn.position())).toList();
+        if (selectedSpawns.isEmpty()) selectedSpawns = defaultSpawnPoints(selectedWidth, selectedHeight);
+        return new Board(selectedWidth, selectedHeight,
+                walls.stream().filter(wall -> inside.test(wall.cell())).collect(java.util.stream.Collectors.toSet()),
+                pits.stream().filter(inside).collect(java.util.stream.Collectors.toSet()),
+                checkpoints.stream().filter(checkpoint -> inside.test(checkpoint.position()))
+                        .collect(java.util.stream.Collectors.toSet()),
+                selectedSpawns,
+                conveyors.stream().filter(conveyor -> inside.test(conveyor.position())).toList(),
+                rotators.stream().filter(rotator -> inside.test(rotator.position())).toList(),
+                controlPoints.stream().filter(inside).collect(java.util.stream.Collectors.toSet()));
+    }
+
     private boolean isWithinBounds(Position position) {
         return isWithinBounds(position, width, height);
     }

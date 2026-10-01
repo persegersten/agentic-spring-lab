@@ -23,15 +23,15 @@ async function openPlayer(page, state) {
 
 test('finished game shows authoritative shared placements and scores', async ({ page }) => {
   await openPlayer(page, {
-    id: gameId, playerId, status: 'FINISHED', configuration, players, board, vehicles: [], round: null,
+    id: gameId, playerId, status: 'FINISHED', roundLimit: 6, configuration, players, board, vehicles: [], round: null,
     placements: [
       { playerId, placement: 1, score: 7, checkpointsVisited: 1, crashes: 2, winner: true },
       { playerId: otherId, placement: 1, score: 7, checkpointsVisited: 1, crashes: 2, winner: true },
     ],
   })
 
-  await expect(page.getByRole('heading', { name: 'Spelet är slut' })).toBeVisible()
-  await expect(page.getByText('Per och Alice delar segern.')).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Match finished' })).toBeVisible()
+  await expect(page.getByText('Winners: Per, Alice')).toBeVisible()
   await expect(page.getByTestId('player-placement')).toHaveText(['1', '1'])
   await expect(page.getByTestId('player-score')).toHaveText(['7', '7'])
 })
@@ -42,7 +42,7 @@ test('crashed player is waiting for respawn and does not receive a program', asy
   const active = { id: 'vehicle-2', playerId: otherId, x: 0, y: 0, direction: 'SOUTH',
     status: 'ACTIVE', spawnPoint: { x: 1, y: 0 }, spawnOrientation: 'SOUTH' }
   await openPlayer(page, {
-    id: gameId, playerId, status: 'RUNNING', configuration, players, board, vehicles: [crashed, active], placements: [],
+    id: gameId, playerId, status: 'RUNNING', roundLimit: 6, configuration, players, board, vehicles: [crashed, active], placements: [],
     round: { program: [], state: { number: 2, phase: 'PLANNING', planningDeadline: '2099-01-01T00:00:00Z',
       ready: { [otherId]: false }, initiative: [otherId], initialVehicles: [active], initialScores: {},
       startEvents: [], playback: [] } },

@@ -15,8 +15,12 @@ Följande parametrar ska kunna konfigureras:
 * `joinTimeoutSeconds` – antal sekunder som andra spelare har på sig att ansluta.
 * `planningTimeoutSeconds` – tidsgräns för spelarnas samtidiga planering.
 * `programSize` – antal kommandon i varje spelares program.
-* `roundLimit` – antal rundor i matchen.
 * `mapId` – vilken kompatibel spelkarta som används.
+
+När lobbyn stängs bestämmer servern brädstorlek och `roundLimit` från antalet
+spelare som faktiskt har anslutit: 2–3 ger 10×10 och 7 rundor, 4–6 ger 12×12
+och 6 rundor, samt 7–10 ger 16×16 och 5 rundor. Värdena kan inte väljas av
+klienten och ändras inte under matchen.
 
 GUI:t ska visa serverns konfigurationsvärden och valideringsresultat. Tillåtna
 intervall, standardvärden och övriga konfigurationsregler definieras i

@@ -21,6 +21,11 @@ test('a full lobby starts planning for every player', async ({ browser }) => {
     await Promise.all([alice, bob, charlie, dana].map(page =>
       expect(page.getByRole('heading', { name: 'Planering', exact: true })).toBeVisible()
     ))
+    for (const page of [alice, bob, charlie, dana]) {
+      await expect(page.getByTestId('game-board')).toHaveAttribute('data-width', '12')
+      await expect(page.getByTestId('game-board')).toHaveAttribute('data-height', '12')
+      await expect(page.getByTestId('round-progress')).toContainText('Round 1 / 6')
+    }
   })
 })
 

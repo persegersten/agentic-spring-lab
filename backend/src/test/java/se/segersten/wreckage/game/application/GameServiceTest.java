@@ -87,21 +87,21 @@ class GameServiceTest {
 
     @Test
     void shouldAcceptProgramSizeBoundaryValues() {
-        assertThat(new GameConfiguration(12, 60, 1, 30).programSize()).isEqualTo(1);
-        assertThat(new GameConfiguration(12, 60, 5, 30).programSize()).isEqualTo(5);
+        assertThat(new GameConfiguration(10, 60, 1, 30).programSize()).isEqualTo(1);
+        assertThat(new GameConfiguration(10, 60, 5, 30).programSize()).isEqualTo(5);
     }
 
     @Test
     void shouldRejectInvalidConfiguration() {
         assertThatThrownBy(() -> new GameConfiguration(0, 60, 3, 30))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> new GameConfiguration(12, 0, 3, 30))
+        assertThatThrownBy(() -> new GameConfiguration(10, 0, 3, 30))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> new GameConfiguration(12, 60, 0, 30))
+        assertThatThrownBy(() -> new GameConfiguration(10, 60, 0, 30))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> new GameConfiguration(12, 60, 6, 30))
+        assertThatThrownBy(() -> new GameConfiguration(10, 60, 6, 30))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> new GameConfiguration(12, 60, 3, 0))
+        assertThatThrownBy(() -> new GameConfiguration(10, 60, 3, 0))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
@@ -121,12 +121,13 @@ class GameServiceTest {
     void shouldRejectPlayerWhenLobbyIsFull() {
         InMemoryGameRepository repository = new InMemoryGameRepository();
         GameService service = new GameService(repository);
-        Game game = service.createGame(new GameConfiguration(1, 60, 3, 30));
+        Game game = service.createGame(new GameConfiguration(2, 60, 3, 30));
         service.addPlayer(game.getId(), "Alice");
+        service.addPlayer(game.getId(), "Bob");
 
-        assertThatThrownBy(() -> service.addPlayer(game.getId(), "Bob"))
+        assertThatThrownBy(() -> service.addPlayer(game.getId(), "Carol"))
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessage("The lobby is full");
+                .hasMessage("The lobby is closed");
     }
 
     @Test
@@ -134,7 +135,7 @@ class GameServiceTest {
         InMemoryGameRepository repository = new InMemoryGameRepository();
         Instant created = Instant.parse("2026-01-01T12:00:00Z");
         GameService creator = new GameService(repository, Clock.fixed(created, ZoneOffset.UTC));
-        Game game = creator.createGame(new GameConfiguration(12, 60, 3, 30));
+        Game game = creator.createGame(new GameConfiguration(10, 60, 3, 30));
         GameService expired = new GameService(repository,
                 Clock.fixed(created.plusSeconds(60), ZoneOffset.UTC));
 
