@@ -15,7 +15,7 @@ const players = [
 ]
 
 async function openPlayer(page, state) {
-  await page.addInitScript(session => sessionStorage.setItem('wreckage-session', JSON.stringify(session)),
+  await page.addInitScript(session => localStorage.setItem(`wreckage-session:${session.gameId}`, JSON.stringify(session)),
     { gameId, playerId, token: 'test-token' })
   await page.route(`**/games/${gameId}/players/${playerId}`, route => route.fulfill({ json: state }))
   await page.goto(`/game/${gameId}`)

@@ -71,7 +71,7 @@ test('playback stays paused and automatically starts the next round when finishe
   let currentState = state
   let starts = 0
   await page.clock.install()
-  await page.addInitScript(session => sessionStorage.setItem('wreckage-session', JSON.stringify(session)),
+  await page.addInitScript(session => localStorage.setItem(`wreckage-session:${session.gameId}`, JSON.stringify(session)),
     { gameId, playerId, token: 'test-token' })
   await page.route(`**/games/${gameId}/players/${playerId}`, route => {
     polls++
@@ -128,7 +128,7 @@ test('playback removes a vehicle exactly when its crash event is reached', async
     round: { state: { number: 1, phase: 'PLAYBACK', ready: { [playerId]: true }, initiative: [playerId], initialVehicles: [vehicle], playback }, program: [] },
   }
   await page.clock.install()
-  await page.addInitScript(session => sessionStorage.setItem('wreckage-session', JSON.stringify(session)),
+  await page.addInitScript(session => localStorage.setItem(`wreckage-session:${session.gameId}`, JSON.stringify(session)),
     { gameId, playerId, token: 'test-token' })
   await page.route(`**/games/${gameId}/players/${playerId}`, route => route.fulfill({ json: state }))
 
@@ -156,7 +156,7 @@ test('finishing the last round does not request another round', async ({ page })
   }
   let starts = 0
   await page.clock.install()
-  await page.addInitScript(session => sessionStorage.setItem('wreckage-session', JSON.stringify(session)),
+  await page.addInitScript(session => localStorage.setItem(`wreckage-session:${session.gameId}`, JSON.stringify(session)),
     { gameId, playerId, token: 'test-token' })
   await page.route(`**/games/${gameId}/players/${playerId}`, route => route.fulfill({ json: state }))
   await page.route(`**/games/${gameId}/rounds?*`, route => { starts++; return route.abort() })
@@ -169,4 +169,4 @@ test('finishing the last round does not request another round', async ({ page })
   expect(starts).toBe(0)
 })
 
-test('playback visibly applies a conveyor event',async({page})=>{const gameId='10000000-0000-0000-0000-000000000007',playerId='20000000-0000-0000-0000-000000000007',vehicle={id:'v',playerId,x:0,y:0,direction:'EAST',status:'ACTIVE'};const playback=[{sequence:1,type:'CONVEYOR_MOVE',playerId,vehicleId:'v',sourcePlayerId:playerId,sourceVehicleId:'v',oldPosition:{x:0,y:0},newPosition:{x:1,y:0},oldDirection:'EAST',newDirection:'EAST'}];const state={id:gameId,playerId,status:'RUNNING',configuration:{maxPlayers:1,programSize:1,planningTimeoutSeconds:30,joinTimeoutSeconds:30},players:[{id:playerId,name:'Per'}],board:{width:3,height:2,walls:[],pits:[],checkpoints:[],spawnPoints:[],conveyors:[{position:{x:0,y:0},direction:'EAST'}],rotators:[]},vehicles:[{...vehicle,x:1}],round:{state:{number:1,phase:'PLAYBACK',ready:{[playerId]:true},initiative:[playerId],initialVehicles:[vehicle],playback},program:[]}};await page.clock.install();await page.addInitScript(s=>sessionStorage.setItem('wreckage-session',JSON.stringify(s)),{gameId,playerId,token:'t'});await page.route(`**/games/${gameId}/players/${playerId}`,r=>r.fulfill({json:state}));await page.goto(`/game/${gameId}`);await expect(page.getByTestId('board-conveyor')).toHaveAttribute('data-direction','EAST');await page.clock.runFor(1);await expect(page.getByTestId('player-vehicle')).toHaveAttribute('data-x','1')})
+test('playback visibly applies a conveyor event',async({page})=>{const gameId='10000000-0000-0000-0000-000000000007',playerId='20000000-0000-0000-0000-000000000007',vehicle={id:'v',playerId,x:0,y:0,direction:'EAST',status:'ACTIVE'};const playback=[{sequence:1,type:'CONVEYOR_MOVE',playerId,vehicleId:'v',sourcePlayerId:playerId,sourceVehicleId:'v',oldPosition:{x:0,y:0},newPosition:{x:1,y:0},oldDirection:'EAST',newDirection:'EAST'}];const state={id:gameId,playerId,status:'RUNNING',configuration:{maxPlayers:1,programSize:1,planningTimeoutSeconds:30,joinTimeoutSeconds:30},players:[{id:playerId,name:'Per'}],board:{width:3,height:2,walls:[],pits:[],checkpoints:[],spawnPoints:[],conveyors:[{position:{x:0,y:0},direction:'EAST'}],rotators:[]},vehicles:[{...vehicle,x:1}],round:{state:{number:1,phase:'PLAYBACK',ready:{[playerId]:true},initiative:[playerId],initialVehicles:[vehicle],playback},program:[]}};await page.clock.install();await page.addInitScript(s=>localStorage.setItem(`wreckage-session:${s.gameId}`,JSON.stringify(s)),{gameId,playerId,token:'t'});await page.route(`**/games/${gameId}/players/${playerId}`,r=>r.fulfill({json:state}));await page.goto(`/game/${gameId}`);await expect(page.getByTestId('board-conveyor')).toHaveAttribute('data-direction','EAST');await page.clock.runFor(1);await expect(page.getByTestId('player-vehicle')).toHaveAttribute('data-x','1')})

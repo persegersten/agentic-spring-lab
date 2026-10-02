@@ -34,3 +34,40 @@ test('Alice creates a game and Bob joins from a separate session', async ({ brow
     }
   })
 })
+
+test('the lobby stays at the root while two games remain active in one browser', async ({ browser }) => {
+  const context = await browser.newContext()
+  const firstGame = await context.newPage()
+  const secondGame = await context.newPage()
+
+  try {
+    await firstGame.goto('/')
+    await firstGame.getByRole('button', { name: 'Skapa spel', exact: true }).click()
+    const firstGameLink = await firstGame.getByLabel('Spellänk', { exact: true }).inputValue()
+    const firstGameId = firstGameLink.split('/').at(-1)
+    await joinGame(firstGame, 'Första spelaren')
+
+    await secondGame.goto('/')
+    await expect(secondGame.getByRole('button', { name: 'Skapa spel', exact: true })).toBeVisible()
+    await expect(secondGame.getByTestId('game-page')).not.toBeVisible()
+    await secondGame.getByRole('button', { name: 'Skapa spel', exact: true }).click()
+    const secondGameLink = await secondGame.getByLabel('Spellänk', { exact: true }).inputValue()
+    const secondGameId = secondGameLink.split('/').at(-1)
+    expect(secondGameId).not.toBe(firstGameId)
+    await joinGame(secondGame, 'Andra spelaren')
+
+    await firstGame.reload()
+    await secondGame.reload()
+
+    await expect(firstGame.getByText(`Spel ${firstGameId.slice(0, 8)}`, { exact: true })).toBeVisible()
+    await expect(firstGame.getByTestId('player-vehicle').filter({ hasText: 'Första spelaren' })).toBeVisible()
+    await expect(secondGame.getByText(`Spel ${secondGameId.slice(0, 8)}`, { exact: true })).toBeVisible()
+    await expect(secondGame.getByTestId('player-vehicle').filter({ hasText: 'Andra spelaren' })).toBeVisible()
+
+    await firstGame.goto('/')
+    await expect(firstGame.getByRole('button', { name: 'Skapa spel', exact: true })).toBeVisible()
+    await expect(firstGame.getByTestId('game-page')).not.toBeVisible()
+  } finally {
+    await context.close()
+  }
+})
