@@ -91,7 +91,8 @@ test('reload restores a locked private program', async ({ browser }) => {
   })
 })
 
-test('reload between rounds reconstructs playback from server events', async ({ browser }) => {
+test('reload after automatic round transition does not advance twice', async ({ browser }) => {
+  test.setTimeout(60_000)
   await withPlayerPages(browser, ['per', 'alice'], async ({ per, alice }) => {
     await per.goto('/')
     await per.getByLabel('Max spelare', { exact: true }).fill('2')
@@ -103,15 +104,15 @@ test('reload between rounds reconstructs playback from server events', async ({ 
     await expect(per.getByRole('heading', { name: 'Planering', exact: true })).toBeVisible()
     await fillProgram(per)
     await fillProgram(alice)
-    await expect(per.getByRole('button', { name: 'Starta nästa runda', exact: true }))
-      .toBeVisible({ timeout: 20_000 })
+    await expect(per.getByTestId('round-number')).toHaveText('Round 2', { timeout: 20_000 })
 
     await per.reload()
 
-    await expect(per.getByTestId('round-number')).toHaveText('Round 1')
-    await expect(per.getByTestId('game-phase')).toHaveText('Fas PLAYBACK')
+    await expect(per.getByTestId('round-number')).toHaveText('Round 2')
+    await expect(per.getByTestId('game-phase')).toHaveText('Fas PLANNING')
     await expect(per.getByTestId('player-vehicle')).toHaveCount(2)
-    await expect(per.getByRole('button', { name: 'Starta nästa runda', exact: true }))
-      .toBeVisible({ timeout: 20_000 })
+    await expect(per.getByRole('button', { name: 'Starta nästa runda', exact: true })).not.toBeVisible()
+    await per.waitForTimeout(2000)
+    await expect(per.getByTestId('round-number')).toHaveText('Round 2')
   })
 })

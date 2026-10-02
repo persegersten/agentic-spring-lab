@@ -84,10 +84,14 @@ public class GameService {
         return new PlayerJoin(player, token);
     }
 
-    public Round startRound(UUID gameId, UUID playerId, String token) {
+    public Round startRound(UUID gameId, UUID playerId, String token, int completedRoundNumber) {
         Game game = authenticatedGameForUpdate(gameId, playerId, token);
         if (game.getRound() == null)
             throw new IllegalStateException("The first round starts automatically");
+        if (game.getRound().number() > completedRoundNumber)
+            return game.getRound();
+        if (game.getRound().number() < completedRoundNumber)
+            throw new IllegalArgumentException("The completed round does not exist");
         Round round = game.startRound(clock.instant());
         playerAutomation.lockHeadlessPrograms(game);
         resolveIfReady(game);
