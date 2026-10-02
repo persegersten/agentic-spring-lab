@@ -84,11 +84,13 @@ finishes, the server's current aggregate remains the source of truth.
 
 ## API and authentication
 
-Joining returns a one-time player token. The browser keeps it in `sessionStorage`
-and sends it as `X-Player-Token`; mutations also send `X-Player-Id`. Only the
-authenticated player response contains that player's private program. Public
-responses expose readiness and resolved playback but never unrevealed programs.
-The server stores only SHA-256 token hashes.
+Joining returns a one-time player token. The browser keeps it in `localStorage`,
+keyed by game id so several games can remain active in the same browser, and sends
+it as `X-Player-Token`; mutations also send `X-Player-Id`. A direct `/game/{id}`
+link restores only that game's player session, while `/` always displays the
+lobby. Only the authenticated player response contains that player's private
+program. Public responses expose readiness and resolved playback but never
+unrevealed programs. The server stores only SHA-256 token hashes.
 
 The principal endpoints are:
 

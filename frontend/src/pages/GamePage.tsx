@@ -11,6 +11,26 @@ function gameIdFromPath() {
   return window.location.pathname.match(/^\/game\/([0-9a-f-]+)\/?$/i)?.[1] ?? ''
 }
 
+function playerSessionKey(gameId: string) {
+  return `wreckage-session:${gameId}`
+}
+
+function loadPlayerSession(gameId: string): PlayerSession | null {
+  if (!gameId) return null
+  try {
+    const session = JSON.parse(localStorage.getItem(playerSessionKey(gameId)) ?? 'null') as PlayerSession | null
+    return session?.gameId === gameId && typeof session.playerId === 'string' && typeof session.token === 'string'
+      ? session
+      : null
+  } catch {
+    return null
+  }
+}
+
+function savePlayerSession(session: PlayerSession) {
+  localStorage.setItem(playerSessionKey(session.gameId), JSON.stringify(session))
+}
+
 function LobbyCountdown({ joinDeadline }: { joinDeadline: string }) {
   const [now, setNow] = useState(Date.now())
   useEffect(() => {
@@ -24,11 +44,7 @@ function LobbyCountdown({ joinDeadline }: { joinDeadline: string }) {
 export function GamePage() {
   const [game, setGame] = useState<Game | null>(null)
   const [view, setView] = useState<PlayerGame | null>(null)
-  const [session, setSession] = useState<PlayerSession | null>(() => {
-    const stored = JSON.parse(sessionStorage.getItem('wreckage-session') ?? 'null') as PlayerSession | null
-    const pathId = gameIdFromPath()
-    return !pathId || stored?.gameId === pathId ? stored : null
-  })
+  const [session, setSession] = useState<PlayerSession | null>(() => loadPlayerSession(gameIdFromPath()))
   const [configuration, setConfiguration] = useState<GameConfiguration | null>(null)
   const [name, setName] = useState('')
   const [gameId, setGameId] = useState(gameIdFromPath)
@@ -119,7 +135,7 @@ export function GamePage() {
     await run(async () => {
       const player = await addPlayer(game.id, name.trim())
       const nextSession = { gameId: game.id, playerId: player.id, token: player.token }
-      sessionStorage.setItem('wreckage-session', JSON.stringify(nextSession))
+      savePlayerSession(nextSession)
       setSession(nextSession); setView(await getPlayerGame(nextSession))
     })
   }

@@ -25,7 +25,7 @@ test('score table follows authoritative score events and shows checkpoint progre
       ] }, program: [] },
   }
   await page.clock.install()
-  await page.addInitScript(session => sessionStorage.setItem('wreckage-session', JSON.stringify(session)),
+  await page.addInitScript(session => localStorage.setItem(`wreckage-session:${session.gameId}`, JSON.stringify(session)),
     { gameId, playerId, token: 'test-token' })
   await page.route(`**/games/${gameId}/players/${playerId}`, route => route.fulfill({ json: state }))
 
@@ -69,7 +69,7 @@ test('control point is visible and its round-end event updates score after the f
       ] }, program: [] },
   }
   await page.clock.install()
-  await page.addInitScript(session => sessionStorage.setItem('wreckage-session', JSON.stringify(session)),
+  await page.addInitScript(session => localStorage.setItem(`wreckage-session:${session.gameId}`, JSON.stringify(session)),
     { gameId, playerId, token: 'test-token' })
   await page.route(`**/games/${gameId}/players/${playerId}`, route => route.fulfill({ json: state }))
 

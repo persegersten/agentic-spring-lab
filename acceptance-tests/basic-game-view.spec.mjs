@@ -65,7 +65,7 @@ test('vehicle arrow tips point in the server forward direction', async ({ page }
     ],
     round: null,
   }
-  await page.addInitScript(session => sessionStorage.setItem('wreckage-session', JSON.stringify(session)),
+  await page.addInitScript(session => localStorage.setItem(`wreckage-session:${session.gameId}`, JSON.stringify(session)),
     { gameId, playerId, token: 'test-token' })
   await page.route(`**/games/${gameId}/players/${playerId}`, route => route.fulfill({ json: state }))
 
