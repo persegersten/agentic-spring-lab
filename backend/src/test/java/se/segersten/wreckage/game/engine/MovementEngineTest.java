@@ -163,17 +163,33 @@ class MovementEngineTest {
     }
 
     @Test
-    void turnsWithoutChangingPosition() {
-        VehicleState left = state(1, 1, Direction.NORTH);
-        VehicleState right = state(3, 3, Direction.NORTH);
+    void turnsLeftAndRightFromTheVehiclesPerspectiveWithoutChangingPosition() {
+        List<TurnCase> cases = List.of(
+                new TurnCase(Direction.NORTH, MovementOrder.TURN_LEFT, Direction.WEST),
+                new TurnCase(Direction.WEST, MovementOrder.TURN_LEFT, Direction.SOUTH),
+                new TurnCase(Direction.SOUTH, MovementOrder.TURN_LEFT, Direction.EAST),
+                new TurnCase(Direction.EAST, MovementOrder.TURN_LEFT, Direction.NORTH),
+                new TurnCase(Direction.NORTH, MovementOrder.TURN_RIGHT, Direction.EAST),
+                new TurnCase(Direction.EAST, MovementOrder.TURN_RIGHT, Direction.SOUTH),
+                new TurnCase(Direction.SOUTH, MovementOrder.TURN_RIGHT, Direction.WEST),
+                new TurnCase(Direction.WEST, MovementOrder.TURN_RIGHT, Direction.NORTH));
 
-        GameState result = resolve(List.of(left, right),
-                order(left, MovementOrder.TURN_LEFT),
-                order(right, MovementOrder.TURN_RIGHT));
+        for (TurnCase turnCase : cases) {
+            VehicleState vehicle = state(3, 3, turnCase.initialDirection());
+            var result = engine.resolveTurnWithEvents(
+                    new Turn(List.of(order(vehicle, turnCase.order()))),
+                    new GameState(board, List.of(vehicle)));
 
-        assertThat(result.vehicleStates()).containsExactly(
-                new VehicleState(left.vehicle(), left.position(), Direction.WEST),
-                new VehicleState(right.vehicle(), right.position(), Direction.EAST));
+            assertThat(result.state().vehicleStates()).containsExactly(
+                    new VehicleState(vehicle.vehicle(), vehicle.position(), turnCase.expectedDirection()));
+            assertThat(result.events()).singleElement().satisfies(event -> {
+                assertThat(event.type()).isEqualTo(RoundEventType.TURN);
+                assertThat(event.oldPosition()).isEqualTo(vehicle.position());
+                assertThat(event.newPosition()).isEqualTo(vehicle.position());
+                assertThat(event.oldDirection()).isEqualTo(turnCase.initialDirection());
+                assertThat(event.newDirection()).isEqualTo(turnCase.expectedDirection());
+            });
+        }
     }
 
     @Test
@@ -471,6 +487,8 @@ class MovementEngineTest {
     private VehicleState state(int x, int y, Direction direction) {
         return new VehicleState(new Vehicle(), new Position(x, y), direction);
     }
+
+    private record TurnCase(Direction initialDirection, MovementOrder order, Direction expectedDirection) {}
 
     private void assertBlockedPush(
             VehicleState moving, VehicleState pushed, MovementOrder movementOrder) {

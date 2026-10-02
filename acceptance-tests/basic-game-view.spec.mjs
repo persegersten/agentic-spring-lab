@@ -81,4 +81,48 @@ test('vehicle arrow tips point in the server forward direction', async ({ page }
   await expect(eastArrow).toHaveCSS('transform', 'matrix(0, 1, -1, 0, 0, 0)')
   await expect(southArrow).toHaveCSS('transform', 'matrix(1, 0, 0, 1, 0, 0)')
   await expect(westArrow).toHaveCSS('transform', 'matrix(0, -1, 1, 0, 0, 0)')
+
+  const northBox = await page.getByTestId('player-vehicle').filter({ hasText: 'North' }).boundingBox()
+  const southBox = await page.getByTestId('player-vehicle').filter({ hasText: 'South' }).boundingBox()
+  expect(southBox.y).toBeLessThan(northBox.y)
+  await expect(page.getByTestId('player-vehicle').filter({ hasText: 'South' })).toHaveAttribute('data-y', '3')
+  await expect(page.getByTestId('player-vehicle').filter({ hasText: 'North' })).toHaveAttribute('data-y', '1')
+})
+
+test('turn playback is shown from the vehicle perspective', async ({ page }) => {
+  const gameId = '10000000-0000-0000-0000-000000000002'
+  const playerId = '20000000-0000-0000-0000-000000000002'
+  const vehicle = { id: 'vehicle', playerId, x: 2, y: 2, direction: 'SOUTH', status: 'ACTIVE' }
+  const turn = (sequence, oldDirection, newDirection) => ({
+    sequence, type: 'TURN', playerId, vehicleId: vehicle.id, sourcePlayerId: playerId,
+    sourceVehicleId: vehicle.id, oldPosition: { x: 2, y: 2 }, newPosition: { x: 2, y: 2 },
+    oldDirection, newDirection,
+  })
+  const state = {
+    id: gameId, playerId, status: 'RUNNING', roundLimit: 2,
+    configuration: { maxPlayers: 1, programSize: 2, planningTimeoutSeconds: 30, joinTimeoutSeconds: 30 },
+    players: [{ id: playerId, name: 'Per', score: 0 }],
+    board: { width: 5, height: 5, walls: [], pits: [] },
+    vehicles: [{ ...vehicle, direction: 'SOUTH' }],
+    round: { state: {
+      number: 1, phase: 'PLAYBACK', ready: { [playerId]: true }, initiative: [playerId],
+      initialVehicles: [vehicle], initialScores: { [playerId]: 0 }, startEvents: [],
+      playback: [turn(1, 'SOUTH', 'EAST'), turn(2, 'EAST', 'SOUTH')],
+    }, program: ['TURN_LEFT', 'TURN_RIGHT'] },
+  }
+
+  await page.clock.install()
+  await page.addInitScript(session => sessionStorage.setItem('wreckage-session', JSON.stringify(session)),
+    { gameId, playerId, token: 'test-token' })
+  await page.route(`**/games/${gameId}/players/${playerId}`, route => route.fulfill({ json: state }))
+  await page.goto(`/game/${gameId}`)
+
+  const renderedVehicle = page.getByTestId('player-vehicle')
+  await page.clock.runFor(1)
+  await expect(renderedVehicle).toHaveAttribute('data-direction', 'EAST')
+  await expect(renderedVehicle.locator('.vehicle-direction')).toHaveCSS('transform', 'matrix(0, 1, -1, 0, 0, 0)')
+
+  await page.clock.runFor(250)
+  await expect(renderedVehicle).toHaveAttribute('data-direction', 'SOUTH')
+  await expect(renderedVehicle.locator('.vehicle-direction')).toHaveCSS('transform', 'matrix(1, 0, 0, 1, 0, 0)')
 })
