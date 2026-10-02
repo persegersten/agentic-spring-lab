@@ -38,7 +38,8 @@ test('two players complete a deterministic authoritative match', async ({ browse
 
     await fillProgram(per, ['TURN_LEFT', 'FORWARD_1'])
     await expect(alice.getByTestId('player-ready-state').filter({ hasText: 'Per' })).toHaveAttribute('data-ready-state', 'LOCKED')
-    await expect(alice.getByTestId('program-slot').nth(0)).toHaveAttribute('data-command', '')
+    await expect(alice.getByTestId('program-slot').nth(0)).toHaveAttribute('data-command', 'WAIT')
+    await expect(alice.getByTestId('program-slot').nth(0)).toHaveAttribute('data-filled', 'false')
     await fillProgram(alice, ['WAIT', 'WAIT'])
 
     await expect(per.getByTestId('round-playback')).toBeVisible()

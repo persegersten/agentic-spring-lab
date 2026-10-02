@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { joinGame, withPlayerPages } from './player-pages.mjs'
+import { fillProgram, joinGame, withPlayerPages } from './player-pages.mjs'
 
 test('players receive and play the same server ordered event sequence', async ({ browser }) => {
   await withPlayerPages(browser, ['per', 'alice'], async ({ per, alice }) => {
@@ -18,11 +18,7 @@ test('players receive and play the same server ordered event sequence', async ({
 
     await expect(per.getByRole('heading', { name: 'Planering', exact: true })).toBeVisible()
     for (const page of [per, alice]) {
-      const registers = page.getByRole('combobox', { name: /^Register / })
-      await registers.nth(0).selectOption('TURN_LEFT')
-      await registers.nth(1).selectOption('FORWARD_2')
-      await registers.nth(2).selectOption('WAIT')
-      await page.getByRole('button', { name: 'Lås program', exact: true }).click()
+      await fillProgram(page, ['TURN_LEFT', 'FORWARD_2', 'WAIT'])
     }
 
     for (const page of [per, alice]) {
