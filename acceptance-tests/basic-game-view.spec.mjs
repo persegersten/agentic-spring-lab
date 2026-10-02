@@ -77,8 +77,20 @@ test('vehicle arrow tips point in the server forward direction', async ({ page }
   const eastArrow = page.getByTestId('player-vehicle').filter({ hasText: 'East' }).locator('.vehicle-direction')
   const southArrow = page.getByTestId('player-vehicle').filter({ hasText: 'South' }).locator('.vehicle-direction')
   const westArrow = page.getByTestId('player-vehicle').filter({ hasText: 'West' }).locator('.vehicle-direction')
-  await expect(northArrow).toHaveCSS('transform', 'matrix(-1, 0, 0, -1, 0, 0)')
+  await expect(northArrow).toHaveCSS('transform', 'matrix(1, 0, 0, 1, 0, 0)')
   await expect(eastArrow).toHaveCSS('transform', 'matrix(0, 1, -1, 0, 0, 0)')
-  await expect(southArrow).toHaveCSS('transform', 'matrix(1, 0, 0, 1, 0, 0)')
+  await expect(southArrow).toHaveCSS('transform', 'matrix(-1, 0, 0, -1, 0, 0)')
   await expect(westArrow).toHaveCSS('transform', 'matrix(0, -1, 1, 0, 0, 0)')
+
+  const northVehicle = page.getByTestId('player-vehicle').filter({ hasText: 'North' })
+  const southVehicle = page.getByTestId('player-vehicle').filter({ hasText: 'South' })
+  expect(await northVehicle.evaluate(el => el.offsetTop)).toBeGreaterThan(await southVehicle.evaluate(el => el.offsetTop))
+
+  // Right turns increase the angle even across the full-circle boundary.
+  for (const [direction, angle] of [['EAST', 90], ['SOUTH', 180], ['WEST', 270], ['NORTH', 360]]) {
+    state.vehicles[0].direction = direction
+    await expect(northArrow).toHaveAttribute('style', `transform: rotate(${angle}deg);`)
+  }
+  state.vehicles[0].direction = 'WEST'
+  await expect(northArrow).toHaveAttribute('style', 'transform: rotate(270deg);')
 })
