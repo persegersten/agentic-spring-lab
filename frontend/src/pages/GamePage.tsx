@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { addPlayer, createGame, getDefaultConfiguration, getGame, getPlayerGame, saveProgramDraft, startRound, submitProgram } from '../api/games'
 import { CommandHand } from '../components/CommandHand'
 import { GameBoard } from '../components/GameBoard'
@@ -37,6 +37,8 @@ export function GamePage() {
   const [working, setWorking] = useState(false)
   const [playbackDone, setPlaybackDone] = useState(false)
   const [scores, setScores] = useState<Record<string, number>>({})
+  const [startingRound, setStartingRound] = useState<number | null>(null)
+  const advancingRound = useRef<number | null>(null)
 
   const refresh = useCallback(async () => {
     if (!session) return
@@ -67,6 +69,27 @@ export function GamePage() {
     }, 1500)
     return () => window.clearInterval(id)
   }, [game, session])
+
+  useEffect(() => {
+    if (!session || !view?.round || !playbackDone || view.status === 'FINISHED') return
+    const completedRound = view.round.state
+    if (completedRound.phase !== 'PLAYBACK' || completedRound.number >= view.roundLimit || advancingRound.current === completedRound.number) return
+    advancingRound.current = completedRound.number
+    void startRound(session, completedRound.number).then(next => {
+      const nextRound = next.round?.state.number
+      setPlaybackDone(false)
+      setView(next)
+      setError(null)
+      if (nextRound && nextRound > completedRound.number) setStartingRound(nextRound)
+    }).catch(e => setError(e instanceof Error ? e.message : 'Ett oväntat fel inträffade'))
+      .finally(() => { advancingRound.current = null })
+  }, [session, view, playbackDone])
+
+  useEffect(() => {
+    if (startingRound === null) return
+    const id = window.setTimeout(() => setStartingRound(null), 1800)
+    return () => window.clearTimeout(id)
+  }, [startingRound])
 
   async function run(action: () => Promise<void>) {
     setWorking(true); setError(null)
@@ -111,7 +134,7 @@ export function GamePage() {
     const winners = (view.placements ?? []).filter(result => result.winner).map(result => view.players.find(player => player.id === result.playerId)!).filter(Boolean)
     const boardVehicles = displayedVehicles.filter(v => v.status === 'ACTIVE')
     const respawned = round?.startEvents?.some(event => event.type === 'VEHICLE_RESPAWNED' && event.playerId === view.playerId)
-    return <main className="game-page" data-testid="game-page" data-game-status={view.status}><header><div><p className="eyebrow">Wreckage control deck</p><h1>WRECKAGE</h1></div><div className="game-identity"><span className="game-code">Spel {view.id.slice(0, 8)}</span><strong data-testid="game-status">{view.status}</strong></div></header>{error && <p className="error" role="alert">{error}</p>}<div className="game-layout"><section><GameBoard board={view.board} vehicles={boardVehicles} players={view.players} currentPlayerId={view.playerId} /></section><div className="sidebar"><ScoreTable players={view.players} scores={round?.phase === 'PLAYBACK' ? scores : undefined} placements={finished ? view.placements : []} />{!round && <section className="panel"><h2>Spelare anslutna</h2><p>{view.players.map(p => p.name).join(', ')}</p><p>{view.players.length} / {view.configuration.maxPlayers} spelare</p><LobbyCountdown joinDeadline={view.joinDeadline} /></section>}{round && <RoundStatus round={round} roundLimit={view.roundLimit} players={view.players} crashed={crashed} />} {round && ownCrashed && <section className="panel" role="status"><h2>Du har kraschat</h2><p>Ingen spawnplats är ledig. Ett nytt försök görs nästa runda.</p></section>}{round?.phase === 'PLANNING' && respawned && <p role="status">Ditt fordon har respawnat.</p>}{finished && <section className="panel final-result" role="status" data-testid="finished-game"><h2>Match finished</h2><p>{winners.length === 1 ? `Winner: ${winners[0].name}` : `Winners: ${winners.map(player => player.name).join(', ')}`}</p></section>}{round?.phase === 'PLANNING' && !ownCrashed && !finished && <CommandHand program={view.round?.program ?? []} programSize={view.configuration.programSize} locked={round.ready[view.playerId]} onReorder={async orders => run(async () => setView(await saveProgramDraft(session, orders)))} onSubmit={async orders => run(async () => setView(await submitProgram(session, orders)))} />} {round?.phase === 'PLAYBACK' && <RoundPlayback key={`${view.id}:${round.number}`} board={view.board} round={round} players={view.players} onVehicles={setVehicles} onScores={setScores} onFinished={setPlaybackDone} />} {round?.phase === 'PLAYBACK' && playbackDone && !finished && <button data-testid="start-next-round" onClick={() => void run(async () => { setPlaybackDone(false); setView(await startRound(session)) })}>Starta nästa runda</button>}</div></div></main>
+    return <main className="game-page" data-testid="game-page" data-game-status={view.status}><header><div><p className="eyebrow">Wreckage control deck</p><h1>WRECKAGE</h1></div><div className="game-identity"><span className="game-code">Spel {view.id.slice(0, 8)}</span><strong data-testid="game-status">{view.status}</strong></div></header>{error && <p className="error" role="alert">{error}</p>}{startingRound !== null && <div className="round-start-overlay" role="dialog" aria-modal="true" aria-labelledby="round-start-title" data-testid="round-start-dialog"><div className="round-start-dialog"><p className="eyebrow">Ny runda</p><h2 id="round-start-title">Runda {startingRound} startar</h2></div></div>}<div className="game-layout"><section><GameBoard board={view.board} vehicles={boardVehicles} players={view.players} currentPlayerId={view.playerId} /></section><div className="sidebar"><ScoreTable players={view.players} scores={round?.phase === 'PLAYBACK' ? scores : undefined} placements={finished ? view.placements : []} />{!round && <section className="panel"><h2>Spelare anslutna</h2><p>{view.players.map(p => p.name).join(', ')}</p><p>{view.players.length} / {view.configuration.maxPlayers} spelare</p><LobbyCountdown joinDeadline={view.joinDeadline} /></section>}{round && <RoundStatus round={round} roundLimit={view.roundLimit} players={view.players} crashed={crashed} />} {round && ownCrashed && <section className="panel" role="status"><h2>Du har kraschat</h2><p>Ingen spawnplats är ledig. Ett nytt försök görs nästa runda.</p></section>}{round?.phase === 'PLANNING' && respawned && <p role="status">Ditt fordon har respawnat.</p>}{finished && <section className="panel final-result" role="status" data-testid="finished-game"><h2>Match finished</h2><p>{winners.length === 1 ? `Winner: ${winners[0].name}` : `Winners: ${winners.map(player => player.name).join(', ')}`}</p></section>}{round?.phase === 'PLANNING' && !ownCrashed && !finished && <CommandHand program={view.round?.program ?? []} programSize={view.configuration.programSize} locked={round.ready[view.playerId]} onReorder={async orders => run(async () => setView(await saveProgramDraft(session, orders)))} onSubmit={async orders => run(async () => setView(await submitProgram(session, orders)))} />} {round?.phase === 'PLAYBACK' && <RoundPlayback key={`${view.id}:${round.number}`} board={view.board} round={round} players={view.players} onVehicles={setVehicles} onScores={setScores} onFinished={setPlaybackDone} />}</div></div></main>
   }
 
   const gameLink = game ? `${window.location.origin}/game/${game.id}` : ''

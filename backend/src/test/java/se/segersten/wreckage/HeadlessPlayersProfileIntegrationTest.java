@@ -38,7 +38,7 @@ class HeadlessPlayersProfileIntegrationTest {
         var resolved = gameService.getPlayerGame(game.getId(), human.player().getId(), human.token());
         assertThat(resolved.getRound().phase()).isEqualTo(RoundPhase.PLAYBACK);
 
-        gameService.startRound(game.getId(), human.player().getId(), human.token());
+        gameService.startRound(game.getId(), human.player().getId(), human.token(), 1);
 
         var nextRound = gameService.getPlayerGame(game.getId(), human.player().getId(), human.token());
         assertThat(nextRound.getRound().number()).isEqualTo(2);

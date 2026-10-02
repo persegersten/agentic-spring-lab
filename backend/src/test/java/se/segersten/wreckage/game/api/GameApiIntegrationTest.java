@@ -250,6 +250,17 @@ class GameApiIntegrationTest {
         assertThat(aliceResolved.path("round").path("state").path("playback"))
                 .isEqualTo(resolvedPlayback);
         assertThat(publicResolved.toString()).doesNotContain("\"program\":", "orders");
+
+        HttpResponse<String> nextRound = postPlayer(
+                "/games/%s/rounds?completedRound=1".formatted(gameId), per, "");
+        HttpResponse<String> duplicateRequest = postPlayer(
+                "/games/%s/rounds?completedRound=1".formatted(gameId), alice, "");
+
+        assertThat(nextRound.statusCode()).isEqualTo(HttpStatus.CREATED.value());
+        assertThat(json(nextRound).path("round").path("state").path("number").asInt()).isEqualTo(2);
+        assertThat(json(duplicateRequest).path("round").path("state").path("number").asInt()).isEqualTo(2);
+        assertThat(json(duplicateRequest).path("round").path("state").path("phase").asText())
+                .isEqualTo("PLANNING");
     }
 
     @Test

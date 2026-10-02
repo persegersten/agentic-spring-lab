@@ -203,7 +203,7 @@ class GameServiceTest {
         Game game = service.createGame();
         var alice = service.addPlayer(game.getId(), "Alice");
 
-        assertThatThrownBy(() -> service.startRound(game.getId(), alice.player().getId(), alice.token()))
+        assertThatThrownBy(() -> service.startRound(game.getId(), alice.player().getId(), alice.token(), 0))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("The first round starts automatically");
     }
@@ -260,7 +260,8 @@ class GameServiceTest {
 
         assertThat(game.getRound().phase()).isEqualTo(RoundPhase.PLAYBACK);
 
-        service.startRound(game.getId(), human.player().getId(), human.token());
+        service.startRound(game.getId(), human.player().getId(), human.token(), 1);
+        service.startRound(game.getId(), human.player().getId(), human.token(), 1);
 
         assertThat(game.getRound().number()).isEqualTo(2);
         assertThat(game.getRound().phase()).isEqualTo(RoundPhase.PLANNING);

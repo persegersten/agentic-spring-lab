@@ -45,21 +45,16 @@ test('two players complete a deterministic authoritative match', async ({ browse
     await expect(per.getByTestId('playback-event').filter({ hasText: 'Alice knuffas' })).toHaveAttribute('data-event-type', 'PUSH')
     await expect(per.getByTestId('playback-event').filter({ hasText: 'Alice +2 poäng' })).toHaveAttribute('data-event-type', 'SCORE_CHANGED')
 
-    await per.reload()
-    await expect(per.getByTestId('game-phase')).toHaveAttribute('data-phase', 'PLAYBACK')
-    await expect(per.getByTestId('round-number')).toHaveText('Round 1')
     await expect(per.getByTestId('playback-event')).toHaveCount(4)
     await expect(per.locator(`[data-testid="score-row"][data-player-id="${aliceId}"]`).getByTestId('player-score')).toHaveText('2', { timeout: 15_000 })
-    await expect(per.getByTestId('start-next-round')).toBeVisible({ timeout: 15_000 })
 
     for (let round = 2; round <= 7; round++) {
-      await per.getByTestId('start-next-round').click()
-      await expect(per.getByTestId('round-number')).toHaveText(`Round ${round}`)
-      await expect(alice.getByTestId('round-number')).toHaveText(`Round ${round}`)
+      await expect(per.getByTestId('round-number')).toHaveText(`Round ${round}`, { timeout: 15_000 })
+      await expect(alice.getByTestId('round-number')).toHaveText(`Round ${round}`, { timeout: 15_000 })
+      await expect(per.getByTestId('start-next-round')).not.toBeVisible()
       if (round === 2) await expect(per.getByTestId('initiative-player').first()).toHaveAttribute('data-player-id', aliceId)
       await fillProgram(per, ['WAIT', 'WAIT'])
       await fillProgram(alice, ['WAIT', 'WAIT'])
-      if (round < 7) await expect(per.getByTestId('start-next-round')).toBeVisible({ timeout: 15_000 })
     }
 
     for (const page of [per, alice]) {
