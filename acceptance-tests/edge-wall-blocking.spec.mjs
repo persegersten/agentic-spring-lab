@@ -28,7 +28,7 @@ test('an edge wall visibly blocks authoritative vehicle movement', async ({ brow
       fillProgram(alice, 'WAIT'),
     ])
 
-    await expect(per.getByRole('heading', { name: 'Uppspelningen är klar' })).toBeVisible()
+    await expect(per.getByTestId('round-number')).toHaveText('Round 2', { timeout: 20_000 })
     await expect(perVehicle).toHaveAttribute('data-x', '0')
     await expect(perVehicle).toHaveAttribute('data-y', '0')
   })

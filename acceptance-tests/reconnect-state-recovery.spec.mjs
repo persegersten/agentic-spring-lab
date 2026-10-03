@@ -4,16 +4,23 @@ import { fillProgram, joinGame, startGame, withPlayerPages } from './player-page
 test('a player reloads the waiting lobby as the same player', async ({ page }) => {
   await page.goto('/')
   await page.getByRole('button', { name: 'Bjud in till nytt spel', exact: true }).click()
+  const joinedResponse = page.waitForResponse(response =>
+    response.request().method() === 'POST' && response.url().endsWith('/players'))
   await joinGame(page, 'Per')
-  const playerId = await page.getByTestId('player-vehicle').filter({ hasText: 'Per' })
-    .getAttribute('data-player-id')
+  const player = await (await joinedResponse).json()
+  await expect(page.getByRole('listitem')).toHaveText(['Per'])
+  const gameLink = await page.getByLabel('Spellänk').inputValue()
+  const restoredResponse = page.waitForResponse(response =>
+    response.request().method() === 'GET' && response.url().endsWith(`/players/${player.id}`))
 
   await page.reload()
 
-  await expect(page.getByRole('heading', { name: 'Spelare anslutna', exact: true })).toBeVisible()
-  await expect(page.getByTestId('player-vehicle').filter({ hasText: 'Per' })).toBeVisible()
-  await expect(page.getByTestId('player-vehicle').filter({ hasText: 'Per' }))
-    .toHaveAttribute('data-player-id', playerId)
+  expect((await (await restoredResponse).json()).playerId).toBe(player.id)
+  await expect(page).toHaveURL(gameLink)
+  await expect(page.getByRole('listitem')).toHaveText(['Per'])
+  await expect(page.getByLabel('Spelarnamn')).not.toBeVisible()
+  await expect(page.getByTestId('game-board')).not.toBeVisible()
+  await expect(page.getByRole('button', { name: 'Starta spelet', exact: true })).toBeDisabled()
 })
 
 test('reload during planning restores map, round and private planning state', async ({ browser }) => {

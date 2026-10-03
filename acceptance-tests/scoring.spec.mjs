@@ -24,7 +24,9 @@ test('score table follows authoritative score events and shows checkpoint progre
           oldScore: 0, newScore: 2, scoreDelta: 2, scoreReason: 'CHECKPOINT', checkpointId: 'cp-1' },
       ] }, program: [] },
   }
-  await page.clock.install()
+  const playbackTime = new Date('2026-01-01T00:00:00Z')
+  await page.clock.install({ time: playbackTime })
+  await page.clock.pauseAt(playbackTime)
   await page.addInitScript(session => localStorage.setItem(`wreckage-session:${session.gameId}`, JSON.stringify(session)),
     { gameId, playerId, token: 'test-token' })
   await page.route(`**/games/${gameId}/players/${playerId}`, route => route.fulfill({ json: state }))

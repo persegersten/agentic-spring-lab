@@ -125,12 +125,15 @@ test('playback removes a vehicle exactly when its crash event is reached', async
     vehicles: [{ ...vehicle, x: 2, status: 'CRASHED' }],
     round: { state: { number: 1, phase: 'PLAYBACK', ready: { [playerId]: true }, initiative: [playerId], initialVehicles: [vehicle], playback }, program: [] },
   }
-  await page.clock.install()
+  const playbackTime = new Date('2026-01-01T00:00:00Z')
+  await page.clock.install({ time: playbackTime })
+  await page.clock.pauseAt(playbackTime)
   await page.addInitScript(session => localStorage.setItem(`wreckage-session:${session.gameId}`, JSON.stringify(session)),
     { gameId, playerId, token: 'test-token' })
   await page.route(`**/games/${gameId}/players/${playerId}`, route => route.fulfill({ json: state }))
 
   await page.goto(`/game/${gameId}`)
+  await expect(page.getByTestId('round-playback')).toBeVisible()
   await page.clock.runFor(1)
   await expect(page.getByTestId('current-playback-event')).toHaveAttribute('data-event-type', 'MOVE')
   await expect(page.getByTestId('player-vehicle')).toHaveAttribute('data-x', '1')

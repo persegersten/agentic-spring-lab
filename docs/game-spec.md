@@ -10,7 +10,11 @@ inte användas för att införa eller tolka ytterligare spelregler.
 Startsidan är en huvudlobby där en spelare kan skapa ett nytt spel och blir
 spelets initiativtagare. Standardkonfigurationen används utan att startsidan
 visar tekniska konfigurationsfält. Därefter navigeras initiativtagaren till
-spelets unika lobby och kan dela dess länk.
+spelets unika lobby på `/game/{id}/lobby`, anger sitt namn och kan dela dess länk.
+Efter anslutning visas ingen spelplan förrän värden startar spelet. Vid start
+navigerar alla anslutna spelare till `/game/{id}`. En ansluten spelare som
+öppnar lobbylänken efter start navigeras också till spelplanen. Nya spelare
+får i stället ett meddelande om att lobbyn är stängd.
 
 Följande parametrar ska kunna konfigureras:
 
