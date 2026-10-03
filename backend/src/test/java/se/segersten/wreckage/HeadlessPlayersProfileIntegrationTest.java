@@ -20,12 +20,18 @@ class HeadlessPlayersProfileIntegrationTest {
 
     @Test
     void runsAConfiguredMultiplayerGameWithOnlyTheFirstPlayerConnected() {
-        var game = gameService.createGame(new GameConfiguration(4, 300, 3, 120));
+        var hosted = gameService.createHostedGame(new GameConfiguration(4, 300, 3, 120));
+        var game = hosted.game();
         var human = gameService.addPlayer(game.getId(), "Alice");
+        gameService.addHeadlessPlayers();
+        gameService.addHeadlessPlayers();
+        gameService.addHeadlessPlayers();
+        gameService.startGame(game.getId(), hosted.hostToken());
 
         var persisted = gameService.getPlayerGame(game.getId(), human.player().getId(), human.token());
         assertThat(persisted.getPlayers()).extracting(player -> player.getName())
                 .containsExactly("Alice", "Headless 1", "Headless 2", "Headless 3");
+        assertThat(persisted.getPlayers()).filteredOn(player -> player.isAutomated()).hasSize(3);
         assertThat(persisted.getRound().phase()).isEqualTo(RoundPhase.PLANNING);
         assertThat(persisted.getRound().programs().get(human.player().getId()).ready()).isFalse();
         persisted.getPlayers().stream().skip(1).forEach(player ->
@@ -48,5 +54,19 @@ class HeadlessPlayersProfileIntegrationTest {
             assertThat(program.ready()).isTrue();
             assertThat(program.commands()).containsExactlyElementsOf(program.commands());
         });
+    }
+
+    @Test
+    void addsAtMostNinePlayersAndStopsAfterTheHostStarts() {
+        var hosted = gameService.createHostedGame(new GameConfiguration(10, 300, 3, 120));
+        for (int tick = 0; tick < 12; tick++) gameService.addHeadlessPlayers();
+
+        var waiting = gameService.getGame(hosted.game().getId());
+        assertThat(waiting.getPlayers()).hasSize(9).allMatch(player -> player.isAutomated());
+
+        gameService.startGame(waiting.getId(), hosted.hostToken());
+        gameService.addHeadlessPlayers();
+
+        assertThat(gameService.getGame(waiting.getId()).getPlayers()).hasSize(9);
     }
 }

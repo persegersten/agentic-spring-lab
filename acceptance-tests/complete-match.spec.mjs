@@ -1,17 +1,16 @@
 import { expect, test } from '@playwright/test'
-import { fillProgram, joinGame, withPlayerPages } from './player-pages.mjs'
+import { fillProgram, joinGame, startGame, withPlayerPages } from './player-pages.mjs'
 
 test('two players complete a deterministic authoritative match', async ({ browser }) => {
   test.setTimeout(120_000)
   await withPlayerPages(browser, ['per', 'alice'], async ({ per, alice }) => {
     await per.goto('/')
-    await per.getByLabel('Max spelare', { exact: true }).fill('2')
-    await per.getByLabel('Programstorlek', { exact: true }).fill('2')
-    await per.getByRole('button', { name: 'Skapa spel', exact: true }).click()
+    await per.getByRole('button', { name: 'Bjud in till nytt spel', exact: true }).click()
     const gameLink = await per.getByLabel('Spellänk', { exact: true }).inputValue()
     await joinGame(per, 'Per')
     await alice.goto(gameLink)
     await joinGame(alice, 'Alice')
+    await startGame(per)
 
     expect(per.context()).not.toBe(alice.context())
     for (const page of [per, alice]) {
@@ -19,7 +18,7 @@ test('two players complete a deterministic authoritative match', async ({ browse
       await expect(page.getByTestId('round-number')).toHaveText('Round 1')
       await expect(page.getByTestId('round-limit')).toHaveText('7')
       await expect(page.getByTestId('planning-countdown')).toBeVisible()
-      await expect(page.getByTestId('program-slot')).toHaveCount(2)
+      await expect(page.getByTestId('program-slot')).toHaveCount(3)
       await expect(page.getByTestId('initiative-player')).toHaveCount(2)
       await expect(page.getByTestId('player-ready-state')).toHaveCount(2)
       await expect(page.getByTestId('game-board')).toHaveAttribute('data-width', '10')
@@ -36,11 +35,11 @@ test('two players complete a deterministic authoritative match', async ({ browse
     const aliceId = await per.getByTestId('player-vehicle').filter({ hasText: 'Alice' }).getAttribute('data-player-id')
     await expect(per.getByTestId('player-vehicle').filter({ hasText: 'Per' })).toHaveAttribute('data-direction', 'SOUTH')
 
-    await fillProgram(per, ['TURN_LEFT', 'FORWARD_1'])
+    await fillProgram(per, ['TURN_LEFT', 'FORWARD_1', 'WAIT'])
     await expect(alice.getByTestId('player-ready-state').filter({ hasText: 'Per' })).toHaveAttribute('data-ready-state', 'LOCKED')
     await expect(alice.getByTestId('program-slot').nth(0)).toHaveAttribute('data-command', 'WAIT')
     await expect(alice.getByTestId('program-slot').nth(0)).toHaveAttribute('data-filled', 'false')
-    await fillProgram(alice, ['WAIT', 'WAIT'])
+    await fillProgram(alice, ['WAIT', 'WAIT', 'WAIT'])
 
     await expect(per.getByTestId('round-playback')).toBeVisible()
     await expect(per.getByTestId('playback-event').filter({ hasText: 'Alice knuffas' })).toHaveAttribute('data-event-type', 'PUSH')
@@ -54,8 +53,8 @@ test('two players complete a deterministic authoritative match', async ({ browse
       await expect(alice.getByTestId('round-number')).toHaveText(`Round ${round}`, { timeout: 15_000 })
       await expect(per.getByTestId('start-next-round')).not.toBeVisible()
       if (round === 2) await expect(per.getByTestId('initiative-player').first()).toHaveAttribute('data-player-id', aliceId)
-      await fillProgram(per, ['WAIT', 'WAIT'])
-      await fillProgram(alice, ['WAIT', 'WAIT'])
+      await fillProgram(per, ['WAIT', 'WAIT', 'WAIT'])
+      await fillProgram(alice, ['WAIT', 'WAIT', 'WAIT'])
     }
 
     for (const page of [per, alice]) {

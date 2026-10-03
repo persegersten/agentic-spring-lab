@@ -61,14 +61,14 @@ class GameApiIntegrationTest {
         assertThat(game.path("id").asText()).isNotBlank();
         assertThat(game.path("players").isEmpty()).isTrue();
         assertThat(game.path("status").asText()).isEqualTo("WAITING_FOR_PLAYERS");
-        assertThat(game.path("configuration").path("maxPlayers").asInt()).isEqualTo(6);
+        assertThat(game.path("configuration").path("maxPlayers").asInt()).isEqualTo(9);
         assertThat(game.path("configuration").path("programSize").asInt()).isEqualTo(3);
         assertThat(game.path("configuration").path("roundLimit").asInt()).isEqualTo(6);
         assertThat(game.path("configuration").path("checkpointScore").asInt()).isEqualTo(2);
         assertThat(game.path("configuration").path("controlPointScore").asInt()).isEqualTo(1);
         assertThat(game.path("configuration").path("crashPenalty").asInt()).isEqualTo(-1);
         assertThat(game.path("configuration").path("pushCrashScore").asInt()).isEqualTo(1);
-        assertThat(game.path("joinDeadline").asText()).isNotBlank();
+        assertThat(game.path("hostToken").asText()).isNotBlank();
         assertThat(game.path("board").path("width").asInt()).isEqualTo(20);
         assertThat(game.path("board").path("height").asInt()).isEqualTo(20);
         assertThat(game.path("board").path("walls")).hasSize(1);
@@ -87,6 +87,7 @@ class GameApiIntegrationTest {
         assertThat(game.path("board").path("controlPoints").path(0).path("y").asInt()).isEqualTo(5);
 
         JsonNode retrieved = json(get("/games/" + game.path("id").asText()));
+        assertThat(retrieved.has("hostToken")).isFalse();
         assertThat(retrieved.path("board").path("walls")).isEqualTo(game.path("board").path("walls"));
     }
 
@@ -143,11 +144,11 @@ class GameApiIntegrationTest {
                 "{\"name\":\"Carol\"}");
 
         assertThat(response.statusCode()).isEqualTo(HttpStatus.CONFLICT.value());
-        assertThat(json(response).path("message").asText()).isEqualTo("The lobby is closed");
+        assertThat(json(response).path("message").asText()).isEqualTo("The lobby is full");
     }
 
     @Test
-    void startsPlanningWhenLobbyBecomesFullAndPersistsThePhase() throws Exception {
+    void onlyHostStartsPlanningAndPersistsThePhase() throws Exception {
         HttpResponse<String> created = post("/games", """
                 {"maxPlayers":2,"joinTimeoutSeconds":90,"programSize":3,"planningTimeoutSeconds":45}
                 """);
@@ -155,6 +156,11 @@ class GameApiIntegrationTest {
         post("/games/%s/players".formatted(gameId), "{\"name\":\"Alice\"}");
 
         post("/games/%s/players".formatted(gameId), "{\"name\":\"Bob\"}");
+        assertThat(json(get("/games/" + gameId)).path("status").asText()).isEqualTo("WAITING_FOR_PLAYERS");
+        assertThat(postHost(gameId, "wrong-token").statusCode()).isEqualTo(HttpStatus.FORBIDDEN.value());
+        assertThat(postHost(gameId, json(created).path("hostToken").asText()).statusCode()).isEqualTo(200);
+        assertThat(post("/games/%s/players".formatted(gameId), "{\"name\":\"Carol\"}").statusCode())
+                .isEqualTo(HttpStatus.CONFLICT.value());
         HttpResponse<String> retrieved = get("/games/" + gameId);
 
         JsonNode game = json(retrieved);
@@ -174,6 +180,7 @@ class GameApiIntegrationTest {
         String gameId = json(created).path("id").asText();
         JsonNode alice = json(post("/games/%s/players".formatted(gameId), "{\"name\":\"Alice\"}"));
         JsonNode bob = json(post("/games/%s/players".formatted(gameId), "{\"name\":\"Bob\"}"));
+        postHost(gameId, json(created).path("hostToken").asText());
 
         JsonNode publicGame = json(get("/games/" + gameId));
         JsonNode aliceGame = json(getPlayerGame(gameId, alice));
@@ -201,6 +208,7 @@ class GameApiIntegrationTest {
         String gameId = json(created).path("id").asText();
         JsonNode per = json(post("/games/%s/players".formatted(gameId), "{\"name\":\"Per\"}"));
         JsonNode alice = json(post("/games/%s/players".formatted(gameId), "{\"name\":\"Alice\"}"));
+        postHost(gameId, json(created).path("hostToken").asText());
 
         JsonNode publicGame = json(get("/games/" + gameId));
         JsonNode perGame = json(getPlayerGame(gameId, per));
@@ -271,6 +279,7 @@ class GameApiIntegrationTest {
         String gameId = json(created).path("id").asText();
         JsonNode per = json(post("/games/%s/players".formatted(gameId), "{\"name\":\"Per\"}"));
         post("/games/%s/players".formatted(gameId), "{\"name\":\"Alice\"}");
+        postHost(gameId, json(created).path("hostToken").asText());
         JsonNode original = json(getPlayerGame(gameId, per));
         var draft = objectMapper.createArrayNode();
         draft.add("TURN_LEFT"); draft.add("TURN_LEFT");
@@ -440,6 +449,7 @@ class GameApiIntegrationTest {
         assertThat(paths.path("/games").has("post")).isTrue();
         assertThat(paths.path("/games/configuration/defaults").has("get")).isTrue();
         assertThat(paths.path("/games/{gameId}/players").has("post")).isTrue();
+        assertThat(paths.path("/games/{gameId}/start").has("post")).isTrue();
         assertThat(paths.path("/games/{gameId}").has("get")).isTrue();
         assertThat(paths.path("/games/{gameId}/players/{playerId}").has("get")).isTrue();
         assertThat(paths.path("/games/{gameId}/rounds").has("post")).isTrue();
@@ -479,6 +489,15 @@ class GameApiIntegrationTest {
     private HttpResponse<String> get(String path)
             throws IOException, InterruptedException {
         HttpRequest request = HttpRequest.newBuilder(uri(path)).GET().build();
+        return httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+    }
+
+    private HttpResponse<String> postHost(String gameId, String hostToken)
+            throws IOException, InterruptedException {
+        HttpRequest request = HttpRequest.newBuilder(uri("/games/%s/start".formatted(gameId)))
+                .header("X-Host-Token", hostToken)
+                .POST(HttpRequest.BodyPublishers.noBody())
+                .build();
         return httpClient.send(request, HttpResponse.BodyHandlers.ofString());
     }
 

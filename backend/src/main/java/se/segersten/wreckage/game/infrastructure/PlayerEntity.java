@@ -38,6 +38,9 @@ class PlayerEntity {
     @Column(name = "access_token_hash", nullable = false)
     private String accessTokenHash;
 
+    @Column(name = "automated", nullable = false)
+    private boolean automated;
+
     @Column(name = "score", nullable = false)
     private int score;
 
@@ -51,11 +54,12 @@ class PlayerEntity {
     }
 
     private PlayerEntity(UUID domainId, GameEntity game, String name, String accessTokenHash,
-                         int score, String visitedCheckpoints, int crashes) {
+                         boolean automated, int score, String visitedCheckpoints, int crashes) {
         this.domainId = domainId;
         this.game = game;
         this.name = name;
         this.accessTokenHash = accessTokenHash;
+        this.automated = automated;
         this.score = score;
         this.visitedCheckpoints = visitedCheckpoints;
         this.crashes = crashes;
@@ -63,7 +67,7 @@ class PlayerEntity {
 
     static PlayerEntity fromDomain(Player player, GameEntity game) {
         return new PlayerEntity(player.getId(), game, player.getName(), player.getAccessTokenHash(),
-                player.getScore(), encodeCheckpoints(player.getVisitedCheckpoints()), player.getCrashes());
+                player.isAutomated(), player.getScore(), encodeCheckpoints(player.getVisitedCheckpoints()), player.getCrashes());
     }
 
     PlayerEntity updateFrom(Player player) {
@@ -80,7 +84,7 @@ class PlayerEntity {
     Player toDomain() {
         Set<String> checkpoints = visitedCheckpoints == null || visitedCheckpoints.isBlank() ? Set.of()
                 : Arrays.stream(visitedCheckpoints.split("\\|", -1)).collect(Collectors.toUnmodifiableSet());
-        return Player.rehydrate(domainId, name, accessTokenHash, score, checkpoints, crashes);
+        return Player.rehydrate(domainId, name, accessTokenHash, automated, score, checkpoints, crashes);
     }
 
     private static String encodeCheckpoints(Set<String> checkpoints) {

@@ -5,6 +5,10 @@ export async function joinGame(page, name) {
   await page.getByRole('button', { name: 'Gå med', exact: true }).click()
 }
 
+export async function startGame(page) {
+  await page.getByRole('button', { name: 'Starta spelet', exact: true }).click()
+}
+
 export async function fillProgram(page, command = 'WAIT') {
   const slots = page.getByTestId('program-slot')
   for (let index = 0; index < await slots.count(); index++) {

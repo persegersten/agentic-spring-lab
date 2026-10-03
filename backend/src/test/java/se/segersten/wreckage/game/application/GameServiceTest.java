@@ -127,11 +127,11 @@ class GameServiceTest {
 
         assertThatThrownBy(() -> service.addPlayer(game.getId(), "Carol"))
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessage("The lobby is closed");
+                .hasMessage("The lobby is full");
     }
 
     @Test
-    void shouldRejectPlayerAfterJoinTimeout() {
+    void shouldKeepLobbyOpenAfterLegacyJoinTimeout() {
         InMemoryGameRepository repository = new InMemoryGameRepository();
         Instant created = Instant.parse("2026-01-01T12:00:00Z");
         GameService creator = new GameService(repository, Clock.fixed(created, ZoneOffset.UTC));
@@ -139,13 +139,11 @@ class GameServiceTest {
         GameService expired = new GameService(repository,
                 Clock.fixed(created.plusSeconds(60), ZoneOffset.UTC));
 
-        assertThatThrownBy(() -> expired.addPlayer(game.getId(), "Alice"))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessage("The lobby is closed");
+        assertThat(expired.addPlayer(game.getId(), "Alice").player().getName()).isEqualTo("Alice");
     }
 
     @Test
-    void shouldStartPlanningWhenFourthPlayerFillsLobby() {
+    void shouldNotStartPlanningWhenLobbyFills() {
         InMemoryGameRepository repository = new InMemoryGameRepository();
         GameService service = new GameService(repository);
         Game game = service.createGame(new GameConfiguration(4, 60, 3, 30));
@@ -155,42 +153,44 @@ class GameServiceTest {
 
         service.addPlayer(game.getId(), "Dana");
 
-        assertThat(game.getStatus()).isEqualTo(GameStatus.RUNNING);
-        assertThat(game.getRound().phase()).isEqualTo(RoundPhase.PLANNING);
+        assertThat(game.getStatus()).isEqualTo(GameStatus.WAITING_FOR_PLAYERS);
+        assertThat(game.getRound()).isNull();
     }
 
     @Test
-    void shouldStartPlanningAtDeadlineWhenAtLeastTwoPlayersJoined() {
+    void hostShouldStartPlanningExplicitly() {
         InMemoryGameRepository repository = new InMemoryGameRepository();
         Instant created = Instant.parse("2026-01-01T12:00:00Z");
         GameService creator = new GameService(repository, Clock.fixed(created, ZoneOffset.UTC));
-        Game game = creator.createGame(new GameConfiguration(4, 60, 3, 30));
+        var hosted = creator.createHostedGame(new GameConfiguration(4, 60, 3, 30));
+        Game game = hosted.game();
         creator.addPlayer(game.getId(), "Alice");
         creator.addPlayer(game.getId(), "Bob");
-        GameService expired = new GameService(repository,
-                Clock.fixed(created.plusSeconds(60), ZoneOffset.UTC));
-
-        expired.startExpiredLobbies();
-        expired.startExpiredLobbies();
+        creator.startGame(game.getId(), hosted.hostToken());
 
         assertThat(game.getStatus()).isEqualTo(GameStatus.RUNNING);
         assertThat(game.getRound().phase()).isEqualTo(RoundPhase.PLANNING);
         assertThat(game.getRound().number()).isEqualTo(1);
-        assertThatThrownBy(() -> expired.addPlayer(game.getId(), "Charlie"))
+        assertThatThrownBy(() -> creator.addPlayer(game.getId(), "Charlie"))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("The lobby is closed");
     }
 
     @Test
-    void shouldNotStartAtDeadlineWithOnlyOnePlayer() {
+    void shouldRejectStartWithOnlyOnePlayerAndInvalidHostToken() {
         InMemoryGameRepository repository = new InMemoryGameRepository();
         Instant created = Instant.parse("2026-01-01T12:00:00Z");
         GameService creator = new GameService(repository, Clock.fixed(created, ZoneOffset.UTC));
-        Game game = creator.createGame(new GameConfiguration(4, 60, 3, 30));
+        var hosted = creator.createHostedGame(new GameConfiguration(4, 60, 3, 30));
+        Game game = hosted.game();
         creator.addPlayer(game.getId(), "Alice");
 
-        new GameService(repository, Clock.fixed(created.plusSeconds(60), ZoneOffset.UTC))
-                .startExpiredLobbies();
+        assertThatThrownBy(() -> creator.startGame(game.getId(), hosted.hostToken()))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("At least two players are required");
+        assertThatThrownBy(() -> creator.startGame(game.getId(), "wrong"))
+                .isInstanceOf(SecurityException.class)
+                .hasMessage("Invalid host token");
 
         assertThat(game.getStatus()).isEqualTo(GameStatus.WAITING_FOR_PLAYERS);
         assertThat(game.getRound()).isNull();
@@ -216,6 +216,7 @@ class GameServiceTest {
         Game game = service.createGame(new GameConfiguration(2, 60, 5, 30));
         var alice = service.addPlayer(game.getId(), "Alice");
         var bob = service.addPlayer(game.getId(), "Bob");
+        game.start(now);
         List<MovementOrder> fiveCards = List.of(MovementOrder.FORWARD_1, MovementOrder.FORWARD_1,
                 MovementOrder.FORWARD_1, MovementOrder.FORWARD_1, MovementOrder.FORWARD_1);
 
@@ -232,9 +233,11 @@ class GameServiceTest {
     void shouldFillLobbyAndLockHeadlessProgramsInDealtOrder() {
         InMemoryGameRepository repository = new InMemoryGameRepository();
         GameService service = new GameService(repository, Clock.systemUTC(), new HeadlessPlayerAutomation());
-        Game game = service.createGame(new GameConfiguration(4, 60, 3, 30));
-
+        var hosted = service.createHostedGame(new GameConfiguration(4, 60, 3, 30));
+        Game game = hosted.game();
         var human = service.addPlayer(game.getId(), "Headless 1");
+        service.addHeadlessPlayers(); service.addHeadlessPlayers(); service.addHeadlessPlayers();
+        service.startGame(game.getId(), hosted.hostToken());
 
         assertThat(game.getPlayers()).extracting(Player::getName)
                 .containsExactly("Headless 1", "Headless 2", "Headless 3", "Headless 4");
@@ -251,9 +254,11 @@ class GameServiceTest {
     void shouldResolveAndPrepareHeadlessPlayersForTheNextRound() {
         InMemoryGameRepository repository = new InMemoryGameRepository();
         GameService service = new GameService(repository, Clock.systemUTC(), new HeadlessPlayerAutomation());
-        Game game = service.createGame(new GameConfiguration(3, 60, 3, 30));
+        var hosted = service.createHostedGame(new GameConfiguration(3, 60, 3, 30));
+        Game game = hosted.game();
         var human = service.addPlayer(game.getId(), "Alice");
-        var humanProgram = game.getRound().programs().get(human.player().getId());
+        service.addHeadlessPlayers(); service.addHeadlessPlayers();
+        service.startGame(game.getId(), hosted.hostToken());
 
         service.submitProgram(game.getId(), human.player().getId(), human.token(),
                 java.util.Collections.nCopies(game.getConfiguration().programSize(), MovementOrder.WAIT));
@@ -278,7 +283,7 @@ class GameServiceTest {
         UUID humanId = UUID.randomUUID();
         UUID headlessId = UUID.randomUUID();
         Player human = Player.create(humanId, "Alice", "human-token-hash");
-        Player headless = Player.create(headlessId, "Headless 1", "headless-token-hash");
+        Player headless = Player.createAutomated(headlessId, "Headless 1", "headless-token-hash");
         Board board = new Board(5, 5);
         var humanVehicle = new se.segersten.wreckage.game.domain.Vehicle(UUID.randomUUID(), humanId);
         var headlessVehicle = new se.segersten.wreckage.game.domain.Vehicle(UUID.randomUUID(), headlessId);
@@ -310,6 +315,7 @@ class GameServiceTest {
         Game game = service.createGame(new GameConfiguration(2, 60, 3, 30));
         var per = service.addPlayer(game.getId(), "Per");
         service.addPlayer(game.getId(), "Alice");
+        game.start(Instant.now());
         List<MovementOrder> draft = List.of(MovementOrder.FORWARD_1,
                 MovementOrder.FORWARD_1, MovementOrder.FORWARD_1);
 
@@ -331,6 +337,7 @@ class GameServiceTest {
         Game game = service.createGame(new GameConfiguration(2, 60, 3, 5));
         var per = service.addPlayer(game.getId(), "Per");
         service.addPlayer(game.getId(), "Alice");
+        game.start(now);
         service.saveProgramDraft(game.getId(), per.player().getId(), per.token(),
                 List.of(MovementOrder.TURN_LEFT));
 
@@ -347,8 +354,8 @@ class GameServiceTest {
     @Test
     void shouldAddPlayerToExistingGame() {
         InMemoryGameRepository repository = new InMemoryGameRepository();
-        Game game = repository.save(new Game(UUID.randomUUID(), new Board(20, 20)));
         GameService service = new GameService(repository);
+        Game game = service.createGame();
 
         Player player = service.addPlayer(game.getId(), " Per ").player();
 
@@ -360,8 +367,8 @@ class GameServiceTest {
     @Test
     void shouldRejectBlankPlayerName() {
         InMemoryGameRepository repository = new InMemoryGameRepository();
-        Game game = repository.save(new Game(UUID.randomUUID(), new Board(20, 20)));
         GameService service = new GameService(repository);
+        Game game = service.createGame();
 
         assertThatThrownBy(() -> service.addPlayer(game.getId(), "  "))
                 .isInstanceOf(IllegalArgumentException.class)

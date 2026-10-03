@@ -36,8 +36,8 @@ profile:
 ```
 
 The first player joining a game is controlled by the browser. The profile
-immediately fills every remaining slot up to `maxPlayers` with headless players,
-starts the game, and locks each headless player's deterministic WAIT program.
+adds one headless player every three seconds up to nine total players or until the
+host starts the game, and locks each headless player's deterministic WAIT program.
 The first player remains the only participant requiring input. Omit the
 optional profile for normal multiplayer games.
 

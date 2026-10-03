@@ -1,31 +1,37 @@
 import { expect, test } from '@playwright/test'
-import { fillProgram, joinGame, withPlayerPages } from './player-pages.mjs'
+import { fillProgram, joinGame, startGame, withPlayerPages } from './player-pages.mjs'
 
 test('a player reloads the waiting lobby as the same player', async ({ page }) => {
   await page.goto('/')
-  await page.getByLabel('Max spelare', { exact: true }).fill('3')
-  await page.getByRole('button', { name: 'Skapa spel', exact: true }).click()
+  await page.getByRole('button', { name: 'Bjud in till nytt spel', exact: true }).click()
+  const joinedResponse = page.waitForResponse(response =>
+    response.request().method() === 'POST' && response.url().endsWith('/players'))
   await joinGame(page, 'Per')
-  const playerId = await page.getByTestId('player-vehicle').filter({ hasText: 'Per' })
-    .getAttribute('data-player-id')
+  const player = await (await joinedResponse).json()
+  await expect(page.getByRole('listitem')).toHaveText(['Per'])
+  const gameLink = await page.getByLabel('Spellänk').inputValue()
+  const restoredResponse = page.waitForResponse(response =>
+    response.request().method() === 'GET' && response.url().endsWith(`/players/${player.id}`))
 
   await page.reload()
 
-  await expect(page.getByRole('heading', { name: 'Spelare anslutna', exact: true })).toBeVisible()
-  await expect(page.getByTestId('player-vehicle').filter({ hasText: 'Per' })).toBeVisible()
-  await expect(page.getByTestId('player-vehicle').filter({ hasText: 'Per' }))
-    .toHaveAttribute('data-player-id', playerId)
+  expect((await (await restoredResponse).json()).playerId).toBe(player.id)
+  await expect(page).toHaveURL(gameLink)
+  await expect(page.getByRole('listitem')).toHaveText(['Per'])
+  await expect(page.getByLabel('Spelarnamn')).not.toBeVisible()
+  await expect(page.getByTestId('game-board')).not.toBeVisible()
+  await expect(page.getByRole('button', { name: 'Starta spelet', exact: true })).toBeDisabled()
 })
 
 test('reload during planning restores map, round and private planning state', async ({ browser }) => {
   await withPlayerPages(browser, ['per', 'alice'], async ({ per, alice }) => {
     await per.goto('/')
-    await per.getByLabel('Max spelare', { exact: true }).fill('2')
-    await per.getByRole('button', { name: 'Skapa spel', exact: true }).click()
+    await per.getByRole('button', { name: 'Bjud in till nytt spel', exact: true }).click()
     const gameLink = await per.getByLabel('Spellänk', { exact: true }).inputValue()
     await joinGame(per, 'Per')
     await alice.goto(gameLink)
     await joinGame(alice, 'Alice')
+    await startGame(per)
 
     await expect(per.getByRole('heading', { name: 'Planering', exact: true })).toBeVisible()
     const perVehicle = per.getByTestId('player-vehicle').filter({ hasText: 'Per' })
@@ -49,12 +55,12 @@ test('reload during planning restores map, round and private planning state', as
 test('a temporary player disconnect does not change another players state', async ({ browser }) => {
   await withPlayerPages(browser, ['per', 'alice'], async ({ per, alice }) => {
     await per.goto('/')
-    await per.getByLabel('Max spelare', { exact: true }).fill('2')
-    await per.getByRole('button', { name: 'Skapa spel', exact: true }).click()
+    await per.getByRole('button', { name: 'Bjud in till nytt spel', exact: true }).click()
     const gameLink = await per.getByLabel('Spellänk', { exact: true }).inputValue()
     await joinGame(per, 'Per')
     await alice.goto(gameLink)
     await joinGame(alice, 'Alice')
+    await startGame(per)
     await expect(alice.getByRole('heading', { name: 'Planering', exact: true })).toBeVisible()
     const positionsBefore = await alice.getByTestId('player-vehicle').evaluateAll(vehicles =>
       vehicles.map(vehicle => `${vehicle.dataset.playerId}:${vehicle.dataset.x}:${vehicle.dataset.y}`).sort())
@@ -74,12 +80,12 @@ test('a temporary player disconnect does not change another players state', asyn
 test('reload restores a locked private program', async ({ browser }) => {
   await withPlayerPages(browser, ['per', 'alice'], async ({ per, alice }) => {
     await per.goto('/')
-    await per.getByLabel('Max spelare', { exact: true }).fill('2')
-    await per.getByRole('button', { name: 'Skapa spel', exact: true }).click()
+    await per.getByRole('button', { name: 'Bjud in till nytt spel', exact: true }).click()
     const gameLink = await per.getByLabel('Spellänk', { exact: true }).inputValue()
     await joinGame(per, 'Per')
     await alice.goto(gameLink)
     await joinGame(alice, 'Alice')
+    await startGame(per)
     await expect(per.getByRole('heading', { name: 'Planering', exact: true })).toBeVisible()
     await fillProgram(per)
     await expect(per.getByRole('button', { name: 'Program låst', exact: true })).toBeDisabled()
@@ -96,12 +102,12 @@ test('reload after automatic round transition does not advance twice', async ({ 
   test.setTimeout(60_000)
   await withPlayerPages(browser, ['per', 'alice'], async ({ per, alice }) => {
     await per.goto('/')
-    await per.getByLabel('Max spelare', { exact: true }).fill('2')
-    await per.getByRole('button', { name: 'Skapa spel', exact: true }).click()
+    await per.getByRole('button', { name: 'Bjud in till nytt spel', exact: true }).click()
     const gameLink = await per.getByLabel('Spellänk', { exact: true }).inputValue()
     await joinGame(per, 'Per')
     await alice.goto(gameLink)
     await joinGame(alice, 'Alice')
+    await startGame(per)
     await expect(per.getByRole('heading', { name: 'Planering', exact: true })).toBeVisible()
     await fillProgram(per)
     await fillProgram(alice)

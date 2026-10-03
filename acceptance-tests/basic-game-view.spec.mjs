@@ -1,16 +1,16 @@
 import { expect, test } from '@playwright/test'
-import { fillProgram, joinGame, withPlayerPages } from './player-pages.mjs'
+import { fillProgram, joinGame, startGame, withPlayerPages } from './player-pages.mjs'
 
 test('all players see the same server-owned game board in planning', async ({ browser }) => {
   await withPlayerPages(browser, ['per', 'alice'], async ({ per, alice }) => {
     await per.goto('/')
-    await per.getByLabel('Max spelare', { exact: true }).fill('2')
-    await per.getByRole('button', { name: 'Skapa spel', exact: true }).click()
+    await per.getByRole('button', { name: 'Bjud in till nytt spel', exact: true }).click()
     const gameLink = await per.getByLabel('Spellänk', { exact: true }).inputValue()
     await joinGame(per, 'Per')
 
     await alice.goto(gameLink)
     await joinGame(alice, 'Alice')
+    await startGame(per)
 
     for (const page of [per, alice]) {
       await expect(page.getByTestId('game-board')).toBeVisible()

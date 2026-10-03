@@ -17,6 +17,7 @@ class GameEntity {
     @Column(name = "domain_id", nullable = false, unique = true) private UUID domainId;
     @Column(name = "created_at", nullable = false, insertable = false, updatable = false) private OffsetDateTime createdAt;
     @Column(name = "join_deadline", nullable = false) private Instant joinDeadline;
+    @Column(name = "host_token_hash", nullable = false) private String hostTokenHash;
     @Column(name = "max_players", nullable = false) private Integer maxPlayers;
     @Column(name = "join_timeout_seconds", nullable = false) private Integer joinTimeoutSeconds;
     @Column(name = "program_size", nullable = false) private Integer programSize;
@@ -35,7 +36,8 @@ class GameEntity {
     @Column(name = "board_spawn_points", nullable = false) private String boardSpawnPoints;
     @Column(name="board_conveyors",nullable=false)private String boardConveyors;@Column(name="board_rotators",nullable=false)private String boardRotators;
     @Enumerated(EnumType.STRING) @Column(name = "status", nullable = false) private GameStatus status;
-    @OneToMany(mappedBy = "game", cascade = CascadeType.ALL, orphanRemoval = true) private List<PlayerEntity> players = new ArrayList<>();
+    @OneToMany(mappedBy = "game", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("id ASC") private List<PlayerEntity> players = new ArrayList<>();
     @OneToMany(mappedBy = "game", cascade = CascadeType.ALL, orphanRemoval = true) private List<VehicleEntity> vehicles = new ArrayList<>();
     @OneToOne(mappedBy = "game", cascade = CascadeType.ALL, orphanRemoval = true) private RoundEntity round;
     protected GameEntity() {}
@@ -49,7 +51,7 @@ class GameEntity {
         roundLimit = configuration.roundLimit(); checkpointScore = configuration.checkpointScore();
         controlPointScore = configuration.controlPointScore();
         crashPenalty = configuration.crashPenalty(); pushCrashScore = configuration.pushCrashScore();
-        joinDeadline = game.getJoinDeadline(); syncPlayers(game.getPlayers()); syncVehicles(game.getVehicleStates());
+        joinDeadline = game.getJoinDeadline(); hostTokenHash = game.getHostTokenHash(); syncPlayers(game.getPlayers()); syncVehicles(game.getVehicleStates());
         if (game.getRound() != null) round = round == null ? RoundEntity.fromDomain(game.getRound(), this) : round.updateFrom(game.getRound());
         return this;
     }
@@ -125,6 +127,6 @@ class GameEntity {
                 programSize, planningTimeoutSeconds, roundLimit, checkpointScore, controlPointScore,
                 crashPenalty, pushCrashScore);
         return new Game(domainId, domainPlayers, board, status, vehicleMap, domainRound,
-                configuration, createdAt.toInstant(), joinDeadline);
+                configuration, createdAt.toInstant(), joinDeadline, hostTokenHash);
     }
 }
