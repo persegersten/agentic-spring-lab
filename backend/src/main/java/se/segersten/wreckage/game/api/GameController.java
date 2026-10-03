@@ -46,7 +46,7 @@ public class GameController {
             responseCode = "201",
             description = "Game created",
             content = @Content(schema = @Schema(implementation = GameResponse.class)))
-    public GameResponse createGame(@RequestBody(required = false) CreateGameRequest request) {
+    public CreateGameResponse createGame(@RequestBody(required = false) CreateGameRequest request) {
         GameConfiguration configuration = request == null
                 ? GameConfiguration.defaults()
                 : new GameConfiguration(request.maxPlayers(), request.joinTimeoutSeconds(),
@@ -56,7 +56,8 @@ public class GameController {
                         request.controlPointScore() == null ? GameConfiguration.DEFAULT_CONTROL_POINT_SCORE : request.controlPointScore(),
                         request.crashPenalty() == null ? GameConfiguration.DEFAULT_CRASH_PENALTY : request.crashPenalty(),
                         request.pushCrashScore() == null ? GameConfiguration.DEFAULT_PUSH_CRASH_SCORE : request.pushCrashScore());
-        return GameResponse.from(gameService.createGame(configuration));
+        var created = gameService.createHostedGame(configuration);
+        return new CreateGameResponse(GameResponse.from(created.game()), created.hostToken());
     }
 
     @GetMapping("/configuration/defaults")
@@ -89,6 +90,12 @@ public class GameController {
             @RequestBody AddPlayerRequest request) {
         var join = gameService.addPlayer(gameId, request.name());
         return new PlayerJoinResponse(join.player().getId(), join.player().getName(), join.token());
+    }
+
+    @PostMapping("/{gameId}/start")
+    public GameResponse startGame(@PathVariable UUID gameId,
+            @RequestHeader(value = "X-Host-Token", required = false) String hostToken) {
+        return GameResponse.from(gameService.startGame(gameId, hostToken));
     }
 
     @GetMapping("/{gameId}/players/{playerId}")
@@ -175,5 +182,7 @@ public class GameController {
                                     Integer crashPenalty, Integer pushCrashScore) {}
     public record ProgramRequest(List<MovementOrder> orders) {}
     public record PlayerJoinResponse(UUID id, String name, String token) {}
+    public record CreateGameResponse(@com.fasterxml.jackson.annotation.JsonUnwrapped GameResponse game,
+                                     String hostToken) {}
 
 }

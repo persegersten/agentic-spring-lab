@@ -16,6 +16,7 @@ public class Game {
     private GameConfiguration configuration;
     private final Instant createdAt;
     private final Instant joinDeadline;
+    private final String hostTokenHash;
     private final Map<UUID, VehicleState> vehicles;
     private Round round;
 
@@ -33,11 +34,17 @@ public class Game {
     public Game(UUID id, List<Player> players, Board board, GameStatus status,
                 Map<UUID, VehicleState> vehicles, Round round, GameConfiguration configuration,
                 Instant createdAt, Instant joinDeadline) {
+        this(id, players, board, status, vehicles, round, configuration, createdAt, joinDeadline, "legacy");
+    }
+    public Game(UUID id, List<Player> players, Board board, GameStatus status,
+                Map<UUID, VehicleState> vehicles, Round round, GameConfiguration configuration,
+                Instant createdAt, Instant joinDeadline, String hostTokenHash) {
         this.id = Objects.requireNonNull(id); this.players = new ArrayList<>(Objects.requireNonNull(players));
         this.board = Objects.requireNonNull(board); this.status = Objects.requireNonNull(status);
         this.configuration = Objects.requireNonNull(configuration);
         this.createdAt = Objects.requireNonNull(createdAt);
         this.joinDeadline = Objects.requireNonNull(joinDeadline);
+        this.hostTokenHash = Objects.requireNonNull(hostTokenHash);
         this.vehicles = new LinkedHashMap<>(vehicles); this.round = round;
     }
     public UUID getId() { return id; }
@@ -47,21 +54,29 @@ public class Game {
     public GameConfiguration getConfiguration() { return configuration; }
     public Instant getCreatedAt() { return createdAt; }
     public Instant getJoinDeadline() { return joinDeadline; }
+    public String getHostTokenHash() { return hostTokenHash; }
     public List<VehicleState> getVehicleStates() { return List.copyOf(vehicles.values()); }
     public Round getRound() { return round; }
 
     public Player addPlayer(String name) { return addPlayer(name, "legacy", Instant.now()); }
     public Player addPlayer(String name, String tokenHash) { return addPlayer(name, tokenHash, Instant.now()); }
     public Player addPlayer(String name, String tokenHash, Instant now) {
-        if (round != null) throw new IllegalStateException("The lobby is closed");
-        if (!now.isBefore(joinDeadline)) throw new IllegalStateException("The lobby is closed");
+        return addPlayer(name, tokenHash, now, false);
+    }
+    public Player addAutomatedPlayer(String name, String tokenHash, Instant now) {
+        return addPlayer(name, tokenHash, now, true);
+    }
+    private Player addPlayer(String name, String tokenHash, Instant now, boolean automated) {
+        if (status == GameStatus.FINISHED || round != null)
+            throw new IllegalStateException("The lobby is closed");
         if (players.size() >= configuration.maxPlayers()) throw new IllegalStateException("The lobby is full");
         String nickname = name == null ? null : name.trim();
         if (nickname != null && players.stream().anyMatch(player -> player.getName().equals(nickname)))
             throw new IllegalArgumentException("Nickname is already in use");
         int index = players.size();
         if (index >= board.spawnPoints().size()) throw new IllegalStateException("The map has no spawn point for this player");
-        Player player = Player.create(UUID.randomUUID(), nickname, tokenHash);
+        Player player = automated ? Player.createAutomated(UUID.randomUUID(), nickname, tokenHash)
+                : Player.create(UUID.randomUUID(), nickname, tokenHash);
         players.add(player);
         SpawnPoint spawn = board.spawnPoints().get(index);
         Vehicle vehicle = new Vehicle(UUID.randomUUID(), player.getId(), spawn.position(), spawn.orientation());
@@ -69,18 +84,15 @@ public class Game {
         return player;
     }
 
-    public boolean startIfReady(Instant now) {
+    public void start(Instant now) {
         Objects.requireNonNull(now);
-        if (status != GameStatus.WAITING_FOR_PLAYERS || round != null || players.size() < 2)
-            return false;
-        boolean full = players.size() >= configuration.maxPlayers();
-        boolean expired = !now.isBefore(joinDeadline);
-        if (!full && !expired) return false;
+        if (status != GameStatus.WAITING_FOR_PLAYERS || round != null)
+            throw new IllegalStateException("The lobby is closed");
+        if (players.size() < 2) throw new IllegalStateException("At least two players are required");
         MatchSettings settings = MatchSettings.forPlayerCount(players.size());
         board = board.withDimensions(settings.boardWidth(), settings.boardHeight());
         configuration = configuration.withRoundLimit(settings.roundLimit());
         startRound(now);
-        return true;
     }
 
     public Round startRound(Instant now) {

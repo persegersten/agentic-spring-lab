@@ -1,20 +1,18 @@
 import { expect, test } from '@playwright/test'
-import { fillProgram, joinGame, withPlayerPages } from './player-pages.mjs'
+import { fillProgram, joinGame, startGame, withPlayerPages } from './player-pages.mjs'
 
 test('players receive and play the same server ordered event sequence', async ({ browser }) => {
   await withPlayerPages(browser, ['per', 'alice'], async ({ per, alice }) => {
     await per.context().grantPermissions(['clipboard-read', 'clipboard-write'], { origin: 'http://127.0.0.1:5173' })
     await per.goto('/')
-    await per.getByLabel('Max spelare', { exact: true }).fill('2')
-    await per.getByRole('button', { name: 'Skapa spel', exact: true }).click()
-    await expect(per.getByRole('heading', { name: 'Anslut till spelet' })).toBeVisible()
-    const gameId = await per.getByLabel('Spel-id', { exact: true }).inputValue()
+    await per.getByRole('button', { name: 'Bjud in till nytt spel', exact: true }).click()
+    await expect(per.getByRole('heading', { name: 'Spel-lobby' })).toBeVisible()
+    const gameLink = await per.getByLabel('Spellänk', { exact: true }).inputValue()
     await joinGame(per, 'Per')
 
-    await alice.goto('/')
-    await alice.getByLabel('Spel-id', { exact: true }).fill(gameId)
-    await alice.getByRole('button', { name: 'Öppna spel', exact: true }).click()
+    await alice.goto(gameLink)
     await joinGame(alice, 'Alice')
+    await startGame(per)
 
     await expect(per.getByRole('heading', { name: 'Planering', exact: true })).toBeVisible()
     for (const page of [per, alice]) {
@@ -35,7 +33,7 @@ test('players receive and play the same server ordered event sequence', async ({
     expect(sequences).toEqual(sequences.map((_, index) => index + 1))
 
     const displayedState = JSON.parse(await per.getByTestId('initial-game-state').textContent())
-    expect(displayedState.board).toMatchObject({ width: 20, height: 20 })
+    expect(displayedState.board).toMatchObject({ width: 10, height: 10 })
     expect(displayedState.vehicles).toHaveLength(2)
 
     await per.getByRole('button', { name: 'Kopiera game-state', exact: true }).click()

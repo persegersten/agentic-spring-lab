@@ -1,12 +1,15 @@
 import { expect, test } from '@playwright/test'
-import { fillProgram } from './player-pages.mjs'
+import { fillProgram, startGame } from './player-pages.mjs'
 
 test('one browser can play against headless players', async ({ page }) => {
   await page.goto('/')
-  await page.getByLabel('Max spelare', { exact: true }).fill('4')
-  await page.getByRole('button', { name: 'Skapa spel', exact: true }).click()
+  await page.getByRole('button', { name: 'Bjud in till nytt spel', exact: true }).click()
   await page.getByLabel('Spelarnamn', { exact: true }).fill('Alice')
   await page.getByRole('button', { name: 'Gå med', exact: true }).click()
+  await expect(page.getByText('Headless 1', { exact: true })).toBeVisible({ timeout: 6000 })
+  await expect(page.getByText('Headless 2', { exact: true })).toBeVisible({ timeout: 6000 })
+  await expect(page.getByText('Headless 3', { exact: true })).toBeVisible({ timeout: 6000 })
+  await startGame(page)
 
   await expect(page.getByRole('heading', { name: 'Planering', exact: true })).toBeVisible()
   for (const name of ['Alice', 'Headless 1', 'Headless 2', 'Headless 3']) {

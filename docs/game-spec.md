@@ -5,9 +5,12 @@ v2. De detaljerade spelreglerna finns i `docs/game-rules.md`, som är den
 auktoritativa specifikationen vid varje eventuell motsägelse. Detta dokument ska
 inte användas för att införa eller tolka ytterligare spelregler.
 
-## 1. Spelkonfiguration
+## 1. Spelstart
 
-En spelare kan skapa ett nytt spel och blir spelets initiativtagare.
+Startsidan är en huvudlobby där en spelare kan skapa ett nytt spel och blir
+spelets initiativtagare. Standardkonfigurationen används utan att startsidan
+visar tekniska konfigurationsfält. Därefter navigeras initiativtagaren till
+spelets unika lobby och kan dela dess länk.
 
 Följande parametrar ska kunna konfigureras:
 
@@ -22,11 +25,8 @@ spelare som faktiskt har anslutit: 2–3 ger 10×10 och 7 rundor, 4–6 ger 12×
 och 6 rundor, samt 7–10 ger 16×16 och 5 rundor. Värdena kan inte väljas av
 klienten och ändras inte under matchen.
 
-GUI:t ska visa serverns konfigurationsvärden och valideringsresultat. Tillåtna
-intervall, standardvärden och övriga konfigurationsregler definieras i
+Tillåtna intervall, standardvärden och övriga konfigurationsregler definieras i
 `docs/game-rules.md`.
-
-Systemet skapar en unik spellänk som initiativtagaren kan dela med andra.
 
 ---
 
@@ -35,22 +35,17 @@ Systemet skapar en unik spellänk som initiativtagaren kan dela med andra.
 En person som öppnar spellänken kan ansluta till spelet genom att ange ett
 nickname. Nicknamet ska vara unikt inom spelet.
 
-Efter anslutning kommer spelaren till spelvyn och kan se:
+Efter anslutning stannar spelaren i spel-lobbyn och kan se:
 
-* spelkartan,
-* sitt eget fordon,
 * övriga anslutna spelare,
-* aktuell spelstatus,
-* matchens konfiguration,
-* återstående tid innan spelet startar.
+* aktuell spelstatus.
 
-Nya spelare får ansluta tills:
+Initiativtagaren har en startknapp som inte visas för övriga spelare. Spelet kan
+startas när minst två spelare har anslutit. Vid starten väljer servern brädstorlek
+och rundantal utifrån det faktiska spelarantalet.
 
-* `maxPlayers` har anslutit, eller
-* `joinTimeoutSeconds` har löpt ut.
-
-Spelet startar därefter enligt lobbyvillkoren i `docs/game-rules.md`, inklusive
-kravet på minst två spelare.
+Nya spelare får ansluta tills kapaciteten är nådd eller initiativtagaren startar
+spelet. Efter start är lobbyn permanent stängd för nya spelare.
 
 ---
 

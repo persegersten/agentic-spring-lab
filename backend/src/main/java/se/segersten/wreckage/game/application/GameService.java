@@ -60,15 +60,25 @@ public class GameService {
     }
 
     public Game createGame() {
-        return createGame(GameConfiguration.defaults());
+        return createHostedGame(GameConfiguration.defaults()).game();
     }
 
     public Game createGame(GameConfiguration configuration) {
+        return createHostedGame(configuration).game();
+    }
+
+    public HostedGame createHostedGame() {
+        return createHostedGame(GameConfiguration.defaults());
+    }
+
+    public HostedGame createHostedGame(GameConfiguration configuration) {
         Board board = gameBoardFactory.createBoard();
         Instant createdAt = clock.instant();
-        return gameRepository.save(new Game(UUID.randomUUID(), List.of(), board,
+        String hostToken = UUID.randomUUID().toString() + UUID.randomUUID();
+        Game game = gameRepository.save(new Game(UUID.randomUUID(), List.of(), board,
                 GameStatus.WAITING_FOR_PLAYERS, Map.of(), null, configuration, createdAt,
-                createdAt.plusSeconds(configuration.joinTimeoutSeconds())));
+                createdAt.plusSeconds(configuration.joinTimeoutSeconds()), hash(hostToken)));
+        return new HostedGame(game, hostToken);
     }
 
     public PlayerJoin addPlayer(UUID gameId, String name) {
@@ -76,12 +86,17 @@ public class GameService {
         String token = UUID.randomUUID().toString() + UUID.randomUUID();
         Instant now = clock.instant();
         Player player = game.addPlayer(name, hash(token), now);
-        playerAutomation.fillLobby(game, now);
-        game.startIfReady(now);
-        playerAutomation.lockHeadlessPrograms(game);
-        resolveIfReady(game);
         gameRepository.save(game);
         return new PlayerJoin(player, token);
+    }
+
+    public Game startGame(UUID gameId, String hostToken) {
+        Game game = findGameForUpdate(gameId);
+        authenticateHost(game, hostToken);
+        game.start(clock.instant());
+        playerAutomation.lockHeadlessPrograms(game);
+        resolveIfReady(game);
+        return gameRepository.save(game);
     }
 
     public Round startRound(UUID gameId, UUID playerId, String token, int completedRoundNumber) {
@@ -99,10 +114,10 @@ public class GameService {
         return round;
     }
 
-    public void startExpiredLobbies() {
+    public void addHeadlessPlayers() {
         Instant now = clock.instant();
         for (Game game : gameRepository.findAllByStatusForUpdate(GameStatus.WAITING_FOR_PLAYERS)) {
-            if (game.startIfReady(now)) gameRepository.save(game);
+            if (playerAutomation.addHeadlessPlayer(game, now)) gameRepository.save(game);
         }
     }
     public void completeExpiredPlanning(){Instant now=clock.instant();for(Game game:gameRepository.findAllByStatusForUpdate(GameStatus.RUNNING)){Round round=game.getRound();if(round!=null&&round.completeTimedOutPrograms(now)){resolveIfReady(game);gameRepository.save(game);}}}
@@ -183,6 +198,14 @@ public class GameService {
         }
     }
 
+    private void authenticateHost(Game game, String token) {
+        if (token == null || !MessageDigest.isEqual(
+                game.getHostTokenHash().getBytes(StandardCharsets.UTF_8),
+                hash(token).getBytes(StandardCharsets.UTF_8))) {
+            throw new SecurityException("Invalid host token");
+        }
+    }
+
     private static String hash(String value) {
         try {
             return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
@@ -191,4 +214,5 @@ public class GameService {
     }
 
     public record PlayerJoin(Player player, String token) {}
+    public record HostedGame(Game game, String hostToken) {}
 }

@@ -6,7 +6,6 @@ import java.util.UUID;
 import se.segersten.wreckage.game.domain.Game;
 import se.segersten.wreckage.game.domain.GameConfiguration;
 import se.segersten.wreckage.game.domain.GameStatus;
-import java.time.Instant;
 import se.segersten.wreckage.game.domain.GamePlacement;
 
 public record GameResponse(
@@ -14,8 +13,7 @@ public record GameResponse(
         GameStatus status,
         int roundLimit,
         GameConfiguration configuration,
-        Instant createdAt,
-        Instant joinDeadline,
+        java.time.Instant createdAt,
         List<PlayerResponse> players,
         BoardResponse board,
         List<VehicleResponse> vehicles,
@@ -30,7 +28,7 @@ public record GameResponse(
                 ? null
                 : BoardResponse.from(game.getBoard());
         return new GameResponse(game.getId(), game.getStatus(), game.getConfiguration().roundLimit(), game.getConfiguration(),
-                game.getCreatedAt(), game.getJoinDeadline(), players, board,
+                game.getCreatedAt(), players, board,
                 game.getVehicleStates().stream().map(VehicleResponse::from).toList(),
                 PublicRoundResponse.from(game.getRound()), game.getPlacements());
     }

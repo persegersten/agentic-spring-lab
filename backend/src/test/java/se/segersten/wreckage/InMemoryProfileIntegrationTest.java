@@ -87,9 +87,11 @@ class InMemoryProfileIntegrationTest {
 
     @Test
     void persistsResolvedProgramsAndPlaybackUsingInMemoryDatabase() {
-        Game game = gameService.createGame(new GameConfiguration(2, 300, 5, 120));
+        var hosted = gameService.createHostedGame(new GameConfiguration(2, 300, 5, 120));
+        Game game = hosted.game();
         var alice = gameService.addPlayer(game.getId(), "Alice");
         var bob = gameService.addPlayer(game.getId(), "Bob");
+        gameService.startGame(game.getId(), hosted.hostToken());
 
         Game aliceView = gameService.getPlayerGame(game.getId(), alice.player().getId(), alice.token());
         Game bobView = gameService.getPlayerGame(game.getId(), bob.player().getId(), bob.token());

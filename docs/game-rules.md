@@ -39,8 +39,8 @@ minPlayers = 2
 maxPlayers = 10
 ```
 
-A game may start when at least two players have joined and the existing lobby
-start condition is satisfied.
+A game may start when at least two players have joined and the player who created
+the game explicitly starts it. Starting closes the lobby permanently.
 
 The lobby and shareable game-link concept remain part of the game.
 
@@ -185,7 +185,7 @@ mapId
 Recommended defaults:
 
 ```text
-maxPlayers = 6
+maxPlayers = 9
 joinTimeoutSeconds = 300
 planningTimeoutSeconds = 30
 programSize = 3

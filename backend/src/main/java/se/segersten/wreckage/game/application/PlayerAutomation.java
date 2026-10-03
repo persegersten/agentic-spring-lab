@@ -6,7 +6,7 @@ import se.segersten.wreckage.game.domain.Game;
 
 public interface PlayerAutomation {
 
-    void fillLobby(Game game, Instant now);
+    boolean addHeadlessPlayer(Game game, Instant now);
 
     void lockHeadlessPrograms(Game game);
 }

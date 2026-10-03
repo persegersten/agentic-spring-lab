@@ -1,13 +1,11 @@
 import { expect, test } from '@playwright/test'
-import { joinGame, withPlayerPages } from './player-pages.mjs'
+import { joinGame, startGame, withPlayerPages } from './player-pages.mjs'
 
 test('players build a private card program with double-click and drag-and-drop', async ({ browser }) => {
   await withPlayerPages(browser, ['alice', 'bob'], async ({ alice, bob }) => {
-    await alice.goto('/'); await alice.getByLabel('Max spelare', { exact: true }).fill('2')
-    await alice.getByLabel('Programstorlek', { exact: true }).fill('3')
-    await alice.getByRole('button', { name: 'Skapa spel', exact: true }).click()
-    const gameId = await alice.getByLabel('Spel-id', { exact: true }).inputValue(); await joinGame(alice, 'Alice')
-    await bob.goto('/'); await bob.getByLabel('Spel-id', { exact: true }).fill(gameId); await bob.getByRole('button', { name: 'Öppna spel', exact: true }).click(); await joinGame(bob, 'Bob')
+    await alice.goto('/'); await alice.getByRole('button', { name: 'Bjud in till nytt spel', exact: true }).click()
+    const gameLink = await alice.getByLabel('Spellänk', { exact: true }).inputValue(); await joinGame(alice, 'Alice')
+    await bob.goto(gameLink); await joinGame(bob, 'Bob'); await startGame(alice)
     const programBox = await alice.getByTestId('player-program').boundingBox()
     const boardBox = await alice.locator('.board-wrap').boundingBox()
     const scoreBox = await alice.getByTestId('score-table').boundingBox()

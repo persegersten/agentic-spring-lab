@@ -18,24 +18,23 @@ import se.segersten.wreckage.game.domain.MovementOrder;
 public class HeadlessPlayerAutomation implements PlayerAutomation {
 
     @Override
-    public void fillLobby(Game game, Instant now) {
-        if (game.getPlayers().size() != 1) return;
-
+    public boolean addHeadlessPlayer(Game game, Instant now) {
+        if (game.getStatus() != se.segersten.wreckage.game.domain.GameStatus.WAITING_FOR_PLAYERS
+                || game.getPlayers().size() >= Math.min(9, game.getConfiguration().maxPlayers())) return false;
         int nameIndex = 1;
-        while (game.getPlayers().size() < game.getConfiguration().maxPlayers()) {
-            String name;
-            do {
-                name = "Headless " + nameIndex++;
-            } while (hasPlayerNamed(game, name));
-            game.addPlayer(name, randomTokenHash(), now);
-        }
+        String name;
+        do {
+            name = "Headless " + nameIndex++;
+        } while (hasPlayerNamed(game, name));
+        game.addAutomatedPlayer(name, randomTokenHash(), now);
+        return true;
     }
 
     @Override
     public void lockHeadlessPrograms(Game game) {
         if (game.getRound() == null) return;
 
-        game.getPlayers().stream().skip(1).forEach(player -> {
+        game.getPlayers().stream().filter(se.segersten.wreckage.game.domain.Player::isAutomated).forEach(player -> {
             var program = game.getRound().programs().get(player.getId());
             if (program != null && !program.ready()) {
                 game.getRound().lock(player.getId(),java.util.Collections.nCopies(game.getConfiguration().programSize(),MovementOrder.WAIT));

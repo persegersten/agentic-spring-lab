@@ -12,7 +12,8 @@ import se.segersten.wreckage.game.domain.Game;
 public class NoOpPlayerAutomation implements PlayerAutomation {
 
     @Override
-    public void fillLobby(Game game, Instant now) {
+    public boolean addHeadlessPlayer(Game game, Instant now) {
+        return false;
     }
 
     @Override

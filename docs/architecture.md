@@ -18,10 +18,11 @@ The frontend and backend are separate applications. In development, Vite proxies
 
 ## Game lifecycle
 
-A game starts in `WAITING_FOR_PLAYERS`. Its persisted configuration controls the
-player limit, lobby and planning deadlines, program size, and score values. When
-the lobby closes, the domain derives and persists board dimensions and round
-limit from the actual participant count. A game is `RUNNING` while rounds remain
+A game starts in `WAITING_FOR_PLAYERS`. Creation returns a one-time host token,
+stored only as a hash by the server. Players join through the shareable game-lobby
+link, and the authenticated host explicitly closes the lobby and starts the match.
+At that point the domain derives and persists board dimensions and round limit
+from the actual participant count. A game is `RUNNING` while rounds remain
 and becomes `FINISHED` only after that fixed round limit.
 
 Each round moves through three externally visible phases:
@@ -97,6 +98,7 @@ The principal endpoints are:
 - `GET /games/configuration/defaults`
 - `POST /games`
 - `POST /games/{gameId}/players`
+- `POST /games/{gameId}/start`
 - `GET /games/{gameId}`
 - `GET /games/{gameId}/players/{playerId}`
 - `PUT /games/{gameId}/rounds/current/program`
@@ -144,4 +146,5 @@ mapping, authentication, and JSON responses. The in-memory integration test
 covers the H2 profile. Playwright starts the H2-backed backend and Vite frontend
 to test planning, resolution, board effects, scoring, playback, reconnects,
 results, and respawning. A separate Playwright configuration covers the
-`headless-players` profile.
+`headless-players` profile. In that profile one automated player joins each waiting
+lobby every three seconds, up to nine total players, and stops when the host starts.

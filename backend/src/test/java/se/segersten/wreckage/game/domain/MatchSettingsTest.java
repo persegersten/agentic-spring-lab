@@ -44,7 +44,7 @@ class MatchSettingsTest {
         game.addPlayer("C", "c", created);
         game.addPlayer("D", "d", created);
 
-        assertThat(game.startIfReady(created.plusSeconds(60))).isTrue();
+        game.start(created.plusSeconds(60));
         assertThat(game.getBoard().width()).isEqualTo(12);
         assertThat(game.getBoard().height()).isEqualTo(12);
         assertThat(game.getConfiguration().roundLimit()).isEqualTo(6);
