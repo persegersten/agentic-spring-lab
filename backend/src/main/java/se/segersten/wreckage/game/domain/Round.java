@@ -59,16 +59,22 @@ public final class Round {
     public Map<UUID, Integer> initialScores() { return initialScores; }
     public List<RoundEvent> startEvents() { return startEvents; }
     public void reorder(UUID playerId, List<MovementOrder> orders) {
+        reorder(playerId, orders, programs.get(playerId) == null ? null : programs.get(playerId).scheduledAction());
+    }
+    public void reorder(UUID playerId, List<MovementOrder> orders, ScheduledAction action) {
         if (phase != RoundPhase.PLANNING) throw new IllegalStateException("Round is not accepting programs");
         var current = programs.get(playerId);
         if (current == null) throw new IllegalArgumentException("Player is not part of this round");
-        programs.put(playerId, current.edit(orders));
+        programs.put(playerId, current.edit(orders, action));
     }
     public void lock(UUID playerId, List<MovementOrder> orders) {
+        lock(playerId, orders, programs.get(playerId) == null ? null : programs.get(playerId).scheduledAction());
+    }
+    public void lock(UUID playerId, List<MovementOrder> orders, ScheduledAction action) {
         if (phase != RoundPhase.PLANNING) throw new IllegalStateException("Round is not accepting programs");
         var current = programs.get(playerId);
         if (current == null) throw new IllegalArgumentException("Player is not part of this round");
-        programs.put(playerId, current.lock(orders));
+        programs.put(playerId, current.lock(orders, action));
     }
     public boolean allReady() { return !programs.isEmpty() && programs.values().stream().allMatch(PlayerProgram::ready); }
     public boolean completeTimedOutPrograms(Instant now){if(phase!=RoundPhase.PLANNING||now.isBefore(planningDeadline))return false;programs.replaceAll((id,p)->p.completeWithWait());return true;}
@@ -80,6 +86,12 @@ public final class Round {
         resolve(engine,new se.segersten.wreckage.game.engine.BoardEffectEngine(engine),players,configuration);
     }
     public void resolve(se.segersten.wreckage.game.engine.MovementEngine engine,se.segersten.wreckage.game.engine.BoardEffectEngine effects,List<Player> players,GameConfiguration configuration){
+        resolve(engine,effects,new se.segersten.wreckage.game.engine.ActionEngine(),players,configuration);
+    }
+    public void resolve(se.segersten.wreckage.game.engine.MovementEngine engine,
+                        se.segersten.wreckage.game.engine.BoardEffectEngine effects,
+                        se.segersten.wreckage.game.engine.ActionEngine actions,
+                        List<Player> players,GameConfiguration configuration){
         if (!allReady()) throw new IllegalStateException("Not all players are ready");
         phase = RoundPhase.RESOLVING;
         GameState state = initialState;
@@ -87,6 +99,8 @@ public final class Round {
         Map<UUID, Player> playersById = players.stream().collect(java.util.stream.Collectors.toMap(Player::getId, p -> p));
         int cardPositions = programs.values().iterator().next().commands().size();
         for (int index = 0; index < cardPositions; index++) {
+            int registerIndex = index + 1;
+            state = actions.resolve(ActionTiming.PRE_MOVEMENT, registerIndex, state, programs, initiative);
             for (UUID playerId : initiative) {
                 VehicleState vehicle = state.vehicleStates().stream()
                         .filter(candidate -> candidate.vehicle().playerId().equals(playerId))
@@ -99,6 +113,7 @@ public final class Round {
                     addScoredEvents(events,result.events(),playersById,configuration,true);
                 }
             }
+            state = actions.resolve(ActionTiming.POST_MOVEMENT, registerIndex, state, programs, initiative);
             var result=effects.resolve(state);state=result.state();addScoredEvents(events,result.events(),playersById,configuration,false);
         }
         awardControlPoints(events, state, playersById, configuration);

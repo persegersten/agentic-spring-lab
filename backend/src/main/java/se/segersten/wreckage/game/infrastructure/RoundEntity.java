@@ -30,8 +30,8 @@ class RoundEntity {
                 decodePlayback(playbackPayload, vehicles),planningDeadline,decodeScores(initialScoresPayload),
                 decodePlayback(startEventsPayload, vehicles));
     }
-    private static String encodePrograms(Map<UUID,PlayerProgram> programs) { return programs.values().stream().map(p -> p.playerId()+":"+p.programSize()+":"+p.locked()+":"+csv(p.commands())).collect(java.util.stream.Collectors.joining(";")); }
-    private static Map<UUID,PlayerProgram> decodePrograms(String value) { var result=new LinkedHashMap<UUID,PlayerProgram>(); if(value.isBlank()) return result; for(String row:value.split(";")){String[] p=row.split(":",-1); UUID id=UUID.fromString(p[0]); result.put(id,new PlayerProgram(id,Integer.parseInt(p[1]),orders(p[3]),Boolean.parseBoolean(p[2])));} return result; }
+    private static String encodePrograms(Map<UUID,PlayerProgram> programs) { return programs.values().stream().map(p -> p.playerId()+":"+p.programSize()+":"+p.locked()+":"+csv(p.commands())+":"+(p.scheduledAction()==null?"":p.scheduledAction().actionType().name())+":"+(p.scheduledAction()==null?"":p.scheduledAction().registerIndex())).collect(java.util.stream.Collectors.joining(";")); }
+    private static Map<UUID,PlayerProgram> decodePrograms(String value) { var result=new LinkedHashMap<UUID,PlayerProgram>(); if(value.isBlank()) return result; for(String row:value.split(";")){String[] p=row.split(":",-1); UUID id=UUID.fromString(p[0]); ScheduledAction action=p.length>5&&!p[4].isBlank()?new ScheduledAction(ActionType.valueOf(p[4]),Integer.parseInt(p[5])):null;result.put(id,new PlayerProgram(id,Integer.parseInt(p[1]),orders(p[3]),Boolean.parseBoolean(p[2]),action));} return result; }
     private static String encodePlayback(List<RoundEvent> events) { return events.stream().map(e -> String.join(",",
             Integer.toString(e.sequence()),e.type().name(),e.playerId().toString(),e.vehicleId().toString(),
             Integer.toString(e.oldPosition().x()),Integer.toString(e.oldPosition().y()),

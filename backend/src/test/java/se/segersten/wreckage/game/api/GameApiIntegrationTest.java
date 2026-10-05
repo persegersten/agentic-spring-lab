@@ -218,7 +218,8 @@ class GameApiIntegrationTest {
         assertThat(perGame.path("round").path("program")).isEmpty();
         assertThat(aliceGame.path("round").path("program")).isEmpty();
         assertThat(perGame.path("round").has("state")).isTrue();
-        assertThat(perGame.path("round").size()).isEqualTo(2);
+        assertThat(perGame.path("round").path("scheduledAction").isNull()).isTrue();
+        assertThat(perGame.path("round").size()).isEqualTo(3);
 
         var selectedOrder = objectMapper.createArrayNode();
         for (int index = 0; index < 5; index++) selectedOrder.add("WAIT");
@@ -296,6 +297,59 @@ class GameApiIntegrationTest {
         assertThat(recovered.path("round").path("state").path("ready")
                 .path(per.path("id").asText()).asBoolean()).isFalse();
         assertThat(json(get("/games/" + gameId)).toString()).doesNotContain("\"program\":", "orders");
+    }
+
+    @Test
+    void editsPersistsLocksAndKeepsScheduledActionPrivate() throws Exception {
+        HttpResponse<String> created = post("/games", """
+                {"maxPlayers":2,"joinTimeoutSeconds":90,"programSize":3,"planningTimeoutSeconds":45}
+                """);
+        String gameId = json(created).path("id").asText();
+        JsonNode alice = json(post("/games/%s/players".formatted(gameId), "{\"name\":\"Alice\"}"));
+        JsonNode bob = json(post("/games/%s/players".formatted(gameId), "{\"name\":\"Bob\"}"));
+        postHost(gameId, json(created).path("hostToken").asText());
+        String laser = """
+                {"orders":[],"scheduledAction":{"actionType":"LASER","registerIndex":2}}
+                """;
+
+        assertThat(putPlayer("/games/%s/rounds/current/program".formatted(gameId), alice, laser).statusCode())
+                .isEqualTo(HttpStatus.OK.value());
+        JsonNode aliceDraft = json(getPlayerGame(gameId, alice));
+        assertThat(aliceDraft.path("round").path("scheduledAction").path("actionType").asText()).isEqualTo("LASER");
+        assertThat(aliceDraft.path("round").path("scheduledAction").path("registerIndex").asInt()).isEqualTo(2);
+
+        String repulsor = """
+                {"orders":[],"scheduledAction":{"actionType":"REPULSOR","registerIndex":3}}
+                """;
+        putPlayer("/games/%s/rounds/current/program".formatted(gameId), alice, repulsor);
+        JsonNode changed = json(getPlayerGame(gameId, alice));
+        assertThat(changed.path("round").path("scheduledAction").path("actionType").asText()).isEqualTo("REPULSOR");
+        assertThat(changed.path("round").path("scheduledAction").path("registerIndex").asInt()).isEqualTo(3);
+
+        putPlayer("/games/%s/rounds/current/program".formatted(gameId), alice,
+                "{\"orders\":[],\"scheduledAction\":null}");
+        assertThat(json(getPlayerGame(gameId, alice)).path("round").path("scheduledAction").isNull()).isTrue();
+        putPlayer("/games/%s/rounds/current/program".formatted(gameId), alice, repulsor);
+
+        JsonNode bobView = json(getPlayerGame(gameId, bob));
+        JsonNode publicView = json(get("/games/" + gameId));
+        assertThat(bobView.path("round").path("scheduledAction").isNull()).isTrue();
+        assertThat(bobView.toString()).doesNotContain("REPULSOR", "registerIndex");
+        assertThat(publicView.toString()).doesNotContain("REPULSOR", "scheduledAction", "registerIndex");
+
+        HttpResponse<String> invalid = putPlayer("/games/%s/rounds/current/program".formatted(gameId), alice, """
+                {"orders":[],"scheduledAction":{"actionType":"ROCKET","registerIndex":4}}
+                """);
+        assertThat(invalid.statusCode()).isEqualTo(HttpStatus.BAD_REQUEST.value());
+
+        String lockedPlan = """
+                {"orders":["WAIT","WAIT","WAIT"],"scheduledAction":{"actionType":"REPULSOR","registerIndex":3}}
+                """;
+        assertThat(postPlayer("/games/%s/rounds/current/program".formatted(gameId), alice, lockedPlan).statusCode())
+                .isEqualTo(HttpStatus.OK.value());
+        assertThat(putPlayer("/games/%s/rounds/current/program".formatted(gameId), alice, """
+                {"orders":[],"scheduledAction":null}
+                """).statusCode()).isEqualTo(HttpStatus.CONFLICT.value());
     }
 
     @Test

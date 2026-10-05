@@ -454,6 +454,34 @@ class GameRoundTest {
         round.resolve(new MovementEngine(), List.of(player), GameConfiguration.defaults());
     }
 
+    @Test
+    void encountersScheduledActionsInTheirRegisterAndTimingWithoutChangingMovement() {
+        UUID playerId = UUID.randomUUID();
+        Player player = Player.create(playerId, "Alice", "token");
+        VehicleState vehicle = state(playerId, 1, 1);
+        Board board = new Board(6, 6);
+        PlayerProgram program = new PlayerProgram(playerId, 2,
+                List.of(MovementOrder.FORWARD_1, MovementOrder.FORWARD_1), true,
+                new ScheduledAction(ActionType.LASER, 2));
+        Round round = new Round(1, Map.of(playerId, program), List.of(playerId),
+                new GameState(board, List.of(vehicle)));
+        List<String> encounters = new java.util.ArrayList<>();
+        var actionEngine = new se.segersten.wreckage.game.engine.ActionEngine() {
+            @Override protected void encounter(UUID id, ScheduledAction action, ActionTiming timing, GameState state) {
+                encounters.add(id + ":" + action.actionType() + ":" + action.registerIndex() + ":" + timing);
+            }
+        };
+        MovementEngine movement = new MovementEngine();
+
+        round.resolve(movement, new se.segersten.wreckage.game.engine.BoardEffectEngine(movement),
+                actionEngine, List.of(player), GameConfiguration.defaults());
+
+        assertThat(encounters).containsExactly(playerId + ":LASER:2:POST_MOVEMENT");
+        assertThat(round.playback()).extracting(RoundEvent::type)
+                .containsExactly(RoundEventType.MOVE, RoundEventType.MOVE);
+        assertThat(round.finalVehicleStates().getFirst().position()).isEqualTo(new Position(3, 1));
+    }
+
     private Game game(int programSize, Instant now) {
         return new Game(UUID.randomUUID(), List.of(), new Board(8, 8), GameStatus.RUNNING,
                 Map.of(), null, new GameConfiguration(6, 60, programSize, 30),

@@ -1,4 +1,6 @@
 export type MovementOrder = 'FORWARD_1'|'FORWARD_2'|'REVERSE_1'|'TURN_LEFT'|'TURN_RIGHT'|'U_TURN'|'WAIT'
+export type ActionType = 'LASER'|'REPULSOR'|'ROCKET'|'TURBO'|'SHIELD'|'ANCHOR'|'SIDE_STEP_LEFT'|'SIDE_STEP_RIGHT'
+export type ScheduledAction = { actionType: ActionType; registerIndex: number }
 export type Direction = 'NORTH' | 'EAST' | 'SOUTH' | 'WEST'
 export type RoundPhase = 'PLANNING' | 'RESOLVING' | 'PLAYBACK'
 export type Player = { id: string; name: string; score: number; visitedCheckpoints: string[]; crashes: number }
@@ -20,5 +22,5 @@ export type PublicRound = { number: number; phase: RoundPhase; planningDeadline:
 export type Placement = { playerId: string; placement: number; score: number; checkpointsVisited: number; crashes: number; winner: boolean }
 export type Game = { id: string; status: GameStatus; roundLimit: number; configuration: GameConfiguration; createdAt: string; players: Player[]; board: Board; vehicles: Vehicle[]; round: PublicRound | null; placements: Placement[] }
 export type CreatedGame = Game & { hostToken: string }
-export type PlayerGame = Omit<Game, 'round'> & { playerId: string; round: { state: PublicRound; program: MovementOrder[] } | null }
+export type PlayerGame = Omit<Game, 'round'> & { playerId: string; round: { state: PublicRound; program: MovementOrder[]; scheduledAction: ScheduledAction | null } | null }
 export type PlayerSession = { gameId: string; playerId: string; token: string }

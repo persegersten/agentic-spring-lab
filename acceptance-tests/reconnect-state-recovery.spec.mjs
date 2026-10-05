@@ -38,6 +38,10 @@ test('reload during planning restores map, round and private planning state', as
     const playerId = await perVehicle.getAttribute('data-player-id')
     await per.locator('[data-testid="command-card"][data-command="TURN_LEFT"]').dblclick()
     await expect(per.getByRole('status')).toHaveCount(0)
+    await per.getByTestId('action-type').selectOption('SHIELD')
+    await expect(per.getByRole('status')).toHaveCount(0)
+    await per.getByTestId('action-register').selectOption('1')
+    await expect(per.getByRole('status')).toHaveCount(0)
 
     await per.reload()
 
@@ -49,6 +53,7 @@ test('reload during planning restores map, round and private planning state', as
       .toHaveAttribute('data-player-id', playerId)
     await expect(per.getByTestId('program-slot').nth(0)).toHaveAttribute('data-command', 'TURN_LEFT')
     await expect(per.getByTestId('program-slot').nth(0)).toHaveAttribute('data-filled', 'true')
+    await expect(per.getByTestId('selected-action')).toHaveText('Shield · register 1')
   })
 })
 

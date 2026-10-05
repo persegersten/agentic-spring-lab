@@ -23,6 +23,12 @@ test('players build a private card program with double-click and drag-and-drop',
       await expect(slots.nth(index)).toHaveAttribute('data-filled', 'false')
     }
 
+    await alice.getByTestId('action-type').selectOption('LASER')
+    await expect(alice.getByRole('status')).toHaveCount(0)
+    await alice.getByTestId('action-register').selectOption('2')
+    await expect(alice.getByRole('status')).toHaveCount(0)
+    await expect(alice.getByTestId('selected-action')).toHaveText('Laser · register 2')
+
     const forward = alice.locator('[data-testid="command-card"][data-command="FORWARD_1"]')
     await forward.dblclick(); await expect(alice.getByRole('status')).toHaveCount(0)
     await forward.dblclick(); await expect(alice.getByRole('status')).toHaveCount(0)
@@ -46,6 +52,9 @@ test('players build a private card program with double-click and drag-and-drop',
 
     await alice.getByRole('button', { name: 'Lås program', exact: true }).click()
     await expect(alice.getByRole('button', { name: 'Program låst', exact: true })).toBeDisabled()
+    await expect(alice.getByTestId('action-type')).toBeDisabled()
+    await expect(alice.getByTestId('action-register')).toBeDisabled()
+    await expect(alice.getByTestId('clear-action')).toBeDisabled()
     await expect(slots.nth(0)).toHaveAttribute('draggable', 'false')
     await expect(bob.getByTestId('player-ready-state').filter({ hasText: 'Alice' })).toContainText('Redo')
     await expect(bob.getByTestId('program-slot')).toHaveCount(3)

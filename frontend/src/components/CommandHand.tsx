@@ -1,30 +1,40 @@
 import { useEffect, useState, type DragEvent, type KeyboardEvent } from 'react'
-import type { MovementOrder } from '../types/game'
+import type { ActionType, MovementOrder, ScheduledAction } from '../types/game'
 
 const all: MovementOrder[] = ['FORWARD_1', 'FORWARD_2', 'REVERSE_1', 'TURN_LEFT', 'TURN_RIGHT', 'U_TURN', 'WAIT']
 const labels: Record<MovementOrder, string> = { FORWARD_1: 'Framåt 1', FORWARD_2: 'Framåt 2', REVERSE_1: 'Backa 1', TURN_LEFT: 'Sväng vänster', TURN_RIGHT: 'Sväng höger', U_TURN: 'U-sväng', WAIT: 'Vänta' }
+const actionTypes: ActionType[] = ['LASER', 'REPULSOR', 'ROCKET', 'TURBO', 'SHIELD', 'ANCHOR', 'SIDE_STEP_LEFT', 'SIDE_STEP_RIGHT']
+const actionLabels: Record<ActionType, string> = { LASER: 'Laser', REPULSOR: 'Repulsor', ROCKET: 'Rocket', TURBO: 'Turbo', SHIELD: 'Shield', ANCHOR: 'Anchor', SIDE_STEP_LEFT: 'Side Step vänster', SIDE_STEP_RIGHT: 'Side Step höger' }
 const withDefaults = (program: MovementOrder[], size: number): MovementOrder[] => Array.from({ length: size }, (_, index) => program[index] ?? 'WAIT')
 type DraggedCard = { source: 'commands'; command: MovementOrder } | { source: 'program'; index: number }
 
-export function CommandHand({ program, programSize, locked, onReorder, onSubmit }: {
+export function CommandHand({ program, scheduledAction, programSize, locked, onReorder, onSubmit }: {
   program: MovementOrder[]
+  scheduledAction: ScheduledAction | null
   programSize: number
   locked: boolean
-  onReorder: (value: MovementOrder[]) => Promise<void>
-  onSubmit: (value: MovementOrder[]) => Promise<void>
+  onReorder: (value: MovementOrder[], action: ScheduledAction | null) => Promise<void>
+  onSubmit: (value: MovementOrder[], action: ScheduledAction | null) => Promise<void>
 }) {
   const [draft, setDraft] = useState(() => program.slice(0, programSize))
+  const [action, setAction] = useState<ScheduledAction | null>(scheduledAction)
   const [saving, setSaving] = useState(false)
   const [dragged, setDragged] = useState<DraggedCard | null>(null)
   const [dropIndex, setDropIndex] = useState<number | null>(null)
   const disabled = locked || saving
 
-  useEffect(() => { if (!saving) setDraft(program.slice(0, programSize)) }, [program, programSize, saving])
+  useEffect(() => { if (!saving) { setDraft(program.slice(0, programSize)); setAction(scheduledAction) } }, [program, scheduledAction, programSize, saving])
 
   async function save(next: MovementOrder[]) {
     setDraft(next)
     setSaving(true)
-    try { await onReorder(next) } finally { setSaving(false) }
+    try { await onReorder(next, action) } finally { setSaving(false) }
+  }
+
+  async function saveAction(next: ScheduledAction | null) {
+    setAction(next)
+    setSaving(true)
+    try { await onReorder(draft, next) } finally { setSaving(false) }
   }
 
   function add(command: MovementOrder) {
@@ -144,8 +154,29 @@ export function CommandHand({ program, programSize, locked, onReorder, onSubmit 
         >{labels[command]}</button>
       </li>)}
     </ul>
+    <fieldset className="scheduled-action" disabled={disabled} data-testid="scheduled-action-controls">
+      <legend>Valfri action</legend>
+      <label>Action
+        <select data-testid="action-type" value={action?.actionType ?? ''} onChange={event => {
+          const actionType = event.target.value as ActionType
+          void saveAction(actionType ? { actionType, registerIndex: action?.registerIndex ?? 1 } : null)
+        }}>
+          <option value="">Ingen action</option>
+          {actionTypes.map(value => <option key={value} value={value}>{actionLabels[value]}</option>)}
+        </select>
+      </label>
+      <label>Register
+        <select data-testid="action-register" disabled={disabled || !action} value={action?.registerIndex ?? 1} onChange={event => {
+          if (action) void saveAction({ ...action, registerIndex: Number(event.target.value) })
+        }}>
+          {Array.from({ length: programSize }, (_, index) => <option key={index + 1} value={index + 1}>{index + 1}</option>)}
+        </select>
+      </label>
+      <button type="button" className="secondary" data-testid="clear-action" disabled={disabled || !action} onClick={() => void saveAction(null)}>Rensa action</button>
+      <p data-testid="selected-action">{action ? `${actionLabels[action.actionType]} · register ${action.registerIndex}` : 'Ingen action vald'}</p>
+    </fieldset>
     <div className="actions">
-      <button data-testid="lock-program" disabled={disabled} onClick={() => void onSubmit(withDefaults(draft, programSize))}>{locked ? 'Program låst' : 'Lås program'}</button>
+      <button data-testid="lock-program" disabled={disabled} onClick={() => void onSubmit(withDefaults(draft, programSize), action)}>{locked ? 'Program låst' : 'Lås program'}</button>
       <button className="secondary" disabled={disabled || !draft.length} onClick={() => void save([])}>Rensa</button>
     </div>
   </section>
