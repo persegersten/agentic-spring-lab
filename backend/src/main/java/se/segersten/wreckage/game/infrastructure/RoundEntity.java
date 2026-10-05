@@ -39,7 +39,8 @@ class RoundEntity {
             e.oldDirection().name(),e.newDirection().name(),e.sourcePlayerId().toString(),
             e.sourceVehicleId().toString(),nullable(e.oldDamage()),nullable(e.newDamage()),nullable(e.damageDelta()),
             nullable(e.oldScore()),nullable(e.newScore()),nullable(e.scoreDelta()),
-            e.scoreReason()==null?"":e.scoreReason().name(),e.checkpointId()==null?"":e.checkpointId()))
+            e.scoreReason()==null?"":e.scoreReason().name(),e.checkpointId()==null?"":e.checkpointId(),
+            e.actionType()==null?"":e.actionType().name(),nullable(e.oldAmmo()),nullable(e.newAmmo()),nullable(e.ammoDelta())))
             .collect(java.util.stream.Collectors.joining("#")); }
     private static List<RoundEvent> decodePlayback(String value, Map<UUID,Vehicle> vehicles) {
         if(value.isBlank()) return List.of(); var result=new ArrayList<RoundEvent>();
@@ -62,9 +63,11 @@ class RoundEntity {
                     hasScoreFields?integer(p,scoreOffset+1):null,
                     hasScoreFields?integer(p,scoreOffset+2):null,
                     hasScoreFields&&p.length>scoreOffset+3&&!p[scoreOffset+3].isBlank()?ScoreChangeReason.valueOf(p[scoreOffset+3]):null,
-                    hasScoreFields&&p.length>scoreOffset+4&&!p[scoreOffset+4].isBlank()?p[scoreOffset+4]:null));} return result; }
-    private static String encodeStates(List<VehicleState> states) { return states.stream().map(s->s.vehicle().id()+","+s.vehicle().playerId()+","+s.position().x()+","+s.position().y()+","+s.orientation()+","+s.damage()+","+s.status()).collect(java.util.stream.Collectors.joining("|")); }
-    private static List<VehicleState> decodeStates(String value, Map<UUID,Vehicle> vehicles) { if(value.isBlank()) return List.of(); var result=new ArrayList<VehicleState>(); for(String row:value.split("\\|")){String[] p=row.split(","); UUID vehicleId=UUID.fromString(p[0]); Vehicle vehicle=vehicles.computeIfAbsent(vehicleId,id->new Vehicle(id,UUID.fromString(p[1]))); int statusIndex=p.length>=7?6:5; int damage=p.length>=7?Integer.parseInt(p[5]):0; result.add(new VehicleState(vehicle,new Position(Integer.parseInt(p[2]),Integer.parseInt(p[3])),Direction.valueOf(p[4]),p.length>statusIndex?VehicleStatus.valueOf(p[statusIndex]):VehicleStatus.ACTIVE,damage));} return result; }
+                    hasScoreFields&&p.length>scoreOffset+4&&!p[scoreOffset+4].isBlank()?p[scoreOffset+4]:null,
+                    p.length>20&&!p[20].isBlank()?ActionType.valueOf(p[20]):null,
+                    integer(p,21),integer(p,22),integer(p,23)));} return result; }
+    private static String encodeStates(List<VehicleState> states) { return states.stream().map(s->s.vehicle().id()+","+s.vehicle().playerId()+","+s.position().x()+","+s.position().y()+","+s.orientation()+","+s.damage()+","+s.status()+","+s.rocketAmmo()).collect(java.util.stream.Collectors.joining("|")); }
+    private static List<VehicleState> decodeStates(String value, Map<UUID,Vehicle> vehicles) { if(value.isBlank()) return List.of(); var result=new ArrayList<VehicleState>(); for(String row:value.split("\\|")){String[] p=row.split(","); UUID vehicleId=UUID.fromString(p[0]); Vehicle vehicle=vehicles.computeIfAbsent(vehicleId,id->new Vehicle(id,UUID.fromString(p[1]))); int statusIndex=p.length>=7?6:5; int damage=p.length>=7?Integer.parseInt(p[5]):0; int rocketAmmo=p.length>=8?Integer.parseInt(p[7]):1; result.add(new VehicleState(vehicle,new Position(Integer.parseInt(p[2]),Integer.parseInt(p[3])),Direction.valueOf(p[4]),p.length>statusIndex?VehicleStatus.valueOf(p[statusIndex]):VehicleStatus.ACTIVE,damage,rocketAmmo));} return result; }
     private static String csv(List<MovementOrder> value) { return value.stream().map(Enum::name).collect(java.util.stream.Collectors.joining(",")); }
     private static List<MovementOrder> orders(String value) { return value.isBlank()?List.of():Arrays.stream(value.split(",")).map(MovementOrder::valueOf).toList(); }
     private static String encodeScores(Map<UUID,Integer> scores) { return scores.entrySet().stream().sorted(Map.Entry.comparingByKey()).map(e->e.getKey()+":"+e.getValue()).collect(java.util.stream.Collectors.joining(",")); }

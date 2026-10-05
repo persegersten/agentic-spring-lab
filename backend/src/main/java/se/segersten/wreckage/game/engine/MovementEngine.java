@@ -76,22 +76,42 @@ public class MovementEngine {
     private MovementResult applyTurn(GameState gameState, int vehicleIndex, Direction orientation) {
         List<VehicleState> result = new ArrayList<>(gameState.vehicleStates());
         VehicleState state = result.get(vehicleIndex);
-        VehicleState updated = new VehicleState(state.vehicle(), state.position(), orientation, state.status(), state.damage());
+        VehicleState updated = new VehicleState(state.vehicle(), state.position(), orientation, state.status(), state.damage(), state.rocketAmmo());
         result.set(vehicleIndex, updated);
         return new MovementResult(new GameState(gameState.board(), List.copyOf(result)),
                 List.of(event(RoundEventType.TURN, state, updated)));
     }
 
     MovementResult applyConveyor(GameState state,UUID id,Direction direction){for(int i=0;i<state.vehicleStates().size();i++)if(state.vehicleStates().get(i).vehicle().id().equals(id)&&state.vehicleStates().get(i).isActive())return applyTranslation(state,i,direction,true);return new MovementResult(state,List.of());}
+
+    public MovementResult applyWeaponPush(GameState state, UUID targetVehicleId, Direction direction,
+                                          VehicleState source) {
+        for (int i = 0; i < state.vehicleStates().size(); i++) {
+            VehicleState target = state.vehicleStates().get(i);
+            if (target.vehicle().id().equals(targetVehicleId) && target.isActive()) {
+                return applyDisplacement(state, i, direction, false, false, source);
+            }
+        }
+        return new MovementResult(state, List.of());
+    }
+
     private MovementResult applyTranslation(GameState gameState,int vehicleIndex,Direction movementDirection,boolean conveyor) {
+        return applyDisplacement(gameState, vehicleIndex, movementDirection, conveyor, true,
+                gameState.vehicleStates().get(vehicleIndex));
+    }
+
+    private MovementResult applyDisplacement(GameState gameState,int vehicleIndex,Direction movementDirection,
+                                             boolean conveyor, boolean moveInitiator, VehicleState source) {
         List<VehicleState> currentStates = gameState.vehicleStates();
         VehicleState moving = currentStates.get(vehicleIndex);
         Position destination = moving.position().move(movementDirection);
         if (gameState.board().hasWall(moving.position(), movementDirection)) {
-            return new MovementResult(gameState, List.of());
+            return new MovementResult(gameState, moveInitiator ? List.of() : List.of(
+                    event(RoundEventType.PUSH_BLOCKED, source, moving, moving)));
         }
 
         List<Integer> pushedIndexes = new ArrayList<>();
+        if (!moveInitiator) pushedIndexes.add(vehicleIndex);
         boolean lethalDestination = isLethal(gameState, destination);
         int occupiedIndex = lethalDestination ? -1 : indexAt(currentStates, destination);
         while (!lethalDestination && occupiedIndex >= 0) {
@@ -99,7 +119,8 @@ public class MovementEngine {
             Position origin = destination;
             destination = destination.move(movementDirection);
             if (gameState.board().hasWall(origin, movementDirection)) {
-                return new MovementResult(gameState, List.of());
+                return new MovementResult(gameState, moveInitiator ? List.of() : List.of(
+                        event(RoundEventType.PUSH_BLOCKED, source, moving, moving)));
             }
             lethalDestination = isLethal(gameState, destination);
             occupiedIndex = lethalDestination ? -1 : indexAt(currentStates, destination);
@@ -113,9 +134,9 @@ public class MovementEngine {
                     ? moving
                     : currentStates.get(pushedIndexes.get(lastPushedIndex));
             VehicleState updated = new VehicleState(crashed.vehicle(), destination, crashed.orientation(),
-                    VehicleStatus.CRASHED, crashed.damage());
+                    VehicleStatus.CRASHED, crashed.damage(), crashed.rocketAmmo());
             result.set(pushedIndexes.isEmpty() ? vehicleIndex : pushedIndexes.get(lastPushedIndex), updated);
-            events.add(event(conveyor?RoundEventType.CONVEYOR_CRASH:RoundEventType.CRASH,moving,crashed,updated));
+            events.add(event(conveyor?RoundEventType.CONVEYOR_CRASH:RoundEventType.CRASH,source,crashed,updated));
             if (pushedIndexes.isEmpty()) {
                 return new MovementResult(new GameState(gameState.board(), List.copyOf(result)), events);
             }
@@ -126,13 +147,14 @@ public class MovementEngine {
             int pushedIndex = pushedIndexes.get(index);
             VehicleState pushed = currentStates.get(pushedIndex);
             VehicleState updated = new VehicleState(pushed.vehicle(),
-                    pushed.position().move(movementDirection), pushed.orientation(), pushed.status(), pushed.damage());
+                    pushed.position().move(movementDirection), pushed.orientation(), pushed.status(), pushed.damage(), pushed.rocketAmmo());
             result.set(pushedIndex, updated);
-            events.add(event(conveyor?RoundEventType.CONVEYOR_PUSH:RoundEventType.PUSH,pushed,updated));
+            events.add(event(conveyor?RoundEventType.CONVEYOR_PUSH:RoundEventType.PUSH,source,pushed,updated));
         }
 
+        if (!moveInitiator) return new MovementResult(new GameState(gameState.board(), List.copyOf(result)), events);
         VehicleState updatedMoving = new VehicleState(moving.vehicle(),
-                moving.position().move(movementDirection), moving.orientation(), moving.status(), moving.damage());
+                moving.position().move(movementDirection), moving.orientation(), moving.status(), moving.damage(), moving.rocketAmmo());
         result.set(vehicleIndex, updatedMoving);
         RoundEventType type=pushedIndexes.isEmpty()?(conveyor?RoundEventType.CONVEYOR_MOVE:RoundEventType.MOVE):(conveyor?RoundEventType.CONVEYOR_RAM:RoundEventType.RAM);
         events.add(event(type, moving, updatedMoving));

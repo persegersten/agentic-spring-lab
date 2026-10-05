@@ -19,4 +19,26 @@ public enum ActionType {
     public ActionTiming timing() {
         return timing;
     }
+
+    public boolean isWeapon() {
+        return this == LASER || this == REPULSOR || this == ROCKET;
+    }
+
+    public int weaponRange() {
+        return switch (this) {
+            case LASER -> 6;
+            case REPULSOR -> 3;
+            case ROCKET -> 5;
+            default -> throw new IllegalStateException(this + " is not a weapon");
+        };
+    }
+
+    public int weaponDamage() {
+        return switch (this) {
+            case LASER -> 1;
+            case REPULSOR -> 0;
+            case ROCKET -> 2;
+            default -> throw new IllegalStateException(this + " is not a weapon");
+        };
+    }
 }

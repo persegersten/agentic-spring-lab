@@ -27,6 +27,7 @@ export function RoundEventDebugView({ board, events, initialVehicles, players }:
       <code>#{event.sequence} {event.type} {names[event.playerId] ?? event.playerId} {event.type === 'TURN'||event.type==='ROTATOR_TURN'
         ? `${event.oldDirection} → ${event.newDirection}`
         : event.type === 'SCORE_CHANGED' ? `${event.oldScore} → ${event.newScore} score (${event.scoreReason})`
+        : event.type === 'AMMO_CHANGED' ? `${event.oldAmmo} → ${event.newAmmo} Rocket (${event.actionType})`
         : `(${event.oldPosition.x},${event.oldPosition.y}) → (${event.newPosition.x},${event.newPosition.y})`}</code>
     </li>)}</ol>
   </details>

@@ -385,6 +385,39 @@ class GameApiIntegrationTest {
     }
 
     @Test
+    void persistsRocketConsumptionAndRejectsSchedulingItAgain() throws Exception {
+        HttpResponse<String> created = post("/games", """
+                {"maxPlayers":2,"joinTimeoutSeconds":90,"programSize":1,"planningTimeoutSeconds":45}
+                """);
+        String gameId = json(created).path("id").asText();
+        JsonNode alice = json(post("/games/%s/players".formatted(gameId), "{\"name\":\"Alice\"}"));
+        JsonNode bob = json(post("/games/%s/players".formatted(gameId), "{\"name\":\"Bob\"}"));
+        postHost(gameId, json(created).path("hostToken").asText());
+
+        postPlayer("/games/%s/rounds/current/program".formatted(gameId), alice, """
+                {"orders":["WAIT"],"scheduledAction":{"actionType":"ROCKET","registerIndex":1}}
+                """);
+        postPlayer("/games/%s/rounds/current/program".formatted(gameId), bob,
+                "{\"orders\":[\"WAIT\"],\"scheduledAction\":null}");
+
+        JsonNode resolved = json(getPlayerGame(gameId, alice));
+        assertThat(resolved.path("round").path("state").path("playback"))
+                .extracting(event -> event.path("type").asText())
+                .startsWith("WEAPON_FIRED", "AMMO_CHANGED");
+        JsonNode aliceVehicle = java.util.stream.StreamSupport.stream(resolved.path("vehicles").spliterator(), false)
+                .filter(vehicle -> vehicle.path("playerId").asText().equals(alice.path("id").asText()))
+                .findFirst().orElseThrow();
+        assertThat(aliceVehicle.path("rocketAmmo").asInt()).isZero();
+
+        assertThat(postPlayer("/games/%s/rounds?completedRound=1".formatted(gameId), alice, "").statusCode())
+                .isEqualTo(HttpStatus.CREATED.value());
+        HttpResponse<String> stale = putPlayer("/games/%s/rounds/current/program".formatted(gameId), alice, """
+                {"orders":[],"scheduledAction":{"actionType":"ROCKET","registerIndex":1}}
+                """);
+        assertThat(stale.statusCode()).isEqualTo(HttpStatus.CONFLICT.value());
+    }
+
+    @Test
     void addPlayer() throws Exception {
         String gameId = createGameId();
 

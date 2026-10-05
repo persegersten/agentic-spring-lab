@@ -4,19 +4,22 @@ import { RoundEventDebugView } from './RoundEventDebugView'
 
 function describeEvent(event: RoundEvent, players: Player[]) {
   const name = players.find(player => player.id === event.playerId)?.name ?? 'Fordonet'
+  const weapon = event.actionType === 'REPULSOR' ? 'Repulsor' : event.actionType === 'ROCKET' ? 'Rocket' : 'Laser'
   switch (event.type) {
     case 'MOVE': return `${name} kör`
     case 'TURN': return `${name} svänger`
     case 'RAM': return `${name} rammar`
-    case 'PUSH': return `${name} knuffas`
+    case 'PUSH': return `${name} knuffas${event.actionType === 'REPULSOR' ? ' av Repulsor' : ''}`
+    case 'PUSH_BLOCKED': return `Repulsor-knuffen mot ${name} blockeras`
     case 'CONVEYOR_MOVE':case 'CONVEYOR_RAM':return `Transportbandet flyttar ${name}`
     case 'CONVEYOR_PUSH':return `${name} knuffas av transportbandet`
     case 'CONVEYOR_CRASH':return `${name} kraschar på transportbandet`
     case 'ROTATOR_TURN':return `Rotatorn vrider ${name}`
     case 'CRASH': return `${name} kraschar`
-    case 'WEAPON_FIRED': return `${name} avfyrar Laser`
-    case 'WEAPON_HIT': return `${name} träffas av Laser`
+    case 'WEAPON_FIRED': return `${name} avfyrar ${weapon}`
+    case 'WEAPON_HIT': return `${name} träffas av ${weapon}`
     case 'DAMAGE_APPLIED': return `${name} får ${event.damageDelta ?? 0} skada (${event.newDamage ?? 0}/3)`
+    case 'AMMO_CHANGED': return `${name} har ${event.newAmmo ?? 0} Rocket kvar`
     case 'VEHICLE_CRASHED': return `${name} kraschar av vapenskada`
     case 'VEHICLE_RESPAWNED': return `${name} respawnar`
     case 'SCORE_CHANGED': return `${name} ${event.scoreDelta && event.scoreDelta > 0 ? '+' : ''}${event.scoreDelta ?? 0} poäng`
@@ -49,6 +52,7 @@ export function RoundPlayback({board,round,players,onVehicles,onScores,onCurrent
       }
       if(vehicle&&['CRASH','CONVEYOR_CRASH'].includes(event.type))vehicles.splice(vehicleIndex,1)
       if(vehicle&&event.type==='DAMAGE_APPLIED'&&event.newDamage!==undefined)vehicle.damage=event.newDamage
+      if(vehicle&&event.type==='AMMO_CHANGED'&&event.newAmmo!==undefined)vehicle.rocketAmmo=event.newAmmo
       if(vehicle&&event.type==='VEHICLE_CRASHED')vehicles.splice(vehicleIndex,1)
       if (event.type === 'SCORE_CHANGED' && event.newScore !== undefined) scores[event.playerId] = event.newScore
     }
@@ -60,7 +64,7 @@ export function RoundPlayback({board,round,players,onVehicles,onScores,onCurrent
   useEffect(() => {
     if (!playing || finished) return
     const duration = !current ? 0
-      : ['CRASH','VEHICLE_CRASHED','WEAPON_FIRED','WEAPON_HIT','DAMAGE_APPLIED','SCORE_CHANGED'].includes(current.type) ? 450 : 250
+      : ['CRASH','VEHICLE_CRASHED','WEAPON_FIRED','WEAPON_HIT','DAMAGE_APPLIED','AMMO_CHANGED','SCORE_CHANGED'].includes(current.type) ? 450 : 250
     const id = window.setTimeout(() => {
       if (eventIndex >= timeline.playback.length) {
         setFinished(true)

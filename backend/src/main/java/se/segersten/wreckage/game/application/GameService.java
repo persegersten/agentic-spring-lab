@@ -142,6 +142,7 @@ public class GameService {
 
     private Round saveProgramDraft(Game game, UUID playerId, List<MovementOrder> orders, ScheduledAction action) {
         if (game.getRound() == null) throw new IllegalStateException("No round has started");
+        validateAction(game, playerId, action);
         game.getRound().reorder(playerId, orders, action);
         gameRepository.save(game);
         return game.getRound();
@@ -162,10 +163,19 @@ public class GameService {
 
     private Round submitProgram(Game game, UUID playerId, List<MovementOrder> orders, ScheduledAction action) {
         if (game.getRound() == null) throw new IllegalStateException("No round has started");
+        validateAction(game, playerId, action);
         game.getRound().lock(playerId, orders, action);
         resolveIfReady(game);
         gameRepository.save(game);
         return game.getRound();
+    }
+
+    private void validateAction(Game game, UUID playerId, ScheduledAction action) {
+        if (action == null || action.actionType() != se.segersten.wreckage.game.domain.ActionType.ROCKET) return;
+        var vehicle = game.getVehicleStates().stream()
+                .filter(state -> state.vehicle().playerId().equals(playerId)).findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("Player has no vehicle"));
+        if (vehicle.rocketAmmo() == 0) throw new IllegalStateException("Rocket ammunition is depleted");
     }
 
     @Transactional(readOnly = true)

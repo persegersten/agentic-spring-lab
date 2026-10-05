@@ -523,6 +523,82 @@ class GameRoundTest {
     }
 
     @Test
+    void repulsorDirectCrashAwardsWeaponScoreAndLaterBoardCrashDoesNot() {
+        UUID shooterId = UUID.randomUUID();
+        UUID targetId = UUID.randomUUID();
+        Player shooter = Player.create(shooterId, "Shooter", "token-a");
+        Player target = Player.create(targetId, "Target", "token-b");
+        VehicleState shooterState = new VehicleState(new Vehicle(UUID.randomUUID(), shooterId),
+                new Position(0, 1), Direction.EAST);
+        VehicleState targetState = new VehicleState(new Vehicle(UUID.randomUUID(), targetId),
+                new Position(1, 1), Direction.NORTH);
+        Board base = new Board(5, 4);
+        Board pitBoard = new Board(5, 4, java.util.Set.of(), java.util.Set.of(new Position(2, 1)),
+                java.util.Set.of(), base.spawnPoints());
+        PlayerProgram shooterProgram = new PlayerProgram(shooterId, 1, List.of(MovementOrder.WAIT), true,
+                new ScheduledAction(ActionType.REPULSOR, 1));
+        PlayerProgram targetProgram = new PlayerProgram(targetId, 1, List.of(MovementOrder.WAIT), true);
+        Round direct = new Round(1, Map.of(shooterId, shooterProgram, targetId, targetProgram),
+                List.of(shooterId, targetId), new GameState(pitBoard, List.of(shooterState, targetState)));
+
+        direct.resolve(new MovementEngine(), List.of(shooter, target), GameConfiguration.defaults());
+
+        assertThat(shooter.getScore()).isEqualTo(1);
+        assertThat(target.getScore()).isEqualTo(-1);
+        assertThat(direct.playback()).filteredOn(event -> event.type() == RoundEventType.SCORE_CHANGED)
+                .extracting(RoundEvent::scoreReason)
+                .containsExactly(ScoreChangeReason.CRASH_PENALTY, ScoreChangeReason.WEAPON_CRASH);
+
+        Player indirectShooter = Player.create(UUID.randomUUID(), "Indirect", "token-c");
+        Player indirectTarget = Player.create(UUID.randomUUID(), "Moved", "token-d");
+        VehicleState indirectShooterState = new VehicleState(new Vehicle(UUID.randomUUID(), indirectShooter.getId()),
+                new Position(0, 2), Direction.EAST);
+        VehicleState indirectTargetState = new VehicleState(new Vehicle(UUID.randomUUID(), indirectTarget.getId()),
+                new Position(1, 2), Direction.NORTH);
+        Board conveyorBoard = new Board(5, 4, java.util.Set.of(), java.util.Set.of(new Position(3, 2)),
+                java.util.Set.of(), base.spawnPoints(), List.of(new Conveyor(new Position(2, 2), Direction.EAST)),
+                List.of(), java.util.Set.of());
+        Round indirect = new Round(1, Map.of(
+                indirectShooter.getId(), new PlayerProgram(indirectShooter.getId(), 1, List.of(MovementOrder.WAIT), true,
+                        new ScheduledAction(ActionType.REPULSOR, 1)),
+                indirectTarget.getId(), new PlayerProgram(indirectTarget.getId(), 1, List.of(MovementOrder.WAIT), true)),
+                List.of(indirectShooter.getId(), indirectTarget.getId()),
+                new GameState(conveyorBoard, List.of(indirectShooterState, indirectTargetState)));
+
+        indirect.resolve(new MovementEngine(), List.of(indirectShooter, indirectTarget), GameConfiguration.defaults());
+
+        assertThat(indirectShooter.getScore()).isZero();
+        assertThat(indirectTarget.getScore()).isEqualTo(-1);
+        assertThat(indirect.playback()).filteredOn(event -> event.type() == RoundEventType.SCORE_CHANGED)
+                .extracting(RoundEvent::scoreReason).containsExactly(ScoreChangeReason.CRASH_PENALTY);
+    }
+
+    @Test
+    void rocketCrashScoresAndConsumedAmmoSurvivesRoundAndRespawn() {
+        UUID shooterId = UUID.randomUUID();
+        UUID targetId = UUID.randomUUID();
+        Player shooter = Player.create(shooterId, "Shooter", "token-a");
+        Player target = Player.create(targetId, "Target", "token-b");
+        VehicleState shooterState = new VehicleState(new Vehicle(UUID.randomUUID(), shooterId),
+                new Position(0, 0), Direction.EAST);
+        VehicleState targetState = new VehicleState(new Vehicle(UUID.randomUUID(), targetId),
+                new Position(2, 0), Direction.NORTH, VehicleStatus.ACTIVE, 1);
+        Round round = new Round(1, Map.of(
+                shooterId, new PlayerProgram(shooterId, 1, List.of(MovementOrder.WAIT), true,
+                        new ScheduledAction(ActionType.ROCKET, 1)),
+                targetId, new PlayerProgram(targetId, 1, List.of(MovementOrder.WAIT), true)),
+                List.of(shooterId, targetId), new GameState(new Board(6, 6), List.of(shooterState, targetState)));
+
+        round.resolve(new MovementEngine(), List.of(shooter, target), GameConfiguration.defaults());
+
+        VehicleState finalShooter = round.finalVehicleStates().stream()
+                .filter(state -> state.vehicle().playerId().equals(shooterId)).findFirst().orElseThrow();
+        assertThat(finalShooter.rocketAmmo()).isZero();
+        assertThat(shooter.getScore()).isEqualTo(1);
+        assertThat(target.getScore()).isEqualTo(-1);
+    }
+
+    @Test
     void successfulRespawnClearsWeaponDamage() {
         var now = Instant.parse("2026-01-01T12:00:00Z");
         Player player = Player.create(UUID.randomUUID(), "Alice", "token");
