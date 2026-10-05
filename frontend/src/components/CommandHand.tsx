@@ -8,11 +8,12 @@ const actionLabels: Record<ActionType, string> = { LASER: 'Laser', REPULSOR: 'Re
 const withDefaults = (program: MovementOrder[], size: number): MovementOrder[] => Array.from({ length: size }, (_, index) => program[index] ?? 'WAIT')
 type DraggedCard = { source: 'commands'; command: MovementOrder } | { source: 'program'; index: number }
 
-export function CommandHand({ program, scheduledAction, programSize, locked, onReorder, onSubmit }: {
+export function CommandHand({ program, scheduledAction, programSize, locked, rocketAmmo, onReorder, onSubmit }: {
   program: MovementOrder[]
   scheduledAction: ScheduledAction | null
   programSize: number
   locked: boolean
+  rocketAmmo: number
   onReorder: (value: MovementOrder[], action: ScheduledAction | null) => Promise<void>
   onSubmit: (value: MovementOrder[], action: ScheduledAction | null) => Promise<void>
 }) {
@@ -162,7 +163,7 @@ export function CommandHand({ program, scheduledAction, programSize, locked, onR
           void saveAction(actionType ? { actionType, registerIndex: action?.registerIndex ?? 1 } : null)
         }}>
           <option value="">Ingen action</option>
-          {actionTypes.map(value => <option key={value} value={value}>{actionLabels[value]}</option>)}
+          {actionTypes.map(value => <option key={value} value={value} disabled={value === 'ROCKET' && rocketAmmo === 0}>{actionLabels[value]}</option>)}
         </select>
       </label>
       <label>Register
@@ -174,6 +175,7 @@ export function CommandHand({ program, scheduledAction, programSize, locked, onR
       </label>
       <button type="button" className="secondary" data-testid="clear-action" disabled={disabled || !action} onClick={() => void saveAction(null)}>Rensa action</button>
       <p data-testid="selected-action">{action ? `${actionLabels[action.actionType]} · register ${action.registerIndex}` : 'Ingen action vald'}</p>
+      <p data-testid="rocket-ammo">Rocket ammunition: {rocketAmmo}</p>
     </fieldset>
     <div className="actions">
       <button data-testid="lock-program" disabled={disabled} onClick={() => void onSubmit(withDefaults(draft, programSize), action)}>{locked ? 'Program låst' : 'Lås program'}</button>

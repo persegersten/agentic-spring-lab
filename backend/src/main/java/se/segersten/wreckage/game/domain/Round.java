@@ -86,7 +86,7 @@ public final class Round {
         resolve(engine,new se.segersten.wreckage.game.engine.BoardEffectEngine(engine),players,configuration);
     }
     public void resolve(se.segersten.wreckage.game.engine.MovementEngine engine,se.segersten.wreckage.game.engine.BoardEffectEngine effects,List<Player> players,GameConfiguration configuration){
-        resolve(engine,effects,new se.segersten.wreckage.game.engine.ActionEngine(),players,configuration);
+        resolve(engine,effects,new se.segersten.wreckage.game.engine.ActionEngine(engine),players,configuration);
     }
     public void resolve(se.segersten.wreckage.game.engine.MovementEngine engine,
                         se.segersten.wreckage.game.engine.BoardEffectEngine effects,
@@ -196,15 +196,18 @@ public final class Round {
             if (event.type() == RoundEventType.MOVE || event.type() == RoundEventType.TURN
                     ||event.type()==RoundEventType.RAM||event.type()==RoundEventType.PUSH||event.type()==RoundEventType.CONVEYOR_MOVE||event.type()==RoundEventType.CONVEYOR_RAM||event.type()==RoundEventType.CONVEYOR_PUSH||event.type()==RoundEventType.ROTATOR_TURN) {
                 result.put(event.vehicleId(), new VehicleState(current.vehicle(), event.newPosition(),
-                        event.newDirection(), current.status(), current.damage()));
+                        event.newDirection(), current.status(), current.damage(), current.rocketAmmo()));
             }else if(event.type()==RoundEventType.DAMAGE_APPLIED){
                 result.put(event.vehicleId(), new VehicleState(current.vehicle(), current.position(),
-                        current.orientation(), current.status(), event.newDamage()));
+                        current.orientation(), current.status(), event.newDamage(), current.rocketAmmo()));
+            }else if(event.type()==RoundEventType.AMMO_CHANGED){
+                result.put(event.vehicleId(), new VehicleState(current.vehicle(), current.position(),
+                        current.orientation(), current.status(), current.damage(), event.newAmmo()));
             }else if(event.type()==RoundEventType.CRASH||event.type()==RoundEventType.CONVEYOR_CRASH
                     || event.type()==RoundEventType.VEHICLE_CRASHED){
                 result.put(event.vehicleId(), new VehicleState(current.vehicle(), event.newPosition(),
                         event.newDirection(), VehicleStatus.CRASHED,
-                        event.newDamage() == null ? current.damage() : event.newDamage()));
+                        event.newDamage() == null ? current.damage() : event.newDamage(), current.rocketAmmo()));
             }
         }
         return List.copyOf(result.values());

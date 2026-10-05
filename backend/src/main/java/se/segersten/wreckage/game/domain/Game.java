@@ -145,7 +145,7 @@ public class Game {
             }
             if (selected == null) continue;
             VehicleState respawned = new VehicleState(vehicle, selected.position(), vehicle.spawnOrientation(),
-                    VehicleStatus.ACTIVE, 0);
+                    VehicleStatus.ACTIVE, 0, crashed.rocketAmmo());
             vehicles.put(player.getId(), respawned);
             occupied.add(selected.position());
             events.add(RoundEvent.vehicleRespawned(crashed, respawned).withSequence(events.size() + 1));

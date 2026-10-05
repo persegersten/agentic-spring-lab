@@ -9,12 +9,14 @@ public record RoundEventResponse(int sequence, RoundEventType type, UUID playerI
                                  Direction oldDirection, Direction newDirection,
                                  Integer oldDamage, Integer newDamage, Integer damageDelta,
                                  Integer oldScore, Integer newScore,
-                                 Integer scoreDelta, ScoreChangeReason scoreReason, String checkpointId) {
+                                 Integer scoreDelta, ScoreChangeReason scoreReason, String checkpointId,
+                                 ActionType actionType, Integer oldAmmo, Integer newAmmo, Integer ammoDelta) {
     static RoundEventResponse from(RoundEvent event) {
         return new RoundEventResponse(event.sequence(), event.type(), event.playerId(), event.vehicleId(),
                 event.sourcePlayerId(), event.sourceVehicleId(), event.oldPosition(), event.newPosition(),
                 event.oldDirection(), event.newDirection(), event.oldDamage(), event.newDamage(), event.damageDelta(),
                 event.oldScore(), event.newScore(),
-                event.scoreDelta(), event.scoreReason(), event.checkpointId());
+                event.scoreDelta(), event.scoreReason(), event.checkpointId(), event.actionType(),
+                event.oldAmmo(), event.newAmmo(), event.ammoDelta());
     }
 }
