@@ -2,9 +2,11 @@
 
 This document is the authoritative rules specification for Wreckage v2.
 
-It replaces the previous combat-oriented ruleset. Wreckage v2 is a fast,
+It replaces the previous combat-oriented ruleset with a fast,
 programmed-movement multiplayer game for 2–10 players, designed for a typical
-match length of approximately 10–20 minutes.
+match length of approximately 10–20 minutes. Combat v1 extends that core with
+deterministic weapons and abilities that create positional problems without
+restoring the old damage-elimination game.
 
 The backend is authoritative. If a rule is not described here, the game engine
 must not invent one.
@@ -17,16 +19,22 @@ implicitly authoritative.
 
 ## 1. Design goals
 
-Wreckage v2 is built around four ideas:
+Wreckage v2 is built around five ideas:
 
 1. **Simultaneous planning** — all players choose their programs at the same time.
 2. **Programmed movement** — each player commits several commands before seeing how opponents move.
 3. **Deterministic chaos** — interaction comes from pushing, walls, pits, board elements and initiative, not dice or random cards.
 4. **Short fixed matches** — no player is permanently eliminated and the game ends after a configured number of rounds.
+5. **Positional combat** — weapons and abilities change positions, future moves and access to board features more often than they merely accumulate damage.
 
 The intended player experience is:
 
 > I had a perfect plan until another player moved me one square.
+
+Combat should reward predicting where vehicles will be after programmed
+movement, using walls and other vehicles as cover, and pushing opponents towards
+pits, open edges, conveyors and control areas. It uses no dice, random damage or
+random weapon effects.
 
 ---
 
@@ -123,7 +131,7 @@ A map used for a game must provide enough spawn points for the configured player
 capacity.
 
 Spawn points are ordinary board positions during play. Respawn collision rules
-are defined in section 15.
+are defined in section 20.
 
 ---
 
@@ -143,6 +151,10 @@ score
 spawnPoint
 spawnOrientation
 visitedCheckpoints
+damage
+primaryWeapon
+specialAbility
+rocketAmmo
 ```
 
 Possible orientations are:
@@ -164,6 +176,9 @@ CRASHED
 A crashed vehicle is not present on the board for the remainder of the current
 round.
 
+Every vehicle starts a match with `damage = 0`. Its loadout is fixed when the
+match starts as described in section 11.
+
 ---
 
 ## 5. Game configuration
@@ -179,6 +194,7 @@ checkpointScore
 controlPointScore
 crashPenalty
 pushCrashScore
+weaponCrashScore
 mapId
 ```
 
@@ -193,6 +209,7 @@ checkpointScore = 2
 controlPointScore = 1
 crashPenalty = -1
 pushCrashScore = 1
+weaponCrashScore = 1
 ```
 
 `maxPlayers` must be between 2 and 10.
@@ -237,17 +254,23 @@ Internally, `RESOLVING` processes each program register in order:
 
 ```text
 REGISTER 1
+    PRE_MOVEMENT actions
     player commands in initiative order
+    POST_MOVEMENT actions in initiative order
     board effects
 
 REGISTER 2
+    PRE_MOVEMENT actions
     player commands in initiative order
+    POST_MOVEMENT actions in initiative order
     board effects
 
 ...
 
 REGISTER N
+    PRE_MOVEMENT actions
     player commands in initiative order
+    POST_MOVEMENT actions in initiative order
     board effects
 
 ROUND-END SCORING
@@ -290,17 +313,20 @@ FORWARD_1
 ## 8. Planning
 
 During `PLANNING`, every active player constructs an ordered program containing
-exactly `programSize` commands.
+exactly `programSize` commands and may also schedule at most one action for the
+round. A scheduled action consists of an action type and one register number in
+the range `1..programSize`. Choosing no action is valid.
 
 Other players may see whether a player is ready, but may not see that player's
-program before resolution/playback.
+program or scheduled action before resolution/playback. The action becomes
+public when it resolves and appears in authoritative playback.
 
 A player may edit the program until either:
 
 - the player locks it, or
 - the planning timeout expires.
 
-A locked program is immutable for that round.
+A locked program and its optional action are immutable for that round.
 
 If the planning timeout expires before a player has filled every register,
 missing registers are filled with:
@@ -309,6 +335,9 @@ missing registers are filled with:
 WAIT
 ```
 
+Timeout does not create an action. If the player did not schedule one, the
+round resolves with no action for that vehicle.
+
 When all active players have locked complete programs, resolution may start
 immediately without waiting for the timeout.
 
@@ -316,7 +345,8 @@ immediately without waiting for the timeout.
 
 ## 9. Initiative
 
-Programs are resolved one register at a time.
+Programs and their optional scheduled actions are resolved one register at a
+time.
 
 Within one register, player commands are resolved sequentially according to the
 round's initiative order.
@@ -339,7 +369,215 @@ state so replay and debugging never depend on recalculating it.
 
 ---
 
-## 10. Rotation commands
+## 10. Register resolution and action timing
+
+Each register resolves completely in this authoritative order:
+
+```text
+1. PRE_MOVEMENT actions
+2. programmed movement commands in initiative order
+3. POST_MOVEMENT actions in initiative order
+4. board effects
+```
+
+Then resolution continues to the next register. The action categories are:
+
+```text
+PRE_MOVEMENT:  SHIELD, ANCHOR
+POST_MOVEMENT: LASER, REPULSOR, ROCKET, TURBO,
+               SIDE_STEP_LEFT, SIDE_STEP_RIGHT
+```
+
+Pre-movement actions only affect their own vehicle and establish effects for
+the register before any programmed command is resolved. Their relative order
+therefore cannot change the result. Post-movement actions resolve sequentially
+in the same initiative order used for programmed commands.
+
+A scheduled action is skipped if its vehicle has already crashed when the
+action would resolve. It is still that player's one action for the round.
+
+Action timing uses the vehicle's state at the moment the action resolves. For
+example, if A schedules `LASER` in register 2 and B moves behind a wall during
+register 2 movement, the wall blocks A's post-movement shot.
+
+---
+
+## 11. Combat loadouts and action eligibility
+
+Each vehicle has exactly one primary weapon and one special ability.
+
+Combat v1 primary weapons are:
+
+```text
+LASER
+REPULSOR
+ROCKET
+```
+
+Combat v1 special abilities are:
+
+```text
+TURBO
+SHIELD
+SIDE_STEP
+ANCHOR
+```
+
+A vehicle may schedule its equipped weapon or its equipped special ability as
+its one action for the round. `SIDE_STEP` is scheduled as either
+`SIDE_STEP_LEFT` or `SIDE_STEP_RIGHT`. A vehicle cannot schedule an unequipped
+weapon or ability.
+
+The loadout is fixed when the match starts and cannot change during the match.
+Lobby selection of loadouts belongs to a later implementation feature and is
+not defined here.
+
+---
+
+## 12. Weapon targeting and damage
+
+### 12.1 Line of sight
+
+Weapons fire from the vehicle's current position in its current orientation.
+They inspect cells one at a time in a straight cardinal line. A shot stops at:
+
+- the first active vehicle,
+- an edge wall blocking passage between two cells,
+- the board boundary, or
+- the weapon's maximum range.
+
+The first active vehicle in the line is the only possible target, so vehicles
+provide cover for vehicles behind them. Weapons never fire diagonally. A wall
+on the edge out of the firing vehicle's cell blocks the first inspected cell;
+an open board boundary ends the shot without causing the firing vehicle to
+move or crash.
+
+### 12.2 Weapon damage
+
+Weapon damage is a non-negative value that starts at:
+
+```text
+damage = 0
+```
+
+Damage persists between rounds until the vehicle crashes. Whenever applied
+weapon damage makes the value satisfy:
+
+```text
+damage >= 3
+```
+
+the vehicle crashes immediately under the normal crash rules. Weapon damage
+does not remove commands, create malfunction cards, reduce `programSize`, or
+permanently eliminate a player.
+
+Shield may prevent damage as described in section 14.1. Repulsor deals no
+damage. Environmental crashes from pits, open edges and board effects do not
+depend on the damage value.
+
+---
+
+## 13. Primary weapons
+
+### 13.1 Laser
+
+```text
+range = 6
+damage = 1
+uses = unlimited
+```
+
+`LASER` is a post-movement action. It fires straight ahead using the shared
+line-of-sight rules. If the first visible vehicle is within range, it receives
+1 weapon damage. It crashes immediately if its resulting damage is at least 3.
+
+### 13.2 Repulsor
+
+```text
+range = 3
+damage = 0
+uses = unlimited
+```
+
+`REPULSOR` is a post-movement action. It targets the first visible vehicle in a
+straight line and attempts to push that vehicle exactly one cell directly away
+from the firing vehicle.
+
+The displacement uses the existing push-chain rules: it may push other
+vehicles as a chain, any required wall crossing or anchored vehicle blocks the
+complete push atomically, and pits or open edges are lethal destinations rather
+than blockers. Orientations do not change. A Repulsor push can therefore be
+more dangerous than a damage weapon.
+
+### 13.3 Rocket
+
+```text
+range = 5
+damage = 2
+uses = 1 per match
+```
+
+`ROCKET` is a post-movement action. It fires straight ahead using the shared
+line-of-sight rules. If the first visible vehicle is within range, it receives
+2 weapon damage and crashes immediately if its resulting damage is at least 3.
+
+Firing consumes the vehicle's single Rocket use whether the shot hits a
+vehicle or is stopped by a wall, boundary or range. After firing, that vehicle
+has no Rocket ammunition for the rest of the match and cannot schedule Rocket
+again. A Rocket action skipped because its vehicle already crashed does not
+fire and does not consume ammunition. Combat v1 has no Rocket area damage.
+
+---
+
+## 14. Special abilities
+
+Each special ability may be used once per round, subject to the universal limit
+of one action per player per round. Scheduling an ability therefore means the
+vehicle cannot fire its weapon or use another ability that round.
+
+### 14.1 Shield
+
+`SHIELD` is a pre-movement action. When activated, Shield remains active for
+the rest of that register and prevents the first 1 point of weapon damage the
+vehicle would receive during that register. It is then spent for the register;
+later weapon damage in the same register is applied normally.
+
+A Laser hit for 1 against an unspent Shield applies 0 damage. A Rocket hit for
+2 applies 1 damage. Shield does not protect against pushes, pits, board edges,
+conveyors or any other environmental crash.
+
+### 14.2 Anchor
+
+`ANCHOR` is a pre-movement action. When activated, its vehicle cannot be pushed
+for the rest of that register. This applies to pushes caused by normal vehicle
+movement, Repulsor, conveyors, and any other board effect that uses the normal
+push rules.
+
+If an anchored vehicle is anywhere in a required push chain, the entire push
+is blocked atomically. Anchor does not prevent weapon damage, the anchored
+vehicle's own movement, or a crash caused when its own movement enters a pit or
+leaves an open board edge.
+
+### 14.3 Turbo
+
+`TURBO` is a post-movement action that performs one additional forward movement
+step. The step uses all normal movement rules, including walls, pushes, pits,
+open edges, checkpoints and crashes. It uses the vehicle's position and
+orientation when the action resolves.
+
+### 14.4 Side Step
+
+`SIDE_STEP_LEFT` and `SIDE_STEP_RIGHT` are post-movement actions. They attempt
+to move the vehicle exactly one cell to the corresponding side relative to its
+current orientation. The vehicle's orientation does not change.
+
+Side Step respects edge walls, may enter a pit or leave an open edge and crash,
+and may trigger a checkpoint. It never pushes. If the destination cell contains
+another active vehicle, the action is blocked and neither vehicle moves.
+
+---
+
+## 15. Rotation commands
 
 `TURN_LEFT` rotates the vehicle 90 degrees counter-clockwise.
 
@@ -365,7 +603,7 @@ Rotation does not change position.
 
 ---
 
-## 11. Translation commands
+## 16. Translation commands
 
 `FORWARD_1` performs one forward movement step.
 
@@ -396,7 +634,7 @@ executed.
 
 ---
 
-## 12. Movement across walls
+## 17. Movement across walls
 
 Before a vehicle or pushed vehicle crosses from one cell to an adjacent cell,
 the engine checks the edge between those cells.
@@ -413,7 +651,7 @@ The command is still consumed.
 
 ---
 
-## 13. Pushing
+## 18. Pushing
 
 Both forward and reverse translation may push another vehicle.
 
@@ -447,17 +685,18 @@ becomes:
 The orientation of pushed vehicles does not change.
 
 A push chain is one atomic movement step. It either resolves to a valid result
-or, when blocked by a wall, does not move any vehicle.
+or, when blocked by a wall or an active Anchor, does not move any vehicle.
 
 Pits and open board edges are not blockers. They are lethal destinations and are
 resolved as crashes.
 
 ---
 
-## 14. Crash
+## 19. Crash
 
 A vehicle crashes when it:
 
+- reaches `damage >= 3` from weapon damage,
 - enters a pit,
 - is pushed into a pit,
 - moves beyond an open board edge,
@@ -468,13 +707,14 @@ A crash has the following effects:
 
 1. The vehicle is removed from the active board state for the remainder of the round.
 2. Its remaining commands in the current round are skipped.
-3. Its score changes by `crashPenalty`.
-4. Its status becomes `CRASHED`.
-5. It is scheduled to respawn at the start of the next round.
+3. Its scheduled action is skipped if it has not yet resolved.
+4. Its score changes by `crashPenalty`.
+5. Its status becomes `CRASHED`.
+6. It is scheduled to respawn at the start of the next round.
 
 Scores are allowed to become negative.
 
-### 14.1 Push-caused crash score
+### 19.1 Push-caused crash score
 
 If a crash occurs during another player's translation command because of that
 command's push chain, the player executing the command receives
@@ -491,15 +731,36 @@ A player never receives a push-crash score for crashing their own vehicle.
 Crashes caused later by conveyors, rotators, or other board effects do not award
 a push-crash score in the v2 core rules.
 
+### 19.2 Weapon-caused crash score
+
+If a player's weapon directly causes an opponent to crash during resolution of
+that weapon action, the firing player gains `weaponCrashScore`. This applies
+when Laser or Rocket raises the target's damage to at least 3, and when a
+Repulsor push moves an opponent directly into a pit or beyond an open board
+edge. The crashed player also receives the normal `crashPenalty`.
+
+If one Repulsor action directly crashes more than one opponent through its push
+chain, the firing player receives the score once for each crashed opponent.
+
+The award is limited to the immediate resolution of the weapon action; the
+engine does not track longer causal chains. For example, if Repulsor pushes B
+onto a conveyor and that conveyor later moves B into a pit during board effects,
+the shooter receives no `weaponCrashScore`.
+
+A player never receives weapon-crash score for crashing their own vehicle.
+
 ---
 
-## 15. Respawn
+## 20. Respawn
 
 A crashed vehicle respawns at the start of the next round before planning
 begins.
 
 The engine first attempts to place it on its assigned spawn point with its
 assigned spawn orientation.
+
+On successful respawn, its damage is reset to `0`. Expended Rocket ammunition
+is not restored because Rocket usage is per match.
 
 If that spawn point is occupied, the engine chooses the first available spawn
 point using the map's stable spawn-point order, starting from the vehicle's own
@@ -515,7 +776,7 @@ No player is permanently eliminated from the match.
 
 ---
 
-## 16. Checkpoints
+## 21. Checkpoints
 
 A checkpoint occupies a board cell and has a stable checkpoint identifier.
 
@@ -540,7 +801,7 @@ Checkpoint scoring applies when the vehicle reaches the cell through:
 
 ---
 
-## 17. Control points
+## 22. Control points
 
 A control point occupies a board cell.
 
@@ -556,10 +817,10 @@ A map may contain zero or more control points.
 
 ---
 
-## 18. Board effects
+## 23. Board effects
 
-Board effects are resolved after **every register**, after all player commands in
-that register have completed.
+Board effects are resolved after **every register**, after all player commands
+and post-movement actions in that register have completed.
 
 The v2 core board-effect order is:
 
@@ -573,7 +834,7 @@ The v2 core board-effect order is:
 A future board effect must define its place in this order before it is
 implemented.
 
-### 18.1 Conveyors
+### 23.1 Conveyors
 
 A conveyor has a position and direction.
 
@@ -587,7 +848,7 @@ Conveyors are resolved in a deterministic map-defined order.
 
 A conveyor-caused push does not award `pushCrashScore` in the v2 core rules.
 
-### 18.2 Rotators
+### 23.2 Rotators
 
 A rotator occupies a cell and has one of two effects:
 
@@ -602,7 +863,7 @@ A rotator does not move the vehicle.
 
 ---
 
-## 19. Scoring summary
+## 24. Scoring summary
 
 Default scoring is:
 
@@ -610,6 +871,7 @@ Default scoring is:
 first visit to checkpoint  +2
 control point at round end +1
 opponent crashes from your push command +1
+opponent crashes directly from your weapon +1
 own crash                  -1
 ```
 
@@ -620,7 +882,7 @@ Every score change must be represented by an authoritative event.
 
 ---
 
-## 20. End of game
+## 25. End of game
 
 The game ends after `roundLimit` rounds have completed.
 
@@ -635,7 +897,7 @@ No sudden-death round is created automatically.
 
 ---
 
-## 21. Match-length guidance
+## 26. Match-length guidance
 
 The rules must support short games.
 
@@ -659,7 +921,7 @@ A complete match should normally fit within approximately 10–20 minutes.
 
 ---
 
-## 22. Authoritative resolution and events
+## 27. Authoritative resolution and events
 
 The server owns all game state and computes all results.
 
@@ -667,12 +929,15 @@ The client sends intentions such as:
 
 ```text
 submitProgram(...)
+scheduleAction(...)
 lockProgram(...)
 ```
 
 The client does not decide:
 
 - final movement,
+- action results,
+- weapon targeting or damage,
 - push results,
 - crashes,
 - board effects,
@@ -694,12 +959,23 @@ Events should represent meaningful facts such as:
 
 ```text
 COMMAND_STARTED
+ACTION_STARTED
 VEHICLE_MOVED
 VEHICLE_TURNED
 VEHICLE_PUSHED
 MOVE_BLOCKED
+WEAPON_FIRED
+WEAPON_BLOCKED
+WEAPON_HIT
+DAMAGE_APPLIED
+DAMAGE_PREVENTED
 VEHICLE_CRASHED
 VEHICLE_RESPAWNED
+SHIELD_ACTIVATED
+ANCHOR_ACTIVATED
+TURBO_ACTIVATED
+SIDE_STEP
+AMMO_CHANGED
 CONVEYOR_MOVED
 ROTATOR_TURNED
 CHECKPOINT_REACHED
@@ -709,12 +985,13 @@ ROUND_COMPLETED
 GAME_FINISHED
 ```
 
-The exact Java representation may evolve, but the event stream must contain
-enough information for a client to replay the result without predicting rules.
+The exact Java names and representation are implementation details, but the
+event stream must contain enough information for a client to replay the result
+without calculating line of sight, damage, pushes, crashes or other rules.
 
 ---
 
-## 23. Determinism
+## 28. Determinism
 
 The game engine is deterministic.
 
@@ -726,6 +1003,8 @@ board/map
 round number
 initiative order
 player programs
+scheduled actions
+vehicle loadouts, damage and ammunition
 configuration
 ```
 
@@ -737,14 +1016,14 @@ score changes
 event sequence
 ```
 
-The v2 core rules require no gameplay randomness.
+Wreckage v2, including Combat v1, requires no gameplay randomness.
 
 If randomness is introduced by a later feature, it must use an injectable or
 persisted seed/source so replays and tests remain deterministic.
 
 ---
 
-## 24. Core invariants
+## 29. Core invariants
 
 After every resolved atomic step, all applicable invariants must hold.
 
@@ -760,7 +1039,7 @@ pit after lethal effects have been resolved.
 ### Crashed-state invariant
 
 A `CRASHED` vehicle does not participate in movement, pushing or board effects
-for the remainder of that round.
+for the remainder of that round, and its unresolved action is skipped.
 
 ### Orientation invariant
 
@@ -776,6 +1055,17 @@ authoritative event.
 Every active, successfully respawned player has exactly `programSize` resolved
 commands for the round after timeout handling.
 
+### Action invariant
+
+Every active player has zero or one scheduled action for the round. An action
+names one valid register and is eligible under the vehicle's fixed loadout and
+remaining ammunition.
+
+### Damage invariant
+
+Every active vehicle has damage from `0` through `2`. Reaching damage `3` or
+greater causes an immediate crash, and successful respawn resets damage to `0`.
+
 ### Determinism invariant
 
 The same authoritative input produces the same state and event sequence.
@@ -786,30 +1076,34 @@ Client-side animation never changes authoritative game state.
 
 ---
 
-## 25. Explicitly removed v1 rules
+## 30. Explicitly removed v1 rules
 
-The following v1 mechanics are **not part of Wreckage v2 core gameplay** and
+The following old v1 mechanics are **not part of Wreckage v2 or Combat v1** and
 must not influence resolution:
 
 - random command-card dealing,
 - mandatory use of a dealt hand,
-- cannon fire,
-- hit points or damage counters,
+- old cannon rules,
+- the old hit-point and damage-counter model,
 - malfunction cards,
 - damage-based elimination,
 - last-surviving-player victory,
 - acceleration,
 - handling,
-- armour,
-- weapon equipment,
+- armour statistics or inventory,
+- the old multi-weapon equipment system,
 - permanent elimination.
+
+Combat v1's single `damage` value, fixed one-weapon loadout and immediate crash
+threshold are explicitly different from those removed mechanics. Damage never
+degrades a program or eliminates a player from the match.
 
 Legacy code for these mechanics may exist temporarily during refactoring, but
 it is not authoritative and must eventually be removed.
 
 ---
 
-## 26. Initial implementation scope
+## 31. Implementation scope
 
 The minimum playable v2 slice is:
 
@@ -835,15 +1129,33 @@ fixed round limit
 authoritative playback events
 ```
 
-Conveyors, rotators and control points are the next board features after this
-minimum slice.
+Combat v1 extends this ruleset with one scheduled action per round, Laser,
+Repulsor, Rocket, Turbo, Shield, Side Step, Anchor, simple weapon damage, fixed
+loadouts and direct weapon-crash scoring. This document defines those rules;
+their gameplay implementation belongs to later implementation features.
 
-Weapons, damage, robot classes, mines and special abilities are future features
-and must not be implemented implicitly.
+### 31.1 Combat v1 non-goals
+
+Combat v1 does not define:
+
+- dice or other random combat results,
+- random damage,
+- armour inventory,
+- repair kits,
+- area explosions,
+- homing missiles,
+- diagonal weapons,
+- weapon pickups or upgrades,
+- multiple actions per round,
+- multiple weapons per vehicle,
+- cooldown systems,
+- mines,
+- temporary map pickups, or
+- special robot classes.
 
 ---
 
-## 27. Rule authority
+## 32. Rule authority
 
 This document defines intended Wreckage v2 gameplay.
 
