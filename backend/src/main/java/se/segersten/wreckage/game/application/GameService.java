@@ -22,6 +22,7 @@ import se.segersten.wreckage.game.domain.GameConfiguration;
 import se.segersten.wreckage.game.domain.Player;
 import se.segersten.wreckage.game.domain.MovementOrder;
 import se.segersten.wreckage.game.domain.Round;
+import se.segersten.wreckage.game.domain.ScheduledAction;
 import se.segersten.wreckage.game.engine.MovementEngine;
 
 @Service
@@ -128,16 +129,40 @@ public class GameService {
 
     public Round saveProgramDraft(UUID gameId, UUID playerId, String token, List<MovementOrder> orders) {
         Game game = authenticatedGameForUpdate(gameId, playerId, token);
+        ScheduledAction action = game.getRound() == null ? null
+                : game.getRound().programs().get(playerId).scheduledAction();
+        return saveProgramDraft(game, playerId, orders, action);
+    }
+
+    public Round saveProgramDraft(UUID gameId, UUID playerId, String token, List<MovementOrder> orders,
+                                  ScheduledAction action) {
+        Game game = authenticatedGameForUpdate(gameId, playerId, token);
+        return saveProgramDraft(game, playerId, orders, action);
+    }
+
+    private Round saveProgramDraft(Game game, UUID playerId, List<MovementOrder> orders, ScheduledAction action) {
         if (game.getRound() == null) throw new IllegalStateException("No round has started");
-        game.getRound().reorder(playerId, orders);
+        game.getRound().reorder(playerId, orders, action);
         gameRepository.save(game);
         return game.getRound();
     }
 
     public Round submitProgram(UUID gameId, UUID playerId, String token, List<MovementOrder> orders) {
         Game game = authenticatedGameForUpdate(gameId, playerId, token);
+        ScheduledAction action = game.getRound() == null ? null
+                : game.getRound().programs().get(playerId).scheduledAction();
+        return submitProgram(game, playerId, orders, action);
+    }
+
+    public Round submitProgram(UUID gameId, UUID playerId, String token, List<MovementOrder> orders,
+                               ScheduledAction action) {
+        Game game = authenticatedGameForUpdate(gameId, playerId, token);
+        return submitProgram(game, playerId, orders, action);
+    }
+
+    private Round submitProgram(Game game, UUID playerId, List<MovementOrder> orders, ScheduledAction action) {
         if (game.getRound() == null) throw new IllegalStateException("No round has started");
-        game.getRound().lock(playerId, orders);
+        game.getRound().lock(playerId, orders, action);
         resolveIfReady(game);
         gameRepository.save(game);
         return game.getRound();

@@ -27,6 +27,7 @@ import se.segersten.wreckage.game.application.GameService;
 import se.segersten.wreckage.game.domain.Player;
 import se.segersten.wreckage.game.domain.MovementOrder;
 import se.segersten.wreckage.game.domain.GameConfiguration;
+import se.segersten.wreckage.game.domain.ScheduledAction;
 
 @RestController
 @RequestMapping("/games")
@@ -119,7 +120,7 @@ public class GameController {
             @RequestHeader("X-Player-Id") UUID playerId,
             @RequestHeader(value = "X-Player-Token", required = false) String token,
             @RequestBody ProgramRequest request) {
-        gameService.submitProgram(gameId, playerId, token, request.orders());
+        gameService.submitProgram(gameId, playerId, token, request.orders(), request.scheduledAction());
         return PlayerGameResponse.from(gameService.getPlayerGame(gameId, playerId, token), playerId);
     }
 
@@ -128,7 +129,7 @@ public class GameController {
             @RequestHeader("X-Player-Id") UUID playerId,
             @RequestHeader(value = "X-Player-Token", required = false) String token,
             @RequestBody ProgramRequest request) {
-        gameService.saveProgramDraft(gameId, playerId, token, request.orders());
+        gameService.saveProgramDraft(gameId, playerId, token, request.orders(), request.scheduledAction());
         return PlayerGameResponse.from(gameService.getPlayerGame(gameId, playerId, token), playerId);
     }
 
@@ -180,7 +181,7 @@ public class GameController {
                                     int programSize, int planningTimeoutSeconds,
                                     Integer checkpointScore, Integer controlPointScore,
                                     Integer crashPenalty, Integer pushCrashScore) {}
-    public record ProgramRequest(List<MovementOrder> orders) {}
+    public record ProgramRequest(List<MovementOrder> orders, ScheduledAction scheduledAction) {}
     public record PlayerJoinResponse(UUID id, String name, String token) {}
     public record CreateGameResponse(@com.fasterxml.jackson.annotation.JsonUnwrapped GameResponse game,
                                      String hostToken) {}

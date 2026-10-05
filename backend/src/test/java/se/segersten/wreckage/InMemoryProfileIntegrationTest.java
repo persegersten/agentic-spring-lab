@@ -116,6 +116,22 @@ class InMemoryProfileIntegrationTest {
     }
 
     @Test
+    void persistsPrivateScheduledActionUsingInMemoryDatabase() {
+        var hosted = gameService.createHostedGame(new GameConfiguration(2, 300, 3, 120));
+        var alice = gameService.addPlayer(hosted.game().getId(), "Alice");
+        gameService.addPlayer(hosted.game().getId(), "Bob");
+        gameService.startGame(hosted.game().getId(), hosted.hostToken());
+        var action = new se.segersten.wreckage.game.domain.ScheduledAction(
+                se.segersten.wreckage.game.domain.ActionType.SHIELD, 1);
+
+        gameService.saveProgramDraft(hosted.game().getId(), alice.player().getId(), alice.token(),
+                java.util.List.of(MovementOrder.WAIT), action);
+        Game retrieved = gameService.getPlayerGame(hosted.game().getId(), alice.player().getId(), alice.token());
+
+        assertThat(retrieved.getRound().programs().get(alice.player().getId()).scheduledAction()).isEqualTo(action);
+    }
+
+    @Test
     void persistsInitiativeAndSequentialMovementPlaybackUsingInMemoryDatabase() {
         var now = java.time.Instant.parse("2026-01-01T12:00:00Z");
         var playerId = java.util.UUID.randomUUID();
