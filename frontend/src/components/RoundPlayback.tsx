@@ -14,11 +14,16 @@ function describeEvent(event: RoundEvent, players: Player[]) {
     case 'CONVEYOR_CRASH':return `${name} kraschar på transportbandet`
     case 'ROTATOR_TURN':return `Rotatorn vrider ${name}`
     case 'CRASH': return `${name} kraschar`
+    case 'WEAPON_FIRED': return `${name} avfyrar Laser`
+    case 'WEAPON_HIT': return `${name} träffas av Laser`
+    case 'DAMAGE_APPLIED': return `${name} får ${event.damageDelta ?? 0} skada (${event.newDamage ?? 0}/3)`
+    case 'VEHICLE_CRASHED': return `${name} kraschar av vapenskada`
+    case 'VEHICLE_RESPAWNED': return `${name} respawnar`
     case 'SCORE_CHANGED': return `${name} ${event.scoreDelta && event.scoreDelta > 0 ? '+' : ''}${event.scoreDelta ?? 0} poäng`
   }
 }
 
-export function RoundPlayback({board,round,players,onVehicles,onScores,onFinished}:{board:Board;round:PublicRound;players:Player[];onVehicles:(v:Vehicle[])=>void;onScores:(scores:Record<string,number>)=>void;onFinished:(done:boolean)=>void}) {
+export function RoundPlayback({board,round,players,onVehicles,onScores,onCurrentEvent,onFinished}:{board:Board;round:PublicRound;players:Player[];onVehicles:(v:Vehicle[])=>void;onScores:(scores:Record<string,number>)=>void;onCurrentEvent:(event?:RoundEvent)=>void;onFinished:(done:boolean)=>void}) {
   // The parent keys this component by round. Polling must not replace its timeline.
   const [timeline] = useState(round)
   const [eventIndex, setEventIndex] = useState(0)
@@ -43,16 +48,19 @@ export function RoundPlayback({board,round,players,onVehicles,onScores,onFinishe
         vehicle.direction = event.newDirection
       }
       if(vehicle&&['CRASH','CONVEYOR_CRASH'].includes(event.type))vehicles.splice(vehicleIndex,1)
+      if(vehicle&&event.type==='DAMAGE_APPLIED'&&event.newDamage!==undefined)vehicle.damage=event.newDamage
+      if(vehicle&&event.type==='VEHICLE_CRASHED')vehicles.splice(vehicleIndex,1)
       if (event.type === 'SCORE_CHANGED' && event.newScore !== undefined) scores[event.playerId] = event.newScore
     }
     onVehicles(vehicles)
     onScores(scores)
-  }, [eventIndex, timeline, players, onVehicles, onScores])
+    onCurrentEvent(current)
+  }, [eventIndex, timeline, players, onVehicles, onScores, onCurrentEvent, current])
 
   useEffect(() => {
     if (!playing || finished) return
     const duration = !current ? 0
-      : current.type === 'CRASH' || current.type === 'SCORE_CHANGED' ? 450 : 250
+      : ['CRASH','VEHICLE_CRASHED','WEAPON_FIRED','WEAPON_HIT','DAMAGE_APPLIED','SCORE_CHANGED'].includes(current.type) ? 450 : 250
     const id = window.setTimeout(() => {
       if (eventIndex >= timeline.playback.length) {
         setFinished(true)
@@ -67,6 +75,7 @@ export function RoundPlayback({board,round,players,onVehicles,onScores,onFinishe
 
   function replay() {
     onFinished(false)
+    onCurrentEvent(undefined)
     setEventIndex(0)
     setFinished(false)
     setPlaying(true)

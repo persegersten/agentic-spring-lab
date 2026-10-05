@@ -76,7 +76,7 @@ public class MovementEngine {
     private MovementResult applyTurn(GameState gameState, int vehicleIndex, Direction orientation) {
         List<VehicleState> result = new ArrayList<>(gameState.vehicleStates());
         VehicleState state = result.get(vehicleIndex);
-        VehicleState updated = new VehicleState(state.vehicle(), state.position(), orientation, state.status());
+        VehicleState updated = new VehicleState(state.vehicle(), state.position(), orientation, state.status(), state.damage());
         result.set(vehicleIndex, updated);
         return new MovementResult(new GameState(gameState.board(), List.copyOf(result)),
                 List.of(event(RoundEventType.TURN, state, updated)));
@@ -113,7 +113,7 @@ public class MovementEngine {
                     ? moving
                     : currentStates.get(pushedIndexes.get(lastPushedIndex));
             VehicleState updated = new VehicleState(crashed.vehicle(), destination, crashed.orientation(),
-                    VehicleStatus.CRASHED);
+                    VehicleStatus.CRASHED, crashed.damage());
             result.set(pushedIndexes.isEmpty() ? vehicleIndex : pushedIndexes.get(lastPushedIndex), updated);
             events.add(event(conveyor?RoundEventType.CONVEYOR_CRASH:RoundEventType.CRASH,moving,crashed,updated));
             if (pushedIndexes.isEmpty()) {
@@ -126,13 +126,13 @@ public class MovementEngine {
             int pushedIndex = pushedIndexes.get(index);
             VehicleState pushed = currentStates.get(pushedIndex);
             VehicleState updated = new VehicleState(pushed.vehicle(),
-                    pushed.position().move(movementDirection), pushed.orientation(), pushed.status());
+                    pushed.position().move(movementDirection), pushed.orientation(), pushed.status(), pushed.damage());
             result.set(pushedIndex, updated);
             events.add(event(conveyor?RoundEventType.CONVEYOR_PUSH:RoundEventType.PUSH,pushed,updated));
         }
 
         VehicleState updatedMoving = new VehicleState(moving.vehicle(),
-                moving.position().move(movementDirection), moving.orientation(), moving.status());
+                moving.position().move(movementDirection), moving.orientation(), moving.status(), moving.damage());
         result.set(vehicleIndex, updatedMoving);
         RoundEventType type=pushedIndexes.isEmpty()?(conveyor?RoundEventType.CONVEYOR_MOVE:RoundEventType.MOVE):(conveyor?RoundEventType.CONVEYOR_RAM:RoundEventType.RAM);
         events.add(event(type, moving, updatedMoving));

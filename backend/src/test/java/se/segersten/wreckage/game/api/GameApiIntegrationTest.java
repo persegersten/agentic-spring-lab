@@ -68,6 +68,7 @@ class GameApiIntegrationTest {
         assertThat(game.path("configuration").path("controlPointScore").asInt()).isEqualTo(1);
         assertThat(game.path("configuration").path("crashPenalty").asInt()).isEqualTo(-1);
         assertThat(game.path("configuration").path("pushCrashScore").asInt()).isEqualTo(1);
+        assertThat(game.path("configuration").path("weaponCrashScore").asInt()).isEqualTo(1);
         assertThat(game.path("hostToken").asText()).isNotBlank();
         assertThat(game.path("board").path("width").asInt()).isEqualTo(20);
         assertThat(game.path("board").path("height").asInt()).isEqualTo(20);
@@ -350,6 +351,37 @@ class GameApiIntegrationTest {
         assertThat(putPlayer("/games/%s/rounds/current/program".formatted(gameId), alice, """
                 {"orders":[],"scheduledAction":null}
                 """).statusCode()).isEqualTo(HttpStatus.CONFLICT.value());
+    }
+
+    @Test
+    void exposesAuthoritativeLaserDamageAndOrderedPlaybackToEveryPlayer() throws Exception {
+        HttpResponse<String> created = post("/games", """
+                {"maxPlayers":2,"joinTimeoutSeconds":90,"programSize":1,"planningTimeoutSeconds":45}
+                """);
+        String gameId = json(created).path("id").asText();
+        JsonNode alice = json(post("/games/%s/players".formatted(gameId), "{\"name\":\"Alice\"}"));
+        JsonNode bob = json(post("/games/%s/players".formatted(gameId), "{\"name\":\"Bob\"}"));
+        postHost(gameId, json(created).path("hostToken").asText());
+
+        postPlayer("/games/%s/rounds/current/program".formatted(gameId), alice, """
+                {"orders":["TURN_LEFT"],"scheduledAction":{"actionType":"LASER","registerIndex":1}}
+                """);
+        postPlayer("/games/%s/rounds/current/program".formatted(gameId), bob,
+                "{\"orders\":[\"WAIT\"],\"scheduledAction\":null}");
+
+        JsonNode aliceView = json(getPlayerGame(gameId, alice));
+        JsonNode bobView = json(getPlayerGame(gameId, bob));
+        JsonNode alicePlayback = aliceView.path("round").path("state").path("playback");
+        JsonNode bobPlayback = bobView.path("round").path("state").path("playback");
+        assertThat(alicePlayback).isEqualTo(bobPlayback);
+        assertThat(alicePlayback).extracting(event -> event.path("type").asText())
+                .containsSequence("WEAPON_FIRED", "WEAPON_HIT", "DAMAGE_APPLIED");
+        JsonNode damage = java.util.stream.StreamSupport.stream(alicePlayback.spliterator(), false)
+                .filter(event -> event.path("type").asText().equals("DAMAGE_APPLIED")).findFirst().orElseThrow();
+        assertThat(damage.path("oldDamage").asInt()).isZero();
+        assertThat(damage.path("newDamage").asInt()).isEqualTo(1);
+        assertThat(java.util.stream.StreamSupport.stream(aliceView.path("vehicles").spliterator(), false)
+                .map(vehicle -> vehicle.path("damage").asInt()).toList()).contains(1);
     }
 
     @Test

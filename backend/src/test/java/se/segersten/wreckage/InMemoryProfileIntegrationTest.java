@@ -240,4 +240,42 @@ class InMemoryProfileIntegrationTest {
         assertThat(retrieved.getRound().programs().get(playerId).commands()).containsExactly(
                 MovementOrder.WAIT, MovementOrder.FORWARD_1);
     }
+
+    @Test
+    void persistsLaserDamageConfigurationAndPlaybackUsingInMemoryDatabase() {
+        var now = java.time.Instant.parse("2026-01-01T12:00:00Z");
+        var shooter = Player.create(java.util.UUID.randomUUID(), "Shooter", "token-a");
+        var target = Player.create(java.util.UUID.randomUUID(), "Target", "token-b");
+        var shooterState = new VehicleState(new Vehicle(java.util.UUID.randomUUID(), shooter.getId()),
+                new Position(0, 1), Direction.EAST);
+        var targetState = new VehicleState(new Vehicle(java.util.UUID.randomUUID(), target.getId()),
+                new Position(2, 1), Direction.NORTH, se.segersten.wreckage.game.domain.VehicleStatus.ACTIVE, 1);
+        var programs = java.util.Map.of(
+                shooter.getId(), new PlayerProgram(shooter.getId(), 1, java.util.List.of(MovementOrder.WAIT), true,
+                        new se.segersten.wreckage.game.domain.ScheduledAction(
+                                se.segersten.wreckage.game.domain.ActionType.LASER, 1)),
+                target.getId(), new PlayerProgram(target.getId(), 1, java.util.List.of(MovementOrder.WAIT), true));
+        var board = new Board(5, 5);
+        var round = new Round(1, programs, java.util.List.of(shooter.getId(), target.getId()),
+                new GameState(board, java.util.List.of(shooterState, targetState)));
+        round.resolve(new se.segersten.wreckage.game.engine.MovementEngine(), java.util.List.of(shooter, target),
+                GameConfiguration.defaults());
+        var game = new Game(java.util.UUID.randomUUID(), java.util.List.of(shooter, target), board,
+                GameStatus.RUNNING, java.util.Map.of(shooter.getId(), shooterState, target.getId(), targetState),
+                round, GameConfiguration.defaults(), now, now.plusSeconds(60));
+
+        gameRepository.save(game);
+        Game retrieved = gameService.getGame(game.getId());
+
+        assertThat(retrieved.getConfiguration().weaponCrashScore()).isEqualTo(1);
+        assertThat(retrieved.getRound().initialState().vehicleStates()).extracting(VehicleState::damage)
+                .containsExactly(0, 1);
+        assertThat(retrieved.getRound().playback()).extracting(event -> event.type())
+                .containsExactly(se.segersten.wreckage.game.domain.RoundEventType.WEAPON_FIRED,
+                        se.segersten.wreckage.game.domain.RoundEventType.WEAPON_HIT,
+                        se.segersten.wreckage.game.domain.RoundEventType.DAMAGE_APPLIED);
+        assertThat(retrieved.getRound().playback().getLast().newDamage()).isEqualTo(2);
+        assertThat(retrieved.getRound().finalVehicleStates()).extracting(VehicleState::damage)
+                .containsExactly(0, 2);
+    }
 }

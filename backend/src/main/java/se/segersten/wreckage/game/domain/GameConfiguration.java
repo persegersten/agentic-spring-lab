@@ -9,7 +9,8 @@ public record GameConfiguration(
         int checkpointScore,
         int controlPointScore,
         int crashPenalty,
-        int pushCrashScore) {
+        int pushCrashScore,
+        int weaponCrashScore) {
 
     public static final int DEFAULT_MAX_PLAYERS = 9;
     public static final int DEFAULT_JOIN_TIMEOUT_SECONDS = 300;
@@ -20,16 +21,25 @@ public record GameConfiguration(
     public static final int DEFAULT_CONTROL_POINT_SCORE = 1;
     public static final int DEFAULT_CRASH_PENALTY = -1;
     public static final int DEFAULT_PUSH_CRASH_SCORE = 1;
+    public static final int DEFAULT_WEAPON_CRASH_SCORE = 1;
 
     public GameConfiguration(int maxPlayers, int joinTimeoutSeconds, int programSize, int planningTimeoutSeconds) {
         this(maxPlayers, joinTimeoutSeconds, programSize, planningTimeoutSeconds, DEFAULT_ROUND_LIMIT,
-                DEFAULT_CHECKPOINT_SCORE, DEFAULT_CONTROL_POINT_SCORE, DEFAULT_CRASH_PENALTY, DEFAULT_PUSH_CRASH_SCORE);
+                DEFAULT_CHECKPOINT_SCORE, DEFAULT_CONTROL_POINT_SCORE, DEFAULT_CRASH_PENALTY, DEFAULT_PUSH_CRASH_SCORE,
+                DEFAULT_WEAPON_CRASH_SCORE);
     }
 
     public GameConfiguration(int maxPlayers, int joinTimeoutSeconds, int programSize, int planningTimeoutSeconds,
                              int roundLimit, int checkpointScore, int crashPenalty, int pushCrashScore) {
         this(maxPlayers, joinTimeoutSeconds, programSize, planningTimeoutSeconds, roundLimit, checkpointScore,
-                DEFAULT_CONTROL_POINT_SCORE, crashPenalty, pushCrashScore);
+                DEFAULT_CONTROL_POINT_SCORE, crashPenalty, pushCrashScore, DEFAULT_WEAPON_CRASH_SCORE);
+    }
+
+    public GameConfiguration(int maxPlayers, int joinTimeoutSeconds, int programSize, int planningTimeoutSeconds,
+                             int roundLimit, int checkpointScore, int controlPointScore, int crashPenalty,
+                             int pushCrashScore) {
+        this(maxPlayers, joinTimeoutSeconds, programSize, planningTimeoutSeconds, roundLimit, checkpointScore,
+                controlPointScore, crashPenalty, pushCrashScore, DEFAULT_WEAPON_CRASH_SCORE);
     }
 
     public GameConfiguration {
@@ -46,11 +56,13 @@ public record GameConfiguration(
     public static GameConfiguration defaults() {
         return new GameConfiguration(DEFAULT_MAX_PLAYERS, DEFAULT_JOIN_TIMEOUT_SECONDS,
                 DEFAULT_PROGRAM_SIZE, DEFAULT_PLANNING_TIMEOUT_SECONDS, DEFAULT_ROUND_LIMIT,
-                DEFAULT_CHECKPOINT_SCORE, DEFAULT_CONTROL_POINT_SCORE, DEFAULT_CRASH_PENALTY, DEFAULT_PUSH_CRASH_SCORE);
+                DEFAULT_CHECKPOINT_SCORE, DEFAULT_CONTROL_POINT_SCORE, DEFAULT_CRASH_PENALTY,
+                DEFAULT_PUSH_CRASH_SCORE, DEFAULT_WEAPON_CRASH_SCORE);
     }
 
     public GameConfiguration withRoundLimit(int selectedRoundLimit) {
         return new GameConfiguration(maxPlayers, joinTimeoutSeconds, programSize, planningTimeoutSeconds,
-                selectedRoundLimit, checkpointScore, controlPointScore, crashPenalty, pushCrashScore);
+                selectedRoundLimit, checkpointScore, controlPointScore, crashPenalty, pushCrashScore,
+                weaponCrashScore);
     }
 }
