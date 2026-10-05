@@ -467,8 +467,9 @@ class GameRoundTest {
                 new GameState(board, List.of(vehicle)));
         List<String> encounters = new java.util.ArrayList<>();
         var actionEngine = new se.segersten.wreckage.game.engine.ActionEngine() {
-            @Override protected void encounter(UUID id, ScheduledAction action, ActionTiming timing, GameState state) {
+            @Override protected se.segersten.wreckage.game.engine.ActionResult encounter(UUID id, ScheduledAction action, ActionTiming timing, GameState state) {
                 encounters.add(id + ":" + action.actionType() + ":" + action.registerIndex() + ":" + timing);
+                return new se.segersten.wreckage.game.engine.ActionResult(state, List.of());
             }
         };
         MovementEngine movement = new MovementEngine();
@@ -480,6 +481,64 @@ class GameRoundTest {
         assertThat(round.playback()).extracting(RoundEvent::type)
                 .containsExactly(RoundEventType.MOVE, RoundEventType.MOVE);
         assertThat(round.finalVehicleStates().getFirst().position()).isEqualTo(new Position(3, 1));
+    }
+
+    @Test
+    void laserUsesPostMovementStateCrashesAtThirdDamageSkipsLaterCommandsAndScores() {
+        UUID shooterId = UUID.randomUUID();
+        UUID targetId = UUID.randomUUID();
+        Player shooter = Player.create(shooterId, "Shooter", "token-a");
+        Player target = Player.create(targetId, "Target", "token-b");
+        VehicleState shooterState = new VehicleState(new Vehicle(UUID.randomUUID(), shooterId),
+                new Position(0, 0), Direction.NORTH);
+        VehicleState targetState = new VehicleState(new Vehicle(UUID.randomUUID(), targetId),
+                new Position(2, 0), Direction.NORTH, VehicleStatus.ACTIVE, 2);
+        PlayerProgram shooterProgram = new PlayerProgram(shooterId, 2,
+                List.of(MovementOrder.TURN_RIGHT, MovementOrder.WAIT), true,
+                new ScheduledAction(ActionType.LASER, 1));
+        PlayerProgram targetProgram = new PlayerProgram(targetId, 2,
+                List.of(MovementOrder.WAIT, MovementOrder.FORWARD_1), true);
+        Round round = new Round(1, Map.of(shooterId, shooterProgram, targetId, targetProgram),
+                List.of(shooterId, targetId), new GameState(new Board(6, 6), List.of(shooterState, targetState)));
+
+        round.resolve(new MovementEngine(), List.of(shooter, target), GameConfiguration.defaults());
+
+        assertThat(round.playback()).extracting(RoundEvent::type).containsExactly(
+                RoundEventType.TURN, RoundEventType.WEAPON_FIRED, RoundEventType.WEAPON_HIT,
+                RoundEventType.DAMAGE_APPLIED, RoundEventType.VEHICLE_CRASHED,
+                RoundEventType.SCORE_CHANGED, RoundEventType.SCORE_CHANGED);
+        RoundEvent fired = round.playback().get(1);
+        assertThat(fired.oldPosition()).isEqualTo(new Position(0, 0));
+        assertThat(fired.newPosition()).isEqualTo(new Position(2, 0));
+        VehicleState crashed = round.finalVehicleStates().stream()
+                .filter(state -> state.vehicle().playerId().equals(targetId)).findFirst().orElseThrow();
+        assertThat(crashed.status()).isEqualTo(VehicleStatus.CRASHED);
+        assertThat(crashed.damage()).isEqualTo(3);
+        assertThat(crashed.position()).isEqualTo(new Position(2, 0));
+        assertThat(shooter.getScore()).isEqualTo(1);
+        assertThat(target.getScore()).isEqualTo(-1);
+        assertThat(round.playback()).filteredOn(event -> event.type() == RoundEventType.SCORE_CHANGED)
+                .extracting(RoundEvent::scoreReason)
+                .containsExactly(ScoreChangeReason.CRASH_PENALTY, ScoreChangeReason.WEAPON_CRASH);
+    }
+
+    @Test
+    void successfulRespawnClearsWeaponDamage() {
+        var now = Instant.parse("2026-01-01T12:00:00Z");
+        Player player = Player.create(UUID.randomUUID(), "Alice", "token");
+        Board board = new Board(4, 4);
+        Vehicle vehicle = new Vehicle(UUID.randomUUID(), player.getId(), new Position(0, 0), Direction.EAST);
+        VehicleState crashed = new VehicleState(vehicle, new Position(2, 2), Direction.NORTH,
+                VehicleStatus.CRASHED, 3);
+        Game game = new Game(UUID.randomUUID(), List.of(player), board, GameStatus.RUNNING,
+                Map.of(player.getId(), crashed), null, new GameConfiguration(2, 60, 1, 30), now,
+                now.plusSeconds(60));
+
+        game.startRound(now);
+
+        assertThat(game.getVehicleStates().getFirst().status()).isEqualTo(VehicleStatus.ACTIVE);
+        assertThat(game.getVehicleStates().getFirst().damage()).isZero();
+        assertThat(game.getRound().startEvents().getFirst().newDamage()).isZero();
     }
 
     private Game game(int programSize, Instant now) {

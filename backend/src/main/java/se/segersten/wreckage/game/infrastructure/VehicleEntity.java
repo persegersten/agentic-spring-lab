@@ -17,10 +17,11 @@ class VehicleEntity {
     @Column(name="spawn_x", nullable=false) private Integer spawnX;
     @Column(name="spawn_y", nullable=false) private Integer spawnY;
     @Enumerated(EnumType.STRING) @Column(name="spawn_direction", nullable=false) private Direction spawnDirection;
+    @Column(name="damage", nullable=false) private Integer damage;
     protected VehicleEntity() {}
     static VehicleEntity fromDomain(VehicleState state, GameEntity game) { var e = new VehicleEntity(); e.domainId=state.vehicle().id(); e.playerDomainId=state.vehicle().playerId(); e.game=game; return e.updateFrom(state); }
-    VehicleEntity updateFrom(VehicleState state) { x=(double)state.position().x(); y=(double)state.position().y(); direction=state.orientation(); status=state.status(); spawnX=state.vehicle().spawnPoint().x(); spawnY=state.vehicle().spawnPoint().y(); spawnDirection=state.vehicle().spawnOrientation(); return this; }
+    VehicleEntity updateFrom(VehicleState state) { x=(double)state.position().x(); y=(double)state.position().y(); direction=state.orientation(); status=state.status(); spawnX=state.vehicle().spawnPoint().x(); spawnY=state.vehicle().spawnPoint().y(); spawnDirection=state.vehicle().spawnOrientation(); damage=state.damage(); return this; }
     UUID domainId() { return domainId; }
     VehicleState toDomain() { return new VehicleState(new Vehicle(domainId, playerDomainId,
-            new Position(spawnX, spawnY), spawnDirection), new Position(x.intValue(), y.intValue()), direction, status); }
+            new Position(spawnX, spawnY), spawnDirection), new Position(x.intValue(), y.intValue()), direction, status, damage); }
 }

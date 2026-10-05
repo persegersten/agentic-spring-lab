@@ -17,12 +17,12 @@ public final class BoardEffectEngine {
         GameState current=state;
         for(var c:state.board().conveyors()){var v=current.vehicleStates().stream().filter(VehicleState::isActive).filter(x->x.position().equals(c.position())).findFirst().orElse(null);if(v!=null){var m=movement.applyConveyor(current,v.vehicle().id(),c.direction());current=m.state();events.addAll(m.events());}}
         List<VehicleState> vehicles=new ArrayList<>(current.vehicleStates());
-        for(int i=0;i<vehicles.size();i++){var v=vehicles.get(i);if(!v.isActive())continue;var r=state.board().rotatorAt(v.position());if(r==null)continue;var d=r.rotation()==se.segersten.wreckage.game.domain.Rotation.CLOCKWISE?v.orientation().turnRight():v.orientation().turnLeft();vehicles.set(i,new VehicleState(v.vehicle(),v.position(),d,v.status()));events.add(new RoundEvent(0,RoundEventType.ROTATOR_TURN,v.vehicle().playerId(),v.vehicle().id(),v.position(),v.position(),v.orientation(),d));}
+        for(int i=0;i<vehicles.size();i++){var v=vehicles.get(i);if(!v.isActive())continue;var r=state.board().rotatorAt(v.position());if(r==null)continue;var d=r.rotation()==se.segersten.wreckage.game.domain.Rotation.CLOCKWISE?v.orientation().turnRight():v.orientation().turnLeft();vehicles.set(i,new VehicleState(v.vehicle(),v.position(),d,v.status(),v.damage()));events.add(new RoundEvent(0,RoundEventType.ROTATOR_TURN,v.vehicle().playerId(),v.vehicle().id(),v.position(),v.position(),v.orientation(),d));}
         for (int index = 0; index < vehicles.size(); index++) {
             VehicleState vehicle = vehicles.get(index);
             if (vehicle.isActive() && state.board().isPit(vehicle.position())) {
                 VehicleState crashed = new VehicleState(vehicle.vehicle(), vehicle.position(),
-                        vehicle.orientation(), VehicleStatus.CRASHED);
+                        vehicle.orientation(), VehicleStatus.CRASHED, vehicle.damage());
                 vehicles.set(index, crashed);
                 events.add(new RoundEvent(0, RoundEventType.CRASH, vehicle.vehicle().playerId(),
                         vehicle.vehicle().id(), vehicle.position(), vehicle.position(),
