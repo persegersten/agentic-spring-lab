@@ -467,7 +467,7 @@ class GameRoundTest {
                 new GameState(board, List.of(vehicle)));
         List<String> encounters = new java.util.ArrayList<>();
         var actionEngine = new se.segersten.wreckage.game.engine.ActionEngine() {
-            @Override protected se.segersten.wreckage.game.engine.ActionResult encounter(UUID id, ScheduledAction action, ActionTiming timing, GameState state) {
+            @Override protected se.segersten.wreckage.game.engine.ActionResult encounter(UUID id, ScheduledAction action, ActionTiming timing, GameState state, se.segersten.wreckage.game.engine.RegisterEffects effects) {
                 encounters.add(id + ":" + action.actionType() + ":" + action.registerIndex() + ":" + timing);
                 return new se.segersten.wreckage.game.engine.ActionResult(state, List.of());
             }
@@ -615,6 +615,63 @@ class GameRoundTest {
         assertThat(game.getVehicleStates().getFirst().status()).isEqualTo(VehicleStatus.ACTIVE);
         assertThat(game.getVehicleStates().getFirst().damage()).isZero();
         assertThat(game.getRound().startEvents().getFirst().newDamage()).isZero();
+    }
+
+    @Test
+    void preMovementAbilityActivatesBeforeCommandsAndAnchorExpiresAfterItsRegister() {
+        UUID anchoredId = UUID.randomUUID();
+        UUID pusherId = UUID.randomUUID();
+        VehicleState anchored = state(anchoredId, 2, 2);
+        VehicleState pusher = state(pusherId, 1, 2);
+        Map<UUID, PlayerProgram> programs = new LinkedHashMap<>();
+        programs.put(pusherId, locked(pusherId, MovementOrder.WAIT, MovementOrder.FORWARD_1));
+        programs.put(anchoredId, new PlayerProgram(anchoredId, 2,
+                List.of(MovementOrder.WAIT, MovementOrder.WAIT), true,
+                new ScheduledAction(ActionType.ANCHOR, 1)));
+        Round round = new Round(1, programs, List.of(pusherId, anchoredId),
+                new GameState(new Board(7, 5), List.of(pusher, anchored)));
+
+        round.resolve(new MovementEngine());
+
+        assertThat(round.playback()).extracting(RoundEvent::type).containsExactly(
+                RoundEventType.ANCHOR_ACTIVATED, RoundEventType.PUSH, RoundEventType.RAM);
+        assertThat(round.finalVehicleStates()).filteredOn(v -> v.vehicle().playerId().equals(anchoredId))
+                .singleElement().extracting(VehicleState::position).isEqualTo(new Position(3, 2));
+    }
+
+    @Test
+    void shieldActivationIsRecordedBeforeMovementInItsScheduledRegister() {
+        UUID playerId = UUID.randomUUID();
+        VehicleState vehicle = state(playerId, 1, 1);
+        PlayerProgram program = new PlayerProgram(playerId, 2,
+                List.of(MovementOrder.WAIT, MovementOrder.FORWARD_1), true,
+                new ScheduledAction(ActionType.SHIELD, 2));
+        Round round = new Round(1, Map.of(playerId, program), List.of(playerId),
+                new GameState(new Board(6, 5), List.of(vehicle)));
+
+        round.resolve(new MovementEngine());
+
+        assertThat(round.playback()).extracting(RoundEvent::type)
+                .containsExactly(RoundEventType.SHIELD_ACTIVATED, RoundEventType.MOVE);
+    }
+
+    @Test
+    void turboUsesOrientationAfterTheNormalMovementCommand() {
+        UUID playerId = UUID.randomUUID();
+        VehicleState vehicle = state(playerId, 2, 2);
+        PlayerProgram program = new PlayerProgram(playerId, 1, List.of(MovementOrder.TURN_LEFT), true,
+                new ScheduledAction(ActionType.TURBO, 1));
+        Round round = new Round(1, Map.of(playerId, program), List.of(playerId),
+                new GameState(new Board(6, 6), List.of(vehicle)));
+
+        round.resolve(new MovementEngine());
+
+        assertThat(round.playback()).extracting(RoundEvent::type).containsExactly(
+                RoundEventType.TURN, RoundEventType.TURBO_ACTIVATED, RoundEventType.MOVE);
+        assertThat(round.finalVehicleStates().getFirst()).satisfies(finalState -> {
+            assertThat(finalState.orientation()).isEqualTo(Direction.NORTH);
+            assertThat(finalState.position()).isEqualTo(new Position(2, 3));
+        });
     }
 
     private Game game(int programSize, Instant now) {

@@ -8,6 +8,7 @@ import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 import se.segersten.wreckage.game.domain.Board;
+import se.segersten.wreckage.game.domain.ActionType;
 import se.segersten.wreckage.game.domain.Direction;
 import se.segersten.wreckage.game.domain.GameState;
 import se.segersten.wreckage.game.domain.MovementOrder;
@@ -458,6 +459,45 @@ class MovementEngineTest {
         engine.resolveTurn(new Turn(List.of(order(vehicle, MovementOrder.FORWARD_1))), original);
 
         assertThat(original.vehicleStates()).containsExactly(vehicle);
+    }
+
+    @Test
+    void anchorBlocksAnyRequiredPushAtomicallyButNotItsOwnMovement() {
+        VehicleState moving = state(1, 2, Direction.EAST);
+        VehicleState pushed = state(2, 2, Direction.EAST);
+        VehicleState anchored = state(3, 2, Direction.EAST);
+        RegisterEffects effects = new RegisterEffects();
+        effects.anchor(anchored.vehicle().id());
+        GameState original = new GameState(board, List.of(moving, pushed, anchored));
+
+        var blocked = engine.resolveTurnWithEvents(new Turn(List.of(order(moving, MovementOrder.FORWARD_1))),
+                original, effects);
+
+        assertThat(blocked.state()).isSameAs(original);
+        assertThat(blocked.events()).singleElement().satisfies(event -> {
+            assertThat(event.type()).isEqualTo(RoundEventType.PUSH_BLOCKED);
+            assertThat(event.vehicleId()).isEqualTo(anchored.vehicle().id());
+            assertThat(event.actionType()).isEqualTo(ActionType.ANCHOR);
+        });
+
+        var selfMove = engine.resolveTurnWithEvents(new Turn(List.of(order(anchored, MovementOrder.FORWARD_1))),
+                new GameState(board, List.of(anchored)), effects);
+        assertThat(selfMove.state().vehicleStates().getFirst().position()).isEqualTo(new Position(4, 2));
+    }
+
+    @Test
+    void shieldDoesNotPreventAPushCrash() {
+        VehicleState pusher = state(1, 2, Direction.EAST);
+        VehicleState shielded = state(2, 2, Direction.NORTH);
+        Board pitBoard = new Board(7, 7, Set.of(), Set.of(new Position(3, 2)));
+        RegisterEffects effects = new RegisterEffects();
+        effects.shield(shielded.vehicle().id());
+
+        var result = engine.resolveTurnWithEvents(new Turn(List.of(order(pusher, MovementOrder.FORWARD_1))),
+                new GameState(pitBoard, List.of(pusher, shielded)), effects);
+
+        assertThat(result.state().vehicleStates()).filteredOn(v -> v.vehicle().id().equals(shielded.vehicle().id()))
+                .singleElement().extracting(VehicleState::status).isEqualTo(VehicleStatus.CRASHED);
     }
 
     private GameState resolve(List<VehicleState> states, VehicleTurn... turns) {

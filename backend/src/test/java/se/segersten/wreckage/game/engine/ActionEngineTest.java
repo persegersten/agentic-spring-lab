@@ -160,6 +160,116 @@ class ActionEngineTest {
         assertThat(state(result, covered).damage()).isZero();
     }
 
+    @Test
+    void shieldPreventsFirstPointOnlyAndReducesRocketDamage() {
+        VehicleState shielded = vehicle(2, 1, Direction.NORTH, 0, VehicleStatus.ACTIVE);
+        VehicleState laser = vehicle(0, 1, Direction.EAST, 0, VehicleStatus.ACTIVE);
+        RegisterEffects effects = new RegisterEffects();
+        resolve(ActionType.SHIELD, ActionTiming.PRE_MOVEMENT, shielded,
+                new GameState(new Board(8, 4), List.of(shielded, laser)), effects);
+
+        ActionResult first = resolve(ActionType.LASER, ActionTiming.POST_MOVEMENT, laser,
+                new GameState(new Board(8, 4), List.of(shielded, laser)), effects);
+        assertThat(state(first, shielded).damage()).isZero();
+        assertThat(first.events()).extracting(RoundEvent::type).containsSubsequence(
+                RoundEventType.WEAPON_HIT, RoundEventType.DAMAGE_PREVENTED, RoundEventType.DAMAGE_APPLIED);
+        assertThat(first.events().stream().filter(e -> e.type() == RoundEventType.DAMAGE_PREVENTED)
+                .findFirst().orElseThrow().damageDelta()).isOne();
+
+        ActionResult second = resolve(ActionType.LASER, ActionTiming.POST_MOVEMENT, laser, first.state(), effects);
+        assertThat(state(second, shielded).damage()).isOne();
+
+        VehicleState rocket = new VehicleState(laser.vehicle(), laser.position(), laser.orientation(),
+                laser.status(), laser.damage(), 1);
+        RegisterEffects rocketEffects = new RegisterEffects();
+        resolve(ActionType.SHIELD, ActionTiming.PRE_MOVEMENT, shielded,
+                new GameState(new Board(8, 4), List.of(shielded, rocket)), rocketEffects);
+        ActionResult rocketHit = resolve(ActionType.ROCKET, ActionTiming.POST_MOVEMENT, rocket,
+                new GameState(new Board(8, 4), List.of(shielded, rocket)), rocketEffects);
+        assertThat(state(rocketHit, shielded).damage()).isOne();
+    }
+
+    @Test
+    void anchorBlocksRepulsorAndWholePushChain() {
+        VehicleState shooter = vehicle(0, 1, Direction.EAST, 0, VehicleStatus.ACTIVE);
+        VehicleState target = vehicle(1, 1, Direction.NORTH, 0, VehicleStatus.ACTIVE);
+        VehicleState anchored = vehicle(2, 1, Direction.WEST, 0, VehicleStatus.ACTIVE);
+        GameState state = new GameState(new Board(6, 4), List.of(shooter, target, anchored));
+        RegisterEffects effects = new RegisterEffects();
+        resolve(ActionType.ANCHOR, ActionTiming.PRE_MOVEMENT, anchored, state, effects);
+
+        ActionResult result = resolve(ActionType.REPULSOR, ActionTiming.POST_MOVEMENT, shooter, state, effects);
+
+        assertThat(state(result, target).position()).isEqualTo(target.position());
+        assertThat(state(result, anchored).position()).isEqualTo(anchored.position());
+        RoundEvent blocked = result.events().stream().filter(e -> e.type() == RoundEventType.PUSH_BLOCKED)
+                .findFirst().orElseThrow();
+        assertThat(blocked.vehicleId()).isEqualTo(anchored.vehicle().id());
+        assertThat(blocked.actionType()).isEqualTo(ActionType.ANCHOR);
+    }
+
+    @Test
+    void turboMovesForwardAndSideStepUsesAllRelativeDirectionsWithoutRotating() {
+        for (Direction facing : Direction.values()) {
+            VehicleState vehicle = vehicle(3, 3, facing, 0, VehicleStatus.ACTIVE);
+            GameState state = new GameState(new Board(8, 8), List.of(vehicle));
+            ActionResult left = resolve(ActionType.SIDE_STEP_LEFT, ActionTiming.POST_MOVEMENT, vehicle, state,
+                    new RegisterEffects());
+            assertThat(state(left, vehicle).position()).isEqualTo(vehicle.position().move(facing.turnLeft()));
+            assertThat(state(left, vehicle).orientation()).isEqualTo(facing);
+            assertThat(left.events()).extracting(RoundEvent::type).containsExactly(RoundEventType.SIDE_STEP);
+        }
+
+        VehicleState vehicle = vehicle(2, 2, Direction.EAST, 0, VehicleStatus.ACTIVE);
+        ActionResult turbo = resolve(ActionType.TURBO, ActionTiming.POST_MOVEMENT, vehicle,
+                new GameState(new Board(8, 8), List.of(vehicle)), new RegisterEffects());
+        assertThat(state(turbo, vehicle).position()).isEqualTo(new Position(3, 2));
+        assertThat(turbo.events()).extracting(RoundEvent::type)
+                .containsExactly(RoundEventType.TURBO_ACTIVATED, RoundEventType.MOVE);
+        assertThat(turbo.events().getLast().actionType()).isEqualTo(ActionType.TURBO);
+    }
+
+    @Test
+    void sideStepCannotPushAndCanCrashInPit() {
+        VehicleState actor = vehicle(2, 2, Direction.NORTH, 0, VehicleStatus.ACTIVE);
+        VehicleState occupant = vehicle(1, 2, Direction.SOUTH, 0, VehicleStatus.ACTIVE);
+        ActionResult blocked = resolve(ActionType.SIDE_STEP_LEFT, ActionTiming.POST_MOVEMENT, actor,
+                new GameState(new Board(5, 5), List.of(actor, occupant)), new RegisterEffects());
+        assertThat(state(blocked, actor).position()).isEqualTo(actor.position());
+        assertThat(state(blocked, occupant).position()).isEqualTo(occupant.position());
+        assertThat(blocked.events()).extracting(RoundEvent::type).containsExactly(RoundEventType.MOVE_BLOCKED);
+
+        Board base = new Board(5, 5);
+        Board pit = new Board(5, 5, Set.of(), Set.of(new Position(1, 2)), Set.of(), base.spawnPoints());
+        ActionResult crashed = resolve(ActionType.SIDE_STEP_LEFT, ActionTiming.POST_MOVEMENT, actor,
+                new GameState(pit, List.of(actor)), new RegisterEffects());
+        assertThat(state(crashed, actor).status()).isEqualTo(VehicleStatus.CRASHED);
+        assertThat(crashed.events()).extracting(RoundEvent::type).containsExactly(RoundEventType.CRASH);
+    }
+
+    @Test
+    void turboUsesNormalLethalMovementRules() {
+        VehicleState actor = vehicle(2, 2, Direction.NORTH, 0, VehicleStatus.ACTIVE);
+        Board base = new Board(5, 5);
+        Board pit = new Board(5, 5, Set.of(), Set.of(new Position(2, 3)), Set.of(), base.spawnPoints());
+
+        ActionResult result = resolve(ActionType.TURBO, ActionTiming.POST_MOVEMENT, actor,
+                new GameState(pit, List.of(actor)), new RegisterEffects());
+
+        assertThat(state(result, actor).status()).isEqualTo(VehicleStatus.CRASHED);
+        assertThat(result.events()).extracting(RoundEvent::type)
+                .containsExactly(RoundEventType.TURBO_ACTIVATED, RoundEventType.CRASH);
+        assertThat(result.events().getLast().actionType()).isEqualTo(ActionType.TURBO);
+    }
+
+    private ActionResult resolve(ActionType actionType, ActionTiming timing, VehicleState actor, GameState state,
+                                 RegisterEffects effects) {
+        PlayerProgram program = new PlayerProgram(actor.vehicle().playerId(), 1,
+                List.of(MovementOrder.WAIT), true, new ScheduledAction(actionType, 1));
+        return engine.resolve(timing, 1, state, Map.of(actor.vehicle().playerId(), program),
+                List.of(actor.vehicle().playerId()), effects);
+    }
+
     private ActionResult fire(Board board, VehicleState shooter, VehicleState... others) {
         return fire(ActionType.LASER, board, shooter, others);
     }

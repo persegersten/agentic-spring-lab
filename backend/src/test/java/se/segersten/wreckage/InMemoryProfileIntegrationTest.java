@@ -12,6 +12,7 @@ import se.segersten.wreckage.game.domain.Game;
 import se.segersten.wreckage.game.domain.GameConfiguration;
 import se.segersten.wreckage.game.domain.RoundPhase;
 import se.segersten.wreckage.game.domain.Board;
+import se.segersten.wreckage.game.domain.ActionType;
 import se.segersten.wreckage.game.domain.Direction;
 import se.segersten.wreckage.game.domain.GameRepository;
 import se.segersten.wreckage.game.domain.GameStatus;
@@ -21,6 +22,9 @@ import se.segersten.wreckage.game.domain.Player;
 import se.segersten.wreckage.game.domain.PlayerProgram;
 import se.segersten.wreckage.game.domain.Position;
 import se.segersten.wreckage.game.domain.Round;
+import se.segersten.wreckage.game.domain.RoundEventType;
+import se.segersten.wreckage.game.domain.ScheduledAction;
+import java.util.List;
 import se.segersten.wreckage.game.domain.Vehicle;
 import se.segersten.wreckage.game.domain.VehicleState;
 import se.segersten.wreckage.game.domain.Wall;
@@ -129,6 +133,29 @@ class InMemoryProfileIntegrationTest {
         Game retrieved = gameService.getPlayerGame(hosted.game().getId(), alice.player().getId(), alice.token());
 
         assertThat(retrieved.getRound().programs().get(alice.player().getId()).scheduledAction()).isEqualTo(action);
+    }
+
+    @Test
+    void persistsAuthoritativeSpecialAbilityPlaybackUsingInMemoryDatabase() {
+        var hosted = gameService.createHostedGame(new GameConfiguration(2, 300, 1, 120));
+        var alice = gameService.addPlayer(hosted.game().getId(), "Alice");
+        var bob = gameService.addPlayer(hosted.game().getId(), "Bob");
+        gameService.startGame(hosted.game().getId(), hosted.hostToken());
+        var action = new ScheduledAction(ActionType.SHIELD, 1);
+
+        gameService.submitProgram(hosted.game().getId(), alice.player().getId(), alice.token(),
+                List.of(MovementOrder.WAIT), action);
+        gameService.submitProgram(hosted.game().getId(), bob.player().getId(), bob.token(),
+                List.of(MovementOrder.WAIT), null);
+        Game retrieved = gameService.getGame(hosted.game().getId());
+
+        assertThat(retrieved.getRound().playback())
+                .filteredOn(event -> event.type() == RoundEventType.SHIELD_ACTIVATED)
+                .singleElement().satisfies(event -> {
+            assertThat(event.type()).isEqualTo(RoundEventType.SHIELD_ACTIVATED);
+            assertThat(event.actionType()).isEqualTo(ActionType.SHIELD);
+            assertThat(event.playerId()).isEqualTo(alice.player().getId());
+        });
     }
 
     @Test

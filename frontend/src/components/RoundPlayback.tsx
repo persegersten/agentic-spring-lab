@@ -10,7 +10,10 @@ function describeEvent(event: RoundEvent, players: Player[]) {
     case 'TURN': return `${name} svänger`
     case 'RAM': return `${name} rammar`
     case 'PUSH': return `${name} knuffas${event.actionType === 'REPULSOR' ? ' av Repulsor' : ''}`
-    case 'PUSH_BLOCKED': return `Repulsor-knuffen mot ${name} blockeras`
+    case 'PUSH_BLOCKED': return event.actionType === 'ANCHOR'
+      ? `${name}s Anchor blockerar knuffen`
+      : `Repulsor-knuffen mot ${name} blockeras`
+    case 'MOVE_BLOCKED': return `${name}s sidosteg blockeras`
     case 'CONVEYOR_MOVE':case 'CONVEYOR_RAM':return `Transportbandet flyttar ${name}`
     case 'CONVEYOR_PUSH':return `${name} knuffas av transportbandet`
     case 'CONVEYOR_CRASH':return `${name} kraschar på transportbandet`
@@ -19,9 +22,14 @@ function describeEvent(event: RoundEvent, players: Player[]) {
     case 'WEAPON_FIRED': return `${name} avfyrar ${weapon}`
     case 'WEAPON_HIT': return `${name} träffas av ${weapon}`
     case 'DAMAGE_APPLIED': return `${name} får ${event.damageDelta ?? 0} skada (${event.newDamage ?? 0}/3)`
+    case 'DAMAGE_PREVENTED': return `${name}s Shield förhindrar ${event.damageDelta ?? 1} skada`
     case 'AMMO_CHANGED': return `${name} har ${event.newAmmo ?? 0} Rocket kvar`
     case 'VEHICLE_CRASHED': return `${name} kraschar av vapenskada`
     case 'VEHICLE_RESPAWNED': return `${name} respawnar`
+    case 'SHIELD_ACTIVATED': return `${name} aktiverar Shield`
+    case 'ANCHOR_ACTIVATED': return `${name} aktiverar Anchor`
+    case 'TURBO_ACTIVATED': return `${name} aktiverar Turbo`
+    case 'SIDE_STEP': return `${name} gör ett sidosteg`
     case 'SCORE_CHANGED': return `${name} ${event.scoreDelta && event.scoreDelta > 0 ? '+' : ''}${event.scoreDelta ?? 0} poäng`
   }
 }
@@ -45,7 +53,7 @@ export function RoundPlayback({board,round,players,onVehicles,onScores,onCurrent
     for (const event of timeline.playback.slice(0, eventIndex)) {
       const vehicleIndex = vehicles.findIndex(candidate => candidate.id === event.vehicleId)
       const vehicle = vehicles[vehicleIndex]
-      if(vehicle&&['MOVE','TURN','RAM','PUSH','CONVEYOR_MOVE','CONVEYOR_RAM','CONVEYOR_PUSH','ROTATOR_TURN'].includes(event.type)){
+      if(vehicle&&['MOVE','SIDE_STEP','TURN','RAM','PUSH','CONVEYOR_MOVE','CONVEYOR_RAM','CONVEYOR_PUSH','ROTATOR_TURN'].includes(event.type)){
         vehicle.x = event.newPosition.x
         vehicle.y = event.newPosition.y
         vehicle.direction = event.newDirection
@@ -64,7 +72,7 @@ export function RoundPlayback({board,round,players,onVehicles,onScores,onCurrent
   useEffect(() => {
     if (!playing || finished) return
     const duration = !current ? 0
-      : ['CRASH','VEHICLE_CRASHED','WEAPON_FIRED','WEAPON_HIT','DAMAGE_APPLIED','AMMO_CHANGED','SCORE_CHANGED'].includes(current.type) ? 450 : 250
+      : ['CRASH','VEHICLE_CRASHED','WEAPON_FIRED','WEAPON_HIT','DAMAGE_APPLIED','DAMAGE_PREVENTED','SHIELD_ACTIVATED','ANCHOR_ACTIVATED','TURBO_ACTIVATED','AMMO_CHANGED','SCORE_CHANGED'].includes(current.type) ? 450 : 250
     const id = window.setTimeout(() => {
       if (eventIndex >= timeline.playback.length) {
         setFinished(true)
