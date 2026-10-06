@@ -273,7 +273,10 @@ class InMemoryProfileIntegrationTest {
         var now = java.time.Instant.parse("2026-01-01T12:00:00Z");
         var shooter = Player.create(java.util.UUID.randomUUID(), "Shooter", "token-a");
         var target = Player.create(java.util.UUID.randomUUID(), "Target", "token-b");
-        var shooterState = new VehicleState(new Vehicle(java.util.UUID.randomUUID(), shooter.getId()),
+        var shooterState = new VehicleState(new Vehicle(java.util.UUID.randomUUID(), shooter.getId(),
+                new Position(0, 0), Direction.SOUTH,
+                se.segersten.wreckage.game.domain.PrimaryWeapon.ROCKET,
+                se.segersten.wreckage.game.domain.SpecialAbility.SIDE_STEP),
                 new Position(0, 1), Direction.EAST);
         var targetState = new VehicleState(new Vehicle(java.util.UUID.randomUUID(), target.getId()),
                 new Position(2, 1), Direction.NORTH, se.segersten.wreckage.game.domain.VehicleStatus.ACTIVE, 0);
@@ -311,5 +314,10 @@ class InMemoryProfileIntegrationTest {
         assertThat(retrieved.getRound().playback().get(1).actionType())
                 .isEqualTo(se.segersten.wreckage.game.domain.ActionType.ROCKET);
         assertThat(retrieved.getVehicleStates()).extracting(VehicleState::rocketAmmo).containsExactlyInAnyOrder(0, 1);
+        assertThat(retrieved.getVehicleStates()).filteredOn(state -> state.vehicle().playerId().equals(shooter.getId()))
+                .singleElement().satisfies(state -> {
+                    assertThat(state.vehicle().primaryWeapon()).isEqualTo(se.segersten.wreckage.game.domain.PrimaryWeapon.ROCKET);
+                    assertThat(state.vehicle().specialAbility()).isEqualTo(se.segersten.wreckage.game.domain.SpecialAbility.SIDE_STEP);
+                });
     }
 }

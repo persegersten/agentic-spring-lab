@@ -22,7 +22,11 @@ A game starts in `WAITING_FOR_PLAYERS`. Creation returns a one-time host token,
 stored only as a hash by the server. Players join through the shareable game-lobby
 link, and the authenticated host explicitly closes the lobby and starts the match.
 At that point the domain derives and persists board dimensions and round limit
-from the actual participant count. A game is `RUNNING` while rounds remain
+from the actual participant count. Each joined vehicle immediately has the
+default public loadout `LASER + SHIELD`; its authenticated owner may update the
+weapon and ability while the lobby is open. Starting atomically fixes those
+choices and initializes weapon state, including one use for equipped Rockets.
+A game is `RUNNING` while rounds remain
 and becomes `FINISHED` only after that fixed round limit.
 
 Each round moves through three externally visible phases:
@@ -37,6 +41,13 @@ Each round moves through three externally visible phases:
 Programs use the complete v2 command set: `FORWARD_1`, `FORWARD_2`, `REVERSE_1`,
 `TURN_LEFT`, `TURN_RIGHT`, `U_TURN`, and `WAIT`. Programs do not depend on a
 vehicle's previous interactions.
+
+Each program may additionally contain one scheduled action and register. The
+application validates that action against the authoritative vehicle loadout and
+remaining ammunition before the aggregate accepts a draft or locked program.
+`SIDE_STEP` expands to its left and right action variants; no other unequipped
+action is eligible. React derives its selector from the same public vehicle
+state, but hiding controls is not a security boundary.
 
 ## Resolution and board effects
 
@@ -101,6 +112,7 @@ The principal endpoints are:
 - `POST /games/{gameId}/start`
 - `GET /games/{gameId}`
 - `GET /games/{gameId}/players/{playerId}`
+- `PUT /games/{gameId}/players/{playerId}/loadout`
 - `PUT /games/{gameId}/rounds/current/program`
 - `POST /games/{gameId}/rounds/current/program`
 - `POST /games/{gameId}/rounds`

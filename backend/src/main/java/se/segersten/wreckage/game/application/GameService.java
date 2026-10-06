@@ -23,6 +23,8 @@ import se.segersten.wreckage.game.domain.Player;
 import se.segersten.wreckage.game.domain.MovementOrder;
 import se.segersten.wreckage.game.domain.Round;
 import se.segersten.wreckage.game.domain.ScheduledAction;
+import se.segersten.wreckage.game.domain.PrimaryWeapon;
+import se.segersten.wreckage.game.domain.SpecialAbility;
 import se.segersten.wreckage.game.engine.MovementEngine;
 
 @Service
@@ -100,6 +102,13 @@ public class GameService {
         return gameRepository.save(game);
     }
 
+    public Game updateLoadout(UUID gameId, UUID playerId, String token,
+                              PrimaryWeapon weapon, SpecialAbility ability) {
+        Game game = authenticatedGameForUpdate(gameId, playerId, token);
+        game.updateLoadout(playerId, weapon, ability);
+        return gameRepository.save(game);
+    }
+
     public Round startRound(UUID gameId, UUID playerId, String token, int completedRoundNumber) {
         Game game = authenticatedGameForUpdate(gameId, playerId, token);
         if (game.getRound() == null)
@@ -171,10 +180,13 @@ public class GameService {
     }
 
     private void validateAction(Game game, UUID playerId, ScheduledAction action) {
-        if (action == null || action.actionType() != se.segersten.wreckage.game.domain.ActionType.ROCKET) return;
+        if (action == null) return;
         var vehicle = game.getVehicleStates().stream()
                 .filter(state -> state.vehicle().playerId().equals(playerId)).findFirst()
                 .orElseThrow(() -> new IllegalArgumentException("Player has no vehicle"));
+        if (!vehicle.vehicle().permits(action.actionType()))
+            throw new IllegalArgumentException("Scheduled action is not part of the player's loadout");
+        if (action.actionType() != se.segersten.wreckage.game.domain.ActionType.ROCKET) return;
         if (vehicle.rocketAmmo() == 0) throw new IllegalStateException("Rocket ammunition is depleted");
     }
 

@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { fillProgram, joinGame, startGame, withPlayerPages } from './player-pages.mjs'
+import { chooseLoadout, fillProgram, joinGame, startGame, withPlayerPages } from './player-pages.mjs'
 
 test('scheduled Repulsor playback pushes the first target without moving the shooter', async ({ browser }) => {
   await withPlayerPages(browser, ['shooter', 'target'], async ({ shooter, target }) => {
@@ -9,6 +9,7 @@ test('scheduled Repulsor playback pushes the first target without moving the sho
     await joinGame(shooter, 'Shooter')
     await target.goto(gameLink)
     await joinGame(target, 'Target')
+    await chooseLoadout(shooter, 'REPULSOR', 'TURBO')
     await startGame(shooter)
 
     await shooter.getByTestId('action-type').selectOption('REPULSOR')

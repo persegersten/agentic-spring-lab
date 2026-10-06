@@ -80,8 +80,21 @@ public class Game {
         players.add(player);
         SpawnPoint spawn = board.spawnPoints().get(index);
         Vehicle vehicle = new Vehicle(UUID.randomUUID(), player.getId(), spawn.position(), spawn.orientation());
-        vehicles.put(player.getId(), new VehicleState(vehicle, spawn.position(), spawn.orientation()));
+        vehicles.put(player.getId(), new VehicleState(vehicle, spawn.position(), spawn.orientation(),
+                VehicleStatus.ACTIVE, 0, 0));
         return player;
+    }
+
+    public void updateLoadout(UUID playerId, PrimaryWeapon weapon, SpecialAbility ability) {
+        Objects.requireNonNull(weapon, "weapon must not be null");
+        Objects.requireNonNull(ability, "ability must not be null");
+        requirePlayer(playerId);
+        if (status != GameStatus.WAITING_FOR_PLAYERS || round != null)
+            throw new IllegalStateException("The loadout is fixed after the match starts");
+        VehicleState current = vehicles.get(playerId);
+        if (current == null) throw new IllegalArgumentException("Player has no vehicle");
+        vehicles.put(playerId, new VehicleState(current.vehicle().withLoadout(weapon, ability), current.position(),
+                current.orientation(), current.status(), current.damage(), 0));
     }
 
     public void start(Instant now) {
@@ -92,6 +105,9 @@ public class Game {
         MatchSettings settings = MatchSettings.forPlayerCount(players.size());
         board = board.withDimensions(settings.boardWidth(), settings.boardHeight());
         configuration = configuration.withRoundLimit(settings.roundLimit());
+        vehicles.replaceAll((playerId, state) -> new VehicleState(state.vehicle(), state.position(),
+                state.orientation(), state.status(), 0,
+                state.vehicle().primaryWeapon() == PrimaryWeapon.ROCKET ? 1 : 0));
         startRound(now);
     }
 

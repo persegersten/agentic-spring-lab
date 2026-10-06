@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test'
 test('authoritative special-ability events have visible playback', async ({ page }) => {
   const gameId = '10000000-0000-0000-0000-000000000010'
   const playerId = '20000000-0000-0000-0000-000000000010'
-  const vehicle = { id: 'ability-vehicle', playerId, x: 1, y: 1, direction: 'NORTH', status: 'ACTIVE', damage: 0, rocketAmmo: 1 }
+  const vehicle = { id: 'ability-vehicle', playerId, x: 1, y: 1, direction: 'NORTH', status: 'ACTIVE', damage: 0, rocketAmmo: 0, primaryWeapon: 'LASER', specialAbility: 'SHIELD' }
   const event = (sequence, type, oldPosition, newPosition, actionType) => ({
     sequence, type, playerId, vehicleId: vehicle.id, sourcePlayerId: playerId,
     sourceVehicleId: vehicle.id, oldPosition, newPosition,
