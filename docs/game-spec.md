@@ -42,7 +42,14 @@ nickname. Nicknamet ska vara unikt inom spelet.
 Efter anslutning stannar spelaren i spel-lobbyn och kan se:
 
 * övriga anslutna spelare,
-* aktuell spelstatus.
+* aktuell spelstatus,
+* varje spelares offentliga val av primärvapen och specialförmåga.
+
+Varje ny spelare har direkt standardvalet `LASER + SHIELD`. Den egna loadouten
+kan ändras med två snabba val medan lobbyn är öppen; vapenvalen är Laser,
+Repulsor och Rocket och förmågevalen är Turbo, Shield, Side Step och Anchor.
+Kontrollerna visar korta regelbeskrivningar men kräver ingen separat bekräftelse.
+När värden startar matchen låses samtliga loadouts för resten av matchen.
 
 Initiativtagaren har en startknapp som inte visas för övriga spelare. Spelet kan
 startas när minst två spelare har anslutit. Vid starten väljer servern brädstorlek
@@ -81,7 +88,8 @@ Spelaren får dessutom välja högst en action för rundan och koppla den till e
 av programmets register, eller uttryckligen välja att inte använda någon action.
 GUI:t visar endast actions som är tillåtna av fordonets fasta primärvapen och
 specialförmåga samt aktuell ammunition. För `SIDE_STEP` väljer spelaren vänster
-eller höger riktning. Val av loadout i lobbyn ingår inte i Combat v1.
+eller höger riktning. Loadouten kommer från spelarens val i lobbyn och kan inte
+ändras efter matchstart.
 
 GUI:t ska låta spelaren:
 

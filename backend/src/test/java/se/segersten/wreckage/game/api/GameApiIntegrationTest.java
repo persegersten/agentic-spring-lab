@@ -308,15 +308,17 @@ class GameApiIntegrationTest {
         String gameId = json(created).path("id").asText();
         JsonNode alice = json(post("/games/%s/players".formatted(gameId), "{\"name\":\"Alice\"}"));
         JsonNode bob = json(post("/games/%s/players".formatted(gameId), "{\"name\":\"Bob\"}"));
+        putPlayer("/games/%s/players/%s/loadout".formatted(gameId, alice.path("id").asText()), alice,
+                "{\"weapon\":\"REPULSOR\",\"ability\":\"SHIELD\"}");
         postHost(gameId, json(created).path("hostToken").asText());
-        String laser = """
-                {"orders":[],"scheduledAction":{"actionType":"LASER","registerIndex":2}}
+        String shield = """
+                {"orders":[],"scheduledAction":{"actionType":"SHIELD","registerIndex":2}}
                 """;
 
-        assertThat(putPlayer("/games/%s/rounds/current/program".formatted(gameId), alice, laser).statusCode())
+        assertThat(putPlayer("/games/%s/rounds/current/program".formatted(gameId), alice, shield).statusCode())
                 .isEqualTo(HttpStatus.OK.value());
         JsonNode aliceDraft = json(getPlayerGame(gameId, alice));
-        assertThat(aliceDraft.path("round").path("scheduledAction").path("actionType").asText()).isEqualTo("LASER");
+        assertThat(aliceDraft.path("round").path("scheduledAction").path("actionType").asText()).isEqualTo("SHIELD");
         assertThat(aliceDraft.path("round").path("scheduledAction").path("registerIndex").asInt()).isEqualTo(2);
 
         String repulsor = """
@@ -335,8 +337,8 @@ class GameApiIntegrationTest {
         JsonNode bobView = json(getPlayerGame(gameId, bob));
         JsonNode publicView = json(get("/games/" + gameId));
         assertThat(bobView.path("round").path("scheduledAction").isNull()).isTrue();
-        assertThat(bobView.toString()).doesNotContain("REPULSOR", "registerIndex");
-        assertThat(publicView.toString()).doesNotContain("REPULSOR", "scheduledAction", "registerIndex");
+        assertThat(bobView.path("round").toString()).doesNotContain("registerIndex");
+        assertThat(publicView.path("round").toString()).doesNotContain("scheduledAction", "registerIndex");
 
         HttpResponse<String> invalid = putPlayer("/games/%s/rounds/current/program".formatted(gameId), alice, """
                 {"orders":[],"scheduledAction":{"actionType":"ROCKET","registerIndex":4}}
@@ -392,6 +394,8 @@ class GameApiIntegrationTest {
         String gameId = json(created).path("id").asText();
         JsonNode alice = json(post("/games/%s/players".formatted(gameId), "{\"name\":\"Alice\"}"));
         JsonNode bob = json(post("/games/%s/players".formatted(gameId), "{\"name\":\"Bob\"}"));
+        putPlayer("/games/%s/players/%s/loadout".formatted(gameId, alice.path("id").asText()), alice,
+                "{\"weapon\":\"ROCKET\",\"ability\":\"SHIELD\"}");
         postHost(gameId, json(created).path("hostToken").asText());
 
         postPlayer("/games/%s/rounds/current/program".formatted(gameId), alice, """
@@ -430,6 +434,36 @@ class GameApiIntegrationTest {
         assertThat(player.path("id").asText()).isNotBlank();
         assertThat(player.path("name").asText()).isEqualTo("Per");
         assertThat(player.path("token").asText()).isNotBlank();
+    }
+
+    @Test
+    void defaultsEditsPublishesAndLocksLoadoutAndRejectsUnequippedActions() throws Exception {
+        HttpResponse<String> created = post("/games", null);
+        String gameId = json(created).path("id").asText();
+        JsonNode alice = json(post("/games/%s/players".formatted(gameId), "{\"name\":\"Alice\"}"));
+        JsonNode bob = json(post("/games/%s/players".formatted(gameId), "{\"name\":\"Bob\"}"));
+
+        JsonNode defaults = json(get("/games/" + gameId)).path("vehicles").path(0);
+        assertThat(defaults.path("primaryWeapon").asText()).isEqualTo("LASER");
+        assertThat(defaults.path("specialAbility").asText()).isEqualTo("SHIELD");
+
+        HttpResponse<String> changedResponse = putPlayer(
+                "/games/%s/players/%s/loadout".formatted(gameId, alice.path("id").asText()), alice,
+                "{\"weapon\":\"REPULSOR\",\"ability\":\"TURBO\"}");
+        assertThat(changedResponse.statusCode()).isEqualTo(HttpStatus.OK.value());
+        JsonNode changed = json(getPlayerGame(gameId, bob)).path("vehicles").valueStream()
+                .filter(vehicle -> vehicle.path("playerId").asText().equals(alice.path("id").asText()))
+                .findFirst().orElseThrow();
+        assertThat(changed.path("primaryWeapon").asText()).isEqualTo("REPULSOR");
+        assertThat(changed.path("specialAbility").asText()).isEqualTo("TURBO");
+
+        postHost(gameId, json(created).path("hostToken").asText());
+        assertThat(putPlayer("/games/%s/rounds/current/program".formatted(gameId), alice,
+                "{\"orders\":[],\"scheduledAction\":{\"actionType\":\"LASER\",\"registerIndex\":1}}").statusCode())
+                .isEqualTo(HttpStatus.BAD_REQUEST.value());
+        assertThat(putPlayer("/games/%s/players/%s/loadout".formatted(gameId, alice.path("id").asText()), alice,
+                "{\"weapon\":\"ROCKET\",\"ability\":\"ANCHOR\"}").statusCode())
+                .isEqualTo(HttpStatus.CONFLICT.value());
     }
 
     @Test
@@ -571,6 +605,7 @@ class GameApiIntegrationTest {
         assertThat(paths.path("/games/{gameId}/start").has("post")).isTrue();
         assertThat(paths.path("/games/{gameId}").has("get")).isTrue();
         assertThat(paths.path("/games/{gameId}/players/{playerId}").has("get")).isTrue();
+        assertThat(paths.path("/games/{gameId}/players/{playerId}/loadout").has("put")).isTrue();
         assertThat(paths.path("/games/{gameId}/rounds").has("post")).isTrue();
         assertThat(paths.path("/games/{gameId}/rounds/current/program").has("post")).isTrue();
         assertThat(paths.path("/games/{gameId}/rounds/current/program").has("put")).isTrue();

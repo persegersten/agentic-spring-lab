@@ -123,6 +123,29 @@ class GameRoundTest {
     }
 
     @Test
+    void assignsDefaultLoadoutAllowsLobbyChangesAndInitializesRocketAtStart() {
+        Instant now = Instant.parse("2099-01-01T00:00:00Z");
+        Game game = new Game(UUID.randomUUID(), List.of(), new Board(8, 8), GameStatus.WAITING_FOR_PLAYERS,
+                Map.of(), null, GameConfiguration.defaults(), now, now.plusSeconds(60));
+        Player alice = game.addPlayer("Alice", "a");
+        game.addPlayer("Bob", "b");
+        VehicleState joined = game.getVehicleStates().stream()
+                .filter(state -> state.vehicle().playerId().equals(alice.getId())).findFirst().orElseThrow();
+        assertThat(joined.vehicle().primaryWeapon()).isEqualTo(PrimaryWeapon.LASER);
+        assertThat(joined.vehicle().specialAbility()).isEqualTo(SpecialAbility.SHIELD);
+
+        game.updateLoadout(alice.getId(), PrimaryWeapon.ROCKET, SpecialAbility.ANCHOR);
+        game.start(now);
+        VehicleState started = game.getVehicleStates().stream()
+                .filter(state -> state.vehicle().playerId().equals(alice.getId())).findFirst().orElseThrow();
+        assertThat(started.vehicle().primaryWeapon()).isEqualTo(PrimaryWeapon.ROCKET);
+        assertThat(started.vehicle().specialAbility()).isEqualTo(SpecialAbility.ANCHOR);
+        assertThat(started.rocketAmmo()).isOne();
+        assertThatThrownBy(() -> game.updateLoadout(alice.getId(), PrimaryWeapon.LASER, SpecialAbility.SHIELD))
+                .isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
     void checkpointScoresOncePerPlayerAndScoreEventsRemainInCausalOrder() {
         UUID aliceId = UUID.randomUUID();
         Player alice = Player.create(aliceId, "Alice", "a");

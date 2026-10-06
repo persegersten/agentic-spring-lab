@@ -28,6 +28,8 @@ import se.segersten.wreckage.game.domain.Player;
 import se.segersten.wreckage.game.domain.MovementOrder;
 import se.segersten.wreckage.game.domain.GameConfiguration;
 import se.segersten.wreckage.game.domain.ScheduledAction;
+import se.segersten.wreckage.game.domain.PrimaryWeapon;
+import se.segersten.wreckage.game.domain.SpecialAbility;
 
 @RestController
 @RequestMapping("/games")
@@ -103,6 +105,14 @@ public class GameController {
     @GetMapping("/{gameId}/players/{playerId}")
     public PlayerGameResponse getPlayerGame(@PathVariable UUID gameId, @PathVariable UUID playerId,
             @RequestHeader(value = "X-Player-Token", required = false) String token) {
+        return PlayerGameResponse.from(gameService.getPlayerGame(gameId, playerId, token), playerId);
+    }
+
+    @PutMapping("/{gameId}/players/{playerId}/loadout")
+    public PlayerGameResponse updateLoadout(@PathVariable UUID gameId, @PathVariable UUID playerId,
+            @RequestHeader(value = "X-Player-Token", required = false) String token,
+            @RequestBody LoadoutRequest request) {
+        gameService.updateLoadout(gameId, playerId, token, request.weapon(), request.ability());
         return PlayerGameResponse.from(gameService.getPlayerGame(gameId, playerId, token), playerId);
     }
 
@@ -183,6 +193,7 @@ public class GameController {
                                     Integer checkpointScore, Integer controlPointScore,
                                     Integer crashPenalty, Integer pushCrashScore, Integer weaponCrashScore) {}
     public record ProgramRequest(List<MovementOrder> orders, ScheduledAction scheduledAction) {}
+    public record LoadoutRequest(PrimaryWeapon weapon, SpecialAbility ability) {}
     public record PlayerJoinResponse(UUID id, String name, String token) {}
     public record CreateGameResponse(@com.fasterxml.jackson.annotation.JsonUnwrapped GameResponse game,
                                      String hostToken) {}

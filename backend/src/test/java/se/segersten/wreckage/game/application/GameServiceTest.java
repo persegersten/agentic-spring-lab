@@ -29,6 +29,10 @@ import se.segersten.wreckage.game.domain.Direction;
 import se.segersten.wreckage.game.domain.Position;
 import se.segersten.wreckage.game.domain.Wall;
 import se.segersten.wreckage.game.domain.Checkpoint;
+import se.segersten.wreckage.game.domain.PrimaryWeapon;
+import se.segersten.wreckage.game.domain.SpecialAbility;
+import se.segersten.wreckage.game.domain.ActionType;
+import se.segersten.wreckage.game.domain.ScheduledAction;
 
 class GameServiceTest {
 
@@ -155,6 +159,28 @@ class GameServiceTest {
 
         assertThat(game.getStatus()).isEqualTo(GameStatus.WAITING_FOR_PLAYERS);
         assertThat(game.getRound()).isNull();
+    }
+
+    @Test
+    void updatesAuthenticatedLobbyLoadoutAndRejectsForgedActionAfterStart() {
+        InMemoryGameRepository repository = new InMemoryGameRepository();
+        GameService service = new GameService(repository);
+        var hosted = service.createHostedGame(new GameConfiguration(2, 60, 3, 30));
+        var alice = service.addPlayer(hosted.game().getId(), "Alice");
+        service.addPlayer(hosted.game().getId(), "Bob");
+
+        service.updateLoadout(hosted.game().getId(), alice.player().getId(), alice.token(),
+                PrimaryWeapon.REPULSOR, SpecialAbility.TURBO);
+        var vehicle = hosted.game().getVehicleStates().stream()
+                .filter(state -> state.vehicle().playerId().equals(alice.player().getId())).findFirst().orElseThrow();
+        assertThat(vehicle.vehicle().primaryWeapon()).isEqualTo(PrimaryWeapon.REPULSOR);
+        assertThat(vehicle.vehicle().specialAbility()).isEqualTo(SpecialAbility.TURBO);
+
+        service.startGame(hosted.game().getId(), hosted.hostToken());
+        assertThatThrownBy(() -> service.saveProgramDraft(hosted.game().getId(), alice.player().getId(), alice.token(),
+                List.of(), new ScheduledAction(ActionType.ROCKET, 1)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Scheduled action is not part of the player's loadout");
     }
 
     @Test

@@ -428,9 +428,24 @@ its one action for the round. `SIDE_STEP` is scheduled as either
 `SIDE_STEP_LEFT` or `SIDE_STEP_RIGHT`. A vehicle cannot schedule an unequipped
 weapon or ability.
 
-The loadout is fixed when the match starts and cannot change during the match.
-Lobby selection of loadouts belongs to a later implementation feature and is
-not defined here.
+Every player receives the following valid default loadout immediately on joining
+the lobby:
+
+```text
+primaryWeapon = LASER
+specialAbility = SHIELD
+```
+
+While the game is `WAITING_FOR_PLAYERS`, a player may change either part of
+their own loadout. Loadouts are public to every lobby participant; scheduled
+round actions remain private during planning. No explicit confirmation is
+required before the host starts the match.
+
+The selected loadout is fixed when the match starts and cannot change during
+the match. At that point Rocket ammunition is initialized to one use for a
+vehicle equipped with `ROCKET`. Laser and Repulsor are unlimited and do not use
+Rocket ammunition. Loadout and remaining ammunition are authoritative persisted
+state and survive reconnects.
 
 ---
 
