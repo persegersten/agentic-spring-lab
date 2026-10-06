@@ -47,6 +47,9 @@ public record RoundEvent(int sequence, RoundEventType type, UUID playerId, UUID 
         if (type == RoundEventType.DAMAGE_APPLIED
                 && (oldDamage == null || newDamage == null || damageDelta == null))
             throw new IllegalArgumentException("Damage events require damage details");
+        if (type == RoundEventType.DAMAGE_PREVENTED
+                && (oldDamage == null || newDamage == null || damageDelta == null))
+            throw new IllegalArgumentException("Prevented damage events require damage details");
         if (type == RoundEventType.AMMO_CHANGED
                 && (oldAmmo == null || newAmmo == null || ammoDelta == null))
             throw new IllegalArgumentException("Ammo events require ammo details");

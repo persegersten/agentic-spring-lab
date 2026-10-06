@@ -15,6 +15,12 @@ public class ActionEngine {
 
     public ActionResult resolve(ActionTiming timing, int registerIndex, GameState state,
                                 Map<UUID, PlayerProgram> programs, List<UUID> initiative) {
+        return resolve(timing, registerIndex, state, programs, initiative, new RegisterEffects());
+    }
+
+    public ActionResult resolve(ActionTiming timing, int registerIndex, GameState state,
+                                Map<UUID, PlayerProgram> programs, List<UUID> initiative,
+                                RegisterEffects effects) {
         GameState current = state;
         List<RoundEvent> events = new ArrayList<>();
         for (UUID playerId : initiative) {
@@ -22,7 +28,7 @@ public class ActionEngine {
             ScheduledAction action = program == null ? null : program.scheduledAction();
             if (action != null && action.registerIndex() == registerIndex
                     && action.actionType().timing() == timing && activeVehicle(current, playerId) != null) {
-                ActionResult result = encounter(playerId, action, timing, current);
+                ActionResult result = encounter(playerId, action, timing, current, effects);
                 current = result.state();
                 events.addAll(result.events());
             }
@@ -31,6 +37,36 @@ public class ActionEngine {
     }
 
     protected ActionResult encounter(UUID playerId, ScheduledAction action, ActionTiming timing, GameState state) {
+        return encounter(playerId, action, timing, state, new RegisterEffects());
+    }
+
+    protected ActionResult encounter(UUID playerId, ScheduledAction action, ActionTiming timing, GameState state,
+                                     RegisterEffects effects) {
+        VehicleState actor = activeVehicle(state, playerId);
+        if (actor == null) return new ActionResult(state, List.of());
+        if (action.actionType() == ActionType.SHIELD) {
+            effects.shield(actor.vehicle().id());
+            return new ActionResult(state, List.of(event(RoundEventType.SHIELD_ACTIVATED, ActionType.SHIELD,
+                    actor, actor, actor.position(), actor.position(), null, null, null, null)));
+        }
+        if (action.actionType() == ActionType.ANCHOR) {
+            effects.anchor(actor.vehicle().id());
+            return new ActionResult(state, List.of(event(RoundEventType.ANCHOR_ACTIVATED, ActionType.ANCHOR,
+                    actor, actor, actor.position(), actor.position(), null, null, null, null)));
+        }
+        if (action.actionType() == ActionType.TURBO) {
+            List<RoundEvent> events = new ArrayList<>();
+            events.add(event(RoundEventType.TURBO_ACTIVATED, ActionType.TURBO, actor, actor,
+                    actor.position(), actor.position(), null, null, null, null));
+            MovementResult movement = movementEngine.applyTurbo(state, actor.vehicle().id(), effects);
+            events.addAll(movement.events());
+            return new ActionResult(movement.state(), events);
+        }
+        if (action.actionType() == ActionType.SIDE_STEP_LEFT || action.actionType() == ActionType.SIDE_STEP_RIGHT) {
+            MovementResult movement = movementEngine.applySideStep(state, actor.vehicle().id(),
+                    action.actionType() == ActionType.SIDE_STEP_LEFT);
+            return new ActionResult(movement.state(), movement.events());
+        }
         if (!action.actionType().isWeapon()) return new ActionResult(state, List.of());
         VehicleState shooter = activeVehicle(state, playerId);
         if (shooter == null || action.actionType() == ActionType.ROCKET && shooter.rocketAmmo() == 0)
@@ -57,13 +93,18 @@ public class ActionEngine {
 
         if (weapon == ActionType.REPULSOR) {
             MovementResult pushed = movementEngine.applyWeaponPush(current, target.vehicle().id(),
-                    shooter.orientation(), shooter);
+                    shooter.orientation(), shooter, effects);
             current = pushed.state();
-            for (RoundEvent pushEvent : pushed.events()) events.add(withWeapon(pushEvent, weapon));
+            for (RoundEvent pushEvent : pushed.events())
+                events.add(pushEvent.actionType() == ActionType.ANCHOR ? pushEvent : withWeapon(pushEvent, weapon));
             return new ActionResult(current, events);
         }
 
-        int newDamage = target.damage() + weapon.weaponDamage();
+        int prevented = effects.consumeShield(target.vehicle().id()) ? 1 : 0;
+        if (prevented > 0) {
+            events.add(damagePrevented(shooter, target, prevented));
+        }
+        int newDamage = target.damage() + weapon.weaponDamage() - prevented;
         VehicleStatus status = newDamage >= 3 ? VehicleStatus.CRASHED : target.status();
         VehicleState damaged = new VehicleState(target.vehicle(), target.position(), target.orientation(), status,
                 newDamage, target.rocketAmmo());
@@ -116,6 +157,13 @@ public class ActionEngine {
                 subject.orientation(), subject.orientation(), oldDamage, newDamage,
                 oldDamage == null ? null : newDamage - oldDamage, null, null, null, null, null,
                 weapon, oldAmmo, newAmmo, oldAmmo == null ? null : newAmmo - oldAmmo);
+    }
+
+    private RoundEvent damagePrevented(VehicleState source, VehicleState target, int prevented) {
+        return new RoundEvent(0, RoundEventType.DAMAGE_PREVENTED, target.vehicle().playerId(),
+                target.vehicle().id(), source.vehicle().playerId(), source.vehicle().id(), target.position(),
+                target.position(), target.orientation(), target.orientation(), target.damage(), target.damage(),
+                prevented, null, null, null, null, null, ActionType.SHIELD, null, null, null);
     }
 
     private record Shot(Position endpoint, VehicleState target) {}
