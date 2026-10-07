@@ -27,7 +27,7 @@ test('players build a private card program with double-click and drag-and-drop',
     await expect(alice.getByRole('status')).toHaveCount(0)
     await alice.getByTestId('action-register').selectOption('2')
     await expect(alice.getByRole('status')).toHaveCount(0)
-    await expect(alice.getByTestId('selected-action')).toHaveText('Laser · register 2')
+    await expect(alice.getByTestId('selected-action')).toHaveText('Laser · programsteg 2')
 
     const forward = alice.locator('[data-testid="command-card"][data-command="FORWARD_1"]')
     await forward.dblclick(); await expect(alice.getByRole('status')).toHaveCount(0)

@@ -136,7 +136,7 @@ export function CommandHand({ program, scheduledAction, programSize, locked, roc
           <span className="program-card-register">{index + 1}</span>
           <button
             type="button"
-            aria-label={`${filled ? 'Ta bort' : 'Tomt'} register ${index + 1}: ${labels[command]}`}
+            aria-label={`${filled ? 'Ta bort' : 'Tomt'} programsteg ${index + 1}: ${labels[command]}`}
             disabled={disabled || !filled}
             onDoubleClick={() => remove(index)}
             onKeyDown={event => { if (event.key === 'Delete' || event.key === 'Backspace') remove(index) }}
@@ -172,7 +172,7 @@ export function CommandHand({ program, scheduledAction, programSize, locked, roc
           {actionTypes.map(value => <option key={value} value={value}>{actionLabels[value]}</option>)}
         </select>
       </label>
-      <label>Register
+      <label>Programsteg
         <select data-testid="action-register" disabled={disabled || !action} value={action?.registerIndex ?? 1} onChange={event => {
           if (action) void saveAction({ ...action, registerIndex: Number(event.target.value) })
         }}>
@@ -180,7 +180,7 @@ export function CommandHand({ program, scheduledAction, programSize, locked, roc
         </select>
       </label>
       <button type="button" className="secondary" data-testid="clear-action" disabled={disabled || !action} onClick={() => void saveAction(null)}>Rensa action</button>
-      <p data-testid="selected-action">{action ? `${actionLabels[action.actionType]} · register ${action.registerIndex}` : 'Ingen action vald'}</p>
+      <p data-testid="selected-action">{action ? `${actionLabels[action.actionType]} · programsteg ${action.registerIndex}` : 'Ingen action vald'}</p>
       {primaryWeapon === 'ROCKET' && <p data-testid="rocket-ammo">Rocket ammunition: {rocketAmmo}</p>}
     </fieldset>
     <div className="actions">
