@@ -70,24 +70,21 @@ class GameApiIntegrationTest {
         assertThat(game.path("configuration").path("pushCrashScore").asInt()).isEqualTo(1);
         assertThat(game.path("configuration").path("weaponCrashScore").asInt()).isEqualTo(1);
         assertThat(game.path("hostToken").asText()).isNotBlank();
-        assertThat(game.path("board").path("width").asInt()).isEqualTo(20);
-        assertThat(game.path("board").path("height").asInt()).isEqualTo(20);
-        assertThat(game.path("board").path("walls")).hasSize(1);
-        assertThat(game.path("board").path("walls").path(0).path("cell").path("x").asInt()).isZero();
-        assertThat(game.path("board").path("walls").path(0).path("cell").path("y").asInt()).isZero();
-        assertThat(game.path("board").path("walls").path(0).path("direction").asText())
-                .isEqualTo("NORTH");
-        assertThat(game.path("board").path("pits")).hasSize(1);
-        assertThat(game.path("board").path("pits").path(0).path("x").asInt()).isEqualTo(4);
-        assertThat(game.path("board").path("pits").path(0).path("y").asInt()).isEqualTo(5);
+        assertThat(game.path("board").path("width").asInt()).isEqualTo(16);
+        assertThat(game.path("board").path("height").asInt()).isEqualTo(16);
+        assertThat(game.path("board").path("mapId").asText()).isEqualTo("default-large");
+        assertThat(game.path("board").path("walls")).isEmpty();
+        assertThat(game.path("board").path("pits")).extracting(
+                node -> List.of(node.path("x").asInt(), node.path("y").asInt()))
+                .containsExactlyInAnyOrder(List.of(7, 11), List.of(8, 11));
         assertThat(game.path("board").path("checkpoints")).hasSize(4);
         assertThat(game.path("board").path("checkpoints").path(0).path("id").asText())
                 .isEqualTo("CP1");
         assertThat(game.path("board").path("checkpoints")).extracting(node -> node.path("order").asInt())
                 .containsExactly(1, 2, 3, 4);
         assertThat(game.path("board").path("controlPoints")).hasSize(1);
-        assertThat(game.path("board").path("controlPoints").path(0).path("x").asInt()).isEqualTo(5);
-        assertThat(game.path("board").path("controlPoints").path(0).path("y").asInt()).isEqualTo(5);
+        assertThat(game.path("board").path("controlPoints").path(0).path("x").asInt()).isEqualTo(8);
+        assertThat(game.path("board").path("controlPoints").path(0).path("y").asInt()).isEqualTo(8);
 
         JsonNode retrieved = json(get("/games/" + game.path("id").asText()));
         assertThat(retrieved.has("hostToken")).isFalse();
@@ -366,9 +363,22 @@ class GameApiIntegrationTest {
         JsonNode alice = json(post("/games/%s/players".formatted(gameId), "{\"name\":\"Alice\"}"));
         JsonNode bob = json(post("/games/%s/players".formatted(gameId), "{\"name\":\"Bob\"}"));
         postHost(gameId, json(created).path("hostToken").asText());
+        JsonNode started = json(getPlayerGame(gameId, alice));
+        assertThat(started.path("board").path("mapId").asText()).isEqualTo("default-small");
+        JsonNode aliceStart = started.path("vehicles").valueStream()
+                .filter(vehicle -> vehicle.path("playerId").asText().equals(alice.path("id").asText()))
+                .findFirst().orElseThrow();
+        JsonNode bobStart = started.path("vehicles").valueStream()
+                .filter(vehicle -> vehicle.path("playerId").asText().equals(bob.path("id").asText()))
+                .findFirst().orElseThrow();
+        assertThat(aliceStart.path("x").asInt()).isEqualTo(2);
+        assertThat(aliceStart.path("y").asInt()).isZero();
+        assertThat(aliceStart.path("direction").asText()).isEqualTo("NORTH");
+        assertThat(bobStart.path("x").asInt()).isEqualTo(5);
+        assertThat(bobStart.path("y").asInt()).isZero();
 
         postPlayer("/games/%s/rounds/current/program".formatted(gameId), alice, """
-                {"orders":["TURN_LEFT"],"scheduledAction":{"actionType":"LASER","registerIndex":1}}
+                {"orders":["TURN_RIGHT"],"scheduledAction":{"actionType":"LASER","registerIndex":1}}
                 """);
         postPlayer("/games/%s/rounds/current/program".formatted(gameId), bob,
                 "{\"orders\":[\"WAIT\"],\"scheduledAction\":null}");
@@ -382,10 +392,13 @@ class GameApiIntegrationTest {
                 .containsSequence("WEAPON_FIRED", "WEAPON_HIT", "DAMAGE_APPLIED");
         JsonNode damage = java.util.stream.StreamSupport.stream(alicePlayback.spliterator(), false)
                 .filter(event -> event.path("type").asText().equals("DAMAGE_APPLIED")).findFirst().orElseThrow();
+        assertThat(damage.path("playerId").asText()).isEqualTo(bob.path("id").asText());
+        assertThat(damage.path("sourcePlayerId").asText()).isEqualTo(alice.path("id").asText());
         assertThat(damage.path("oldDamage").asInt()).isZero();
         assertThat(damage.path("newDamage").asInt()).isEqualTo(1);
         assertThat(java.util.stream.StreamSupport.stream(aliceView.path("vehicles").spliterator(), false)
-                .map(vehicle -> vehicle.path("damage").asInt()).toList()).contains(1);
+                .filter(vehicle -> vehicle.path("playerId").asText().equals(bob.path("id").asText()))
+                .map(vehicle -> vehicle.path("damage").asInt()).toList()).containsExactly(1);
     }
 
     @Test
@@ -484,8 +497,8 @@ class GameApiIntegrationTest {
         assertThat(game.path("players").path(1).path("name").asText()).isEqualTo("Ulrika");
         assertThat(game.path("vehicles")).allSatisfy(vehicle ->
                 assertThat(vehicle.path("status").asText()).isEqualTo("ACTIVE"));
-        assertThat(game.path("board").path("width").asInt()).isEqualTo(20);
-        assertThat(game.path("board").path("height").asInt()).isEqualTo(20);
+        assertThat(game.path("board").path("width").asInt()).isEqualTo(16);
+        assertThat(game.path("board").path("height").asInt()).isEqualTo(16);
         assertThat(game.toString()).doesNotContain("token", "\"program\":");
     }
 
