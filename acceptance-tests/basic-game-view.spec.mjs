@@ -56,7 +56,15 @@ test('vehicle arrow tips point in the server forward direction', async ({ page }
       { id: 'player-south', name: 'South' },
       { id: 'player-west', name: 'West' },
     ],
-    board: { width: 5, height: 5, walls: [{ cell: { x: 1, y: 1 }, direction: 'NORTH' }], pits: [] },
+    board: { mapId: 'test-map', mapName: 'Test Map', width: 5, height: 5,
+      walls: [{ cell: { x: 1, y: 1 }, direction: 'NORTH' }], pits: [],
+      obstacles: [{ x: 2, y: 2 }],
+      checkpoints: [
+        { id: 'CP1', order: 1, position: { x: 0, y: 4 } },
+        { id: 'CP2', order: 2, position: { x: 1, y: 4 } },
+        { id: 'CP3', order: 3, position: { x: 2, y: 4 } },
+        { id: 'CP4', order: 4, position: { x: 3, y: 4 } },
+      ], spawnPoints: [], conveyors: [], rotators: [], controlPoints: [] },
     vehicles: [
       { id: 'vehicle-north', playerId, x: 1, y: 1, direction: 'NORTH', status: 'ACTIVE' },
       { id: 'vehicle-east', playerId: 'player-east', x: 3, y: 1, direction: 'EAST', status: 'ACTIVE' },
@@ -72,6 +80,10 @@ test('vehicle arrow tips point in the server forward direction', async ({ page }
   await page.goto(`/game/${gameId}`)
 
   await expect(page.getByTestId('board-wall')).toHaveClass(/wall-north/)
+  await expect(page.getByTestId('game-board')).toHaveAttribute('data-width', '5')
+  await expect(page.getByTestId('game-board')).toHaveAttribute('data-height', '5')
+  await expect(page.getByTestId('board-obstacle')).toHaveAttribute('data-x', '2')
+  await expect(page.getByTestId('board-checkpoint')).toHaveText(['1', '2', '3', '4'])
 
   const northArrow = page.getByTestId('player-vehicle').filter({ hasText: 'North' }).locator('.vehicle-direction')
   const eastArrow = page.getByTestId('player-vehicle').filter({ hasText: 'East' }).locator('.vehicle-direction')

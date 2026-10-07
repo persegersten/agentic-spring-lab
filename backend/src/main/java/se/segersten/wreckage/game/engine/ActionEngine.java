@@ -123,6 +123,7 @@ public class ActionEngine {
             if (state.board().hasWall(cursor, shooter.orientation())) break;
             Position next = cursor.move(shooter.orientation());
             if (!state.board().isValidPosition(next)) break;
+            if (state.board().isObstacle(next)) break;
             cursor = next;
             VehicleState target = state.vehicleStates().stream().filter(VehicleState::isActive)
                     .filter(vehicle -> vehicle.position().equals(next)).findFirst().orElse(null);

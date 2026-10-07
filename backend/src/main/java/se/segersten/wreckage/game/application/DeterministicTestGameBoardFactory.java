@@ -14,6 +14,7 @@ import se.segersten.wreckage.game.domain.Position;
 import se.segersten.wreckage.game.domain.Rotation;
 import se.segersten.wreckage.game.domain.Rotator;
 import se.segersten.wreckage.game.domain.Wall;
+import se.segersten.wreckage.game.domain.MapDefinition;
 
 @Component
 @Profile("deterministic-e2e")
@@ -33,5 +34,16 @@ public class DeterministicTestGameBoardFactory implements GameBoardFactory {
                 List.of(new Conveyor(new Position(0, 2), Direction.EAST)),
                 List.of(new Rotator(new Position(2, 2), Rotation.CLOCKWISE)),
                 Set.of(new Position(5, 5)));
+    }
+
+    @Override public Board createBoard(MapDefinition map) {
+        return createBoard().withDimensions(map.width(), map.height());
+    }
+
+    @Override public Board createBoard(MapDefinition map, int playerCount) {
+        Board board = createBoard(map);
+        return new Board(board.mapId(), board.mapName(), board.width(), board.height(), board.walls(), board.pits(),
+                board.checkpoints(), board.spawnPoints().subList(0, playerCount), board.conveyors(), board.rotators(),
+                board.controlPoints(), board.obstacles());
     }
 }

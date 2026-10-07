@@ -36,6 +36,23 @@ import se.segersten.wreckage.game.domain.ScheduledAction;
 
 class GameServiceTest {
 
+    @Test void everySupportedPlayerCountStartsOnItsDefaultMap() {
+        for (int count = 2; count <= 10; count++) {
+            InMemoryGameRepository repository = new InMemoryGameRepository();
+            GameService service = new GameService(repository);
+            var hosted = service.createHostedGame(new GameConfiguration(count, 60, 3, 30));
+            for (int index = 0; index < count; index++) service.addPlayer(hosted.game().getId(), "P" + index);
+
+            Game started = service.startGame(hosted.game().getId(), hosted.hostToken());
+
+            String expected = count <= 3 ? "default-small" : count <= 6 ? "default-medium" : "default-large";
+            assertThat(started.getBoard().mapId()).isEqualTo(expected);
+            assertThat(started.getVehicleStates()).extracting(state -> state.position()).doesNotHaveDuplicates();
+            assertThat(started.getBoard().orderedCheckpoints()).extracting(Checkpoint::id)
+                    .containsExactly("CP1", "CP2", "CP3", "CP4");
+        }
+    }
+
     @Test
     void createsGamesWithTheInjectedBoardFixture() {
         InMemoryGameRepository repository = new InMemoryGameRepository();
@@ -75,7 +92,8 @@ class GameServiceTest {
         assertThat(game.getPlayers()).isEmpty();
         assertThat(game.getStatus()).isEqualTo(GameStatus.WAITING_FOR_PLAYERS);
         assertThat(game.getConfiguration()).isEqualTo(GameConfiguration.defaults());
-        assertThat(game.getBoard().conveyors()).hasSize(1);assertThat(game.getBoard().rotators()).hasSize(1);
+        assertThat(game.getBoard().mapId()).isEqualTo("default-large");
+        assertThat(game.getBoard().conveyors()).isNotEmpty();assertThat(game.getBoard().rotators()).isNotEmpty();
         assertThat(repository.findById(game.getId())).containsSame(game);
     }
 

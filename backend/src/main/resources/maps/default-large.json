@@ -1,0 +1,33 @@
+{
+  "id": "default-large", "name": "The Crucible", "width": 16, "height": 16,
+  "players": { "min": 7, "max": 10 },
+  "starts": [
+    { "position": { "x": 1, "y": 0 }, "orientation": "NORTH" },
+    { "position": { "x": 2, "y": 0 }, "orientation": "NORTH" },
+    { "position": { "x": 4, "y": 0 }, "orientation": "NORTH" },
+    { "position": { "x": 5, "y": 0 }, "orientation": "NORTH" },
+    { "position": { "x": 7, "y": 0 }, "orientation": "NORTH" },
+    { "position": { "x": 8, "y": 0 }, "orientation": "NORTH" },
+    { "position": { "x": 10, "y": 0 }, "orientation": "NORTH" },
+    { "position": { "x": 11, "y": 0 }, "orientation": "NORTH" },
+    { "position": { "x": 13, "y": 0 }, "orientation": "NORTH" },
+    { "position": { "x": 14, "y": 0 }, "orientation": "NORTH" }
+  ],
+  "checkpoints": [
+    { "id": "CP1", "order": 1, "position": { "x": 8, "y": 4 } },
+    { "id": "CP2", "order": 2, "position": { "x": 3, "y": 12 } },
+    { "id": "CP3", "order": 3, "position": { "x": 12, "y": 11 } },
+    { "id": "CP4", "order": 4, "position": { "x": 7, "y": 7 } }
+  ],
+  "obstacles": [
+    { "x": 5, "y": 7 }, { "x": 6, "y": 7 }, { "x": 8, "y": 7 }, { "x": 9, "y": 7 },
+    { "x": 7, "y": 9 }, { "x": 8, "y": 9 }
+  ],
+  "walls": [], "pits": [{ "x": 7, "y": 11 }, { "x": 8, "y": 11 }],
+  "conveyors": [
+    { "position": { "x": 6, "y": 8 }, "direction": "EAST" },
+    { "position": { "x": 9, "y": 8 }, "direction": "WEST" }
+  ],
+  "rotators": [{ "position": { "x": 7, "y": 8 }, "rotation": "COUNTER_CLOCKWISE" }],
+  "controlPoints": [{ "x": 8, "y": 8 }]
+}

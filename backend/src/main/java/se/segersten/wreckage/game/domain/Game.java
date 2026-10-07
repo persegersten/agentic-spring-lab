@@ -98,17 +98,39 @@ public class Game {
     }
 
     public void start(Instant now) {
+        start(now, null);
+    }
+
+    public void start(Instant now, MapDefinition selectedMap) {
         Objects.requireNonNull(now);
         if (status != GameStatus.WAITING_FOR_PLAYERS || round != null)
             throw new IllegalStateException("The lobby is closed");
         if (players.size() < 2) throw new IllegalStateException("At least two players are required");
         MatchSettings settings = MatchSettings.forPlayerCount(players.size());
-        board = board.withDimensions(settings.boardWidth(), settings.boardHeight());
+        if (selectedMap != null) board = selectedMap.toBoard();
+        else board = board.withDimensions(settings.boardWidth(), settings.boardHeight());
+        if (board.width() != settings.boardWidth() || board.height() != settings.boardHeight())
+            throw new IllegalArgumentException("Map dimensions do not match the player-count configuration");
         configuration = configuration.withRoundLimit(settings.roundLimit());
-        vehicles.replaceAll((playerId, state) -> new VehicleState(state.vehicle(), state.position(),
-                state.orientation(), state.status(), 0,
-                state.vehicle().primaryWeapon() == PrimaryWeapon.ROCKET ? 1 : 0));
+        List<SpawnPoint> selectedSpawns = balancedSpawns(board.spawnPoints(), players.size());
+        for (int index = 0; index < players.size(); index++) {
+            UUID playerId = players.get(index).getId(); VehicleState state = vehicles.get(playerId);
+            SpawnPoint spawn = selectedSpawns.get(index);
+            Vehicle old = state.vehicle();
+            Vehicle vehicle = new Vehicle(old.id(), old.playerId(), spawn.position(), spawn.orientation(),
+                    old.primaryWeapon(), old.specialAbility());
+            vehicles.put(playerId, new VehicleState(vehicle, spawn.position(), spawn.orientation(),
+                    VehicleStatus.ACTIVE, 0, old.primaryWeapon() == PrimaryWeapon.ROCKET ? 1 : 0));
+        }
         startRound(now);
+    }
+
+    private List<SpawnPoint> balancedSpawns(List<SpawnPoint> starts, int count) {
+        if (starts.size() < count) throw new IllegalStateException("The map has too few spawn points");
+        if (starts.size() == count) return starts;
+        List<SpawnPoint> result = new ArrayList<>();
+        for (int index = 0; index < count; index++) result.add(starts.get(index * starts.size() / count));
+        return List.copyOf(result);
     }
 
     public Round startRound(Instant now) {
