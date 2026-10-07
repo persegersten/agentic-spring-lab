@@ -185,24 +185,43 @@ public class Game {
     public void completeRound() {
         if (round == null || round.phase() != RoundPhase.PLAYBACK) return;
         round.finalVehicleStates().forEach(s -> vehicles.put(s.vehicle().playerId(), s));
-        if (round.number() >= configuration.roundLimit())
+        if (players.stream().anyMatch(player -> player.hasCompletedCheckpoints(board))
+                || round.number() >= configuration.roundLimit())
             status = GameStatus.FINISHED;
     }
 
     public List<GamePlacement> getPlacements() {
         if (status != GameStatus.FINISHED) return List.of();
-        var sorted = players.stream().sorted(java.util.Comparator.comparingInt(Player::getScore).reversed()).toList();
+        var sorted = players.stream().sorted(java.util.Comparator
+                .comparingInt((Player player) -> player.getCapturedCheckpointCount(board)).reversed()
+                .thenComparingInt(this::distanceToNextCheckpoint)).toList();
         List<GamePlacement> result = new ArrayList<>();
         Player previous = null;
         int placement = 0;
         for (int index = 0; index < sorted.size(); index++) {
             Player player = sorted.get(index);
-            if (previous == null || player.getScore() != previous.getScore()) placement = index + 1;
+            if (previous == null
+                    || player.getCapturedCheckpointCount(board) != previous.getCapturedCheckpointCount(board)
+                    || distanceToNextCheckpoint(player) != distanceToNextCheckpoint(previous)) placement = index + 1;
             result.add(new GamePlacement(player.getId(), placement, player.getScore(),
-                    player.getVisitedCheckpoints().size(), player.getCrashes(), placement == 1));
+                    player.getCapturedCheckpointCount(board), nullableDistanceToNextCheckpoint(player),
+                    player.getCrashes(), placement == 1));
             previous = player;
         }
         return List.copyOf(result);
+    }
+
+    private int distanceToNextCheckpoint(Player player) {
+        Checkpoint next = player.getNextCheckpoint(board);
+        VehicleState vehicle = vehicles.get(player.getId());
+        if (next == null) return -1;
+        if (vehicle == null) return Integer.MAX_VALUE;
+        return Math.abs(vehicle.position().x() - next.position().x())
+                + Math.abs(vehicle.position().y() - next.position().y());
+    }
+
+    private Integer nullableDistanceToNextCheckpoint(Player player) {
+        return player.getNextCheckpoint(board) == null ? null : distanceToNextCheckpoint(player);
     }
 
     public Player requirePlayer(UUID playerId) {

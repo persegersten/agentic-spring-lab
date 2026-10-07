@@ -45,6 +45,8 @@ public record Board(int width, int height, Set<Wall> walls, Set<Position> pits,
             throw new IllegalArgumentException("Checkpoint ids must be unique");
         if (checkpoints.stream().map(Checkpoint::position).distinct().count() != checkpoints.size())
             throw new IllegalArgumentException("Checkpoint positions must be unique");
+        if (checkpoints.stream().map(Checkpoint::order).distinct().count() != checkpoints.size())
+            throw new IllegalArgumentException("Checkpoint orders must be unique");
         if (spawnPoints.isEmpty()) throw new IllegalArgumentException("A board needs spawn points");
         if (spawnPoints.stream().anyMatch(spawn -> !isWithinBounds(spawn.position(), width, height)))
             throw new IllegalArgumentException("Spawn points must be inside the board");
@@ -73,6 +75,12 @@ public record Board(int width, int height, Set<Wall> walls, Set<Position> pits,
 
     public Checkpoint checkpointAt(Position position) {
         return checkpoints.stream().filter(checkpoint -> checkpoint.position().equals(position)).findFirst().orElse(null);
+    }
+    public List<Checkpoint> orderedCheckpoints() {
+        return checkpoints.stream().sorted(java.util.Comparator.comparingInt(Checkpoint::order)).toList();
+    }
+    public Checkpoint checkpoint(int order) {
+        return checkpoints.stream().filter(checkpoint -> checkpoint.order() == order).findFirst().orElse(null);
     }
     public Rotator rotatorAt(Position p){return rotators.stream().filter(r->r.position().equals(p)).findFirst().orElse(null);}
     public boolean isControlPoint(Position position) { return controlPoints.contains(position); }

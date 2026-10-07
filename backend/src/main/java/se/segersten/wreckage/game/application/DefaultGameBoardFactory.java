@@ -24,7 +24,10 @@ public class DefaultGameBoardFactory implements GameBoardFactory {
         Board base = new Board(20, 20, Set.of(
                 new Wall(new Position(0, 0), Direction.NORTH)),
                 Set.of(new Position(4, 5)),
-                Set.of(new Checkpoint("checkpoint-1", new Position(3, 3))));
+                Set.of(new Checkpoint("CP1", 1, new Position(3, 3)),
+                        new Checkpoint("CP2", 2, new Position(8, 3)),
+                        new Checkpoint("CP3", 3, new Position(8, 8)),
+                        new Checkpoint("CP4", 4, new Position(3, 8))));
         return new Board(base.width(), base.height(), base.walls(), base.pits(), base.checkpoints(),
                 base.spawnPoints(), List.of(new Conveyor(new Position(0, 0), Direction.EAST)),
                 List.of(new Rotator(new Position(2, 0), Rotation.CLOCKWISE)),

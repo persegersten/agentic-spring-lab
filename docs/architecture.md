@@ -70,15 +70,17 @@ crashed and waits for a later round.
 
 ## Scoring and results
 
-The domain owns all scoring. A vehicle scores the first time its player reaches
-each checkpoint, scores for occupying a control point at round end, loses the
+The domain owns checkpoint progress and all scoring. Movement events capture
+only the player's next map-defined checkpoint; capturing the fourth checkpoint
+ends resolution immediately. A vehicle also scores for occupying a control point at round end, loses the
 configured crash penalty, and may award the configured push-crash score to the
 responsible player. Every mutation emits a `SCORE_CHANGED` event containing the
 old score, new score, delta, reason, and optional checkpoint identifier.
 
-When the round limit is reached, placements are ordered only by score. Every
-player tied for the highest score shares the win. Vehicle count and crash state
-never finish a game early.
+When the round limit is reached without a completed checkpoint sequence,
+placements are ordered by captured checkpoint count and then distance to the
+next checkpoint. Equal progress and distance share first place as a draw.
+Vehicle count and crash state never finish a game early.
 
 ## Playback model
 

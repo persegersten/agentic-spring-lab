@@ -793,20 +793,21 @@ No player is permanently eliminated from the match.
 
 ## 21. Checkpoints
 
-A checkpoint occupies a board cell and has a stable checkpoint identifier.
+A map defines four checkpoints with stable identities, explicit order, and board positions:
+`CP1`, `CP2`, `CP3`, and `CP4`.
 
-When a vehicle enters or is moved onto a checkpoint for the first time in that
-match, that player receives:
+When a vehicle enters or is moved onto its player's next required checkpoint,
+that player captures it and receives:
 
 ```text
 checkpointScore
 ```
 
-The same player may score the same checkpoint only once per match.
+Progress is retained for the match. Future checkpoints have no effect until all
+earlier checkpoints have been captured, and previously captured checkpoints do
+not need to be revisited.
 
 Different players may score the same checkpoint independently.
-
-Checkpoints do not need to be visited in a predefined order.
 
 Checkpoint scoring applies when the vehicle reaches the cell through:
 
@@ -883,7 +884,7 @@ A rotator does not move the vehicle.
 Default scoring is:
 
 ```text
-first visit to checkpoint  +2
+next checkpoint captured  +2
 control point at round end +1
 opponent crashes from your push command +1
 opponent crashes directly from your weapon +1
@@ -899,14 +900,16 @@ Every score change must be represented by an authoritative event.
 
 ## 25. End of game
 
-The game ends after `roundLimit` rounds have completed.
+The first player to capture `CP4` after `CP1` through `CP3` wins immediately.
+No later movement, action, or board effect is resolved.
+
+The game also ends after `roundLimit` rounds have completed. If nobody completed
+the sequence, the player with the most checkpoints wins. Ties use Manhattan
+distance from the player's final vehicle position to their next checkpoint;
+equal progress and equal distance produce a draw.
 
 There is no last-vehicle-standing victory condition and no permanent player
 elimination.
-
-The player or players with the highest score win. Equal highest scores always
-produce a shared victory; checkpoints, crashes, initiative and identifiers are
-not tie breakers.
 
 No sudden-death round is created automatically.
 

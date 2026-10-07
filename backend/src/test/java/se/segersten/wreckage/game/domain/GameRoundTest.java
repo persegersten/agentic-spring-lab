@@ -151,7 +151,7 @@ class GameRoundTest {
         Player alice = Player.create(aliceId, "Alice", "a");
         VehicleState vehicle = state(aliceId, 1, 2);
         Board board = new Board(5, 5, java.util.Set.of(), java.util.Set.of(),
-                java.util.Set.of(new Checkpoint("cp-1", new Position(2, 2))));
+                checkpoints(new Position(2, 2), new Position(4, 4), new Position(4, 3), new Position(3, 4)));
         Round round = new Round(1, Map.of(aliceId, locked(aliceId,
                 MovementOrder.FORWARD_1, MovementOrder.REVERSE_1, MovementOrder.FORWARD_1)),
                 List.of(aliceId), new GameState(board, List.of(vehicle)));
@@ -159,14 +159,14 @@ class GameRoundTest {
         round.resolve(new MovementEngine(), List.of(alice), GameConfiguration.defaults());
 
         assertThat(alice.getScore()).isEqualTo(2);
-        assertThat(alice.getVisitedCheckpoints()).containsExactly("cp-1");
+        assertThat(alice.getVisitedCheckpoints()).containsExactly("CP1");
         assertThat(round.playback()).extracting(RoundEvent::type).containsExactly(
                 RoundEventType.MOVE, RoundEventType.SCORE_CHANGED,
                 RoundEventType.MOVE, RoundEventType.MOVE);
         assertThat(round.playback().get(1)).satisfies(event -> {
             assertThat(event.scoreReason()).isEqualTo(ScoreChangeReason.CHECKPOINT);
             assertThat(event.scoreDelta()).isEqualTo(2);
-            assertThat(event.checkpointId()).isEqualTo("cp-1");
+            assertThat(event.checkpointId()).isEqualTo("CP1");
         });
     }
 
@@ -293,7 +293,7 @@ class GameRoundTest {
         Player pusher = Player.create(pusherId, "Pusher", "p");
         Player pushed = Player.create(pushedId, "Pushed", "v");
         Board board = new Board(5, 5, java.util.Set.of(), java.util.Set.of(),
-                java.util.Set.of(new Checkpoint("cp", new Position(2, 1))));
+                checkpoints(new Position(2, 1), new Position(4, 4), new Position(4, 3), new Position(3, 4)));
         Round round = new Round(1, Map.of(pusherId, locked(pusherId, MovementOrder.FORWARD_1)),
                 List.of(pusherId), new GameState(board, List.of(state(pusherId, 0, 1), state(pushedId, 1, 1))));
 
@@ -414,26 +414,29 @@ class GameRoundTest {
     }
 
     @Test
-    void finishedPlacementsUseScoreOnlyAndShareTopScore() {
+    void finishedPlacementsUseCheckpointProgressThenDistanceAndAllowDraws() {
         Instant now = Instant.parse("2099-01-01T00:00:00Z");
         GameConfiguration configuration = new GameConfiguration(4, 60, 1, 30, 1, 2, -1, 1);
-        Game game = new Game(UUID.randomUUID(), List.of(), new Board(5, 5), GameStatus.RUNNING,
-                Map.of(), null, configuration, now, now.plusSeconds(60));
-        Player first = game.addPlayer("First", "1", now);
-        Player second = game.addPlayer("Second", "2", now);
-        Player tied = game.addPlayer("Tied", "3", now);
-        Player fourth = game.addPlayer("Fourth", "4", now);
-        first.changeScore(10); first.visitCheckpoint("a"); first.visitCheckpoint("b"); first.recordCrash();
-        second.changeScore(10); second.visitCheckpoint("a"); second.recordCrash();
-        tied.changeScore(10); tied.visitCheckpoint("a"); tied.recordCrash();
-        fourth.changeScore(9);
-        Round round = game.startRound(now);
-        resolveWithWait(round);
-        game.completeRound();
+        Board board = new Board(5, 5, java.util.Set.of(), java.util.Set.of(),
+                checkpoints(new Position(1, 1), new Position(3, 3), new Position(4, 3), new Position(4, 4)));
+        Player first = Player.create(UUID.randomUUID(), "First", "1");
+        Player tied = Player.create(UUID.randomUUID(), "Tied", "2");
+        Player farther = Player.create(UUID.randomUUID(), "Farther", "3");
+        Player behind = Player.create(UUID.randomUUID(), "Behind", "4");
+        first.visitCheckpoint("CP1"); tied.visitCheckpoint("CP1"); farther.visitCheckpoint("CP1");
+        Map<UUID, VehicleState> states = new LinkedHashMap<>();
+        states.put(first.getId(), state(first.getId(), 2, 3));
+        states.put(tied.getId(), state(tied.getId(), 3, 2));
+        states.put(farther.getId(), state(farther.getId(), 0, 0));
+        states.put(behind.getId(), state(behind.getId(), 1, 1));
+        Game game = new Game(UUID.randomUUID(), List.of(first, tied, farther, behind), board,
+                GameStatus.FINISHED, states, null, configuration, now, now.plusSeconds(60));
 
-        assertThat(game.getPlacements()).extracting(GamePlacement::placement).containsExactly(1, 1, 1, 4);
+        assertThat(game.getPlacements()).extracting(GamePlacement::placement).containsExactly(1, 1, 3, 4);
         assertThat(game.getPlacements()).filteredOn(GamePlacement::winner)
-                .extracting(GamePlacement::playerId).containsExactly(first.getId(), second.getId(), tied.getId());
+                .extracting(GamePlacement::playerId).containsExactly(first.getId(), tied.getId());
+        assertThat(game.getPlacements()).extracting(GamePlacement::distanceToNextCheckpoint)
+                .containsExactly(1, 1, 6, 0);
     }
 
     @Test
@@ -471,10 +474,11 @@ class GameRoundTest {
         assertThat(game.getStatus()).isEqualTo(GameStatus.RUNNING);
     }
 
-    private void resolveSinglePlayer(Board board, Player player, VehicleState state, MovementOrder order) {
+    private Round resolveSinglePlayer(Board board, Player player, VehicleState state, MovementOrder order) {
         Round round = new Round(1, Map.of(player.getId(), locked(player.getId(), order)),
                 List.of(player.getId()), new GameState(board, List.of(state)));
         round.resolve(new MovementEngine(), List.of(player), GameConfiguration.defaults());
+        return round;
     }
 
     @Test
@@ -697,6 +701,81 @@ class GameRoundTest {
         });
     }
 
+    @Test
+    void checkpointsCaptureOnlyInMapOrderIncludingIntermediateMovementTiles() {
+        UUID playerId = UUID.randomUUID();
+        Player player = Player.create(playerId, "Alice", "a");
+        Board board = new Board(7, 3, java.util.Set.of(), java.util.Set.of(),
+                checkpoints(new Position(1, 1), new Position(3, 1), new Position(4, 1), new Position(5, 1)));
+
+        resolveSinglePlayer(board, player, state(playerId, 2, 1), MovementOrder.FORWARD_1);
+        assertThat(player.getCapturedCheckpointCount(board)).isZero();
+        assertThat(player.getNextCheckpoint(board).id()).isEqualTo("CP1");
+
+        resolveSinglePlayer(board, player, state(playerId, 0, 1), MovementOrder.FORWARD_2);
+        assertThat(player.getCapturedCheckpointCount(board)).isOne();
+        assertThat(player.getNextCheckpoint(board).id()).isEqualTo("CP2");
+
+        resolveSinglePlayer(board, player, state(playerId, 0, 1), MovementOrder.FORWARD_1);
+        assertThat(player.getCapturedCheckpointCount(board)).isOne();
+    }
+
+    @Test
+    void blockedMovementDoesNotCaptureCheckpoint() {
+        UUID playerId = UUID.randomUUID();
+        Player player = Player.create(playerId, "Alice", "a");
+        Board base = new Board(6, 3);
+        Board board = new Board(6, 3, java.util.Set.of(new Wall(new Position(0, 1), Direction.EAST)),
+                java.util.Set.of(), checkpoints(new Position(1, 1), new Position(2, 1),
+                        new Position(3, 1), new Position(4, 1)), base.spawnPoints());
+
+        Round round = resolveSinglePlayer(board, player, state(playerId, 0, 1), MovementOrder.FORWARD_1);
+
+        assertThat(player.getCapturedCheckpointCount(board)).isZero();
+        assertThat(round.playback()).isEmpty();
+    }
+
+    @Test
+    void checkpointProgressSurvivesAcrossRounds() {
+        UUID playerId = UUID.randomUUID();
+        Player player = Player.create(playerId, "Alice", "a");
+        Board board = new Board(6, 3, java.util.Set.of(), java.util.Set.of(),
+                checkpoints(new Position(1, 1), new Position(2, 1), new Position(3, 1), new Position(4, 1)));
+
+        resolveSinglePlayer(board, player, state(playerId, 0, 1), MovementOrder.FORWARD_1);
+        resolveSinglePlayer(board, player, state(playerId, 1, 1), MovementOrder.FORWARD_1);
+
+        assertThat(player.getCapturedCheckpointCount(board)).isEqualTo(2);
+        assertThat(player.getNextCheckpoint(board).id()).isEqualTo("CP3");
+    }
+
+    @Test
+    void fourthCheckpointEndsMatchAndStopsLaterPlayerMovement() {
+        Instant now = Instant.parse("2099-01-01T00:00:00Z");
+        Board board = new Board(7, 3, java.util.Set.of(), java.util.Set.of(),
+                checkpoints(new Position(1, 1), new Position(2, 1), new Position(3, 1), new Position(4, 1)));
+        Player winner = Player.create(UUID.randomUUID(), "Winner", "w");
+        Player opponent = Player.create(UUID.randomUUID(), "Opponent", "o");
+        Map<UUID, VehicleState> states = new LinkedHashMap<>();
+        states.put(winner.getId(), state(winner.getId(), 0, 1));
+        states.put(opponent.getId(), state(opponent.getId(), 0, 2));
+        Game game = new Game(UUID.randomUUID(), List.of(winner, opponent), board, GameStatus.RUNNING,
+                states, null, new GameConfiguration(2, 60, 2, 30, 7, 2, -1, 1), now, now.plusSeconds(60));
+        Round round = game.startRound(now);
+        round.lock(winner.getId(), List.of(MovementOrder.FORWARD_2, MovementOrder.FORWARD_2));
+        round.lock(opponent.getId(), List.of(MovementOrder.FORWARD_1, MovementOrder.FORWARD_1));
+
+        round.resolve(new MovementEngine(), game.getPlayers(), game.getConfiguration());
+        game.completeRound();
+
+        assertThat(winner.getCapturedCheckpointCount(board)).isEqualTo(4);
+        assertThat(game.getStatus()).isEqualTo(GameStatus.FINISHED);
+        assertThat(game.getPlacements()).filteredOn(GamePlacement::winner)
+                .extracting(GamePlacement::playerId).containsExactly(winner.getId());
+        assertThat(round.playback()).filteredOn(event -> event.playerId().equals(opponent.getId())
+                && event.type() == RoundEventType.MOVE).hasSize(1);
+    }
+
     private Game game(int programSize, Instant now) {
         return new Game(UUID.randomUUID(), List.of(), new Board(8, 8), GameStatus.RUNNING,
                 Map.of(), null, new GameConfiguration(6, 60, programSize, 30),
@@ -715,5 +794,10 @@ class GameRoundTest {
     private VehicleState state(UUID playerId, int x, int y) {
         return new VehicleState(new Vehicle(UUID.randomUUID(), playerId),
                 new Position(x, y), Direction.EAST);
+    }
+
+    private java.util.Set<Checkpoint> checkpoints(Position first, Position second, Position third, Position fourth) {
+        return java.util.Set.of(new Checkpoint("CP1", 1, first), new Checkpoint("CP2", 2, second),
+                new Checkpoint("CP3", 3, third), new Checkpoint("CP4", 4, fourth));
     }
 }

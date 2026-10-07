@@ -32,6 +32,7 @@ test('finished game shows authoritative shared placements and scores', async ({ 
 
   await expect(page.getByRole('heading', { name: 'Match finished' })).toBeVisible()
   await expect(page.getByText('Winners: Per, Alice')).toBeVisible()
+  await expect(page.getByTestId('draw-result')).toHaveText('Draw')
   await expect(page.getByTestId('player-placement')).toHaveText(['1', '1'])
   await expect(page.getByTestId('player-score')).toHaveText(['7', '7'])
 })
