@@ -22,7 +22,7 @@ public record GameResponse(
 
     public static GameResponse from(Game game) {
         List<PlayerResponse> players = game.getPlayers().stream()
-                .map(PlayerResponse::from)
+                .map(player -> PlayerResponse.from(player, game.getBoard()))
                 .toList();
         BoardResponse board = game.getBoard() == null
                 ? null

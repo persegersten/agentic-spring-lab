@@ -68,8 +68,9 @@ class GameEntity {
         boardConveyors=board.conveyors().stream().map(c->c.position().x()+","+c.position().y()+","+c.direction()).collect(Collectors.joining("|"));boardRotators=board.rotators().stream().map(r->r.position().x()+","+r.position().y()+","+r.rotation()).collect(Collectors.joining("|"));
         boardPits = board.pits().stream().sorted(java.util.Comparator.comparingInt(Position::x).thenComparingInt(Position::y))
                 .map(position -> position.x() + "," + position.y()).collect(Collectors.joining("|"));
-        boardCheckpoints = board.checkpoints().stream().sorted(java.util.Comparator.comparing(Checkpoint::id))
-                .map(checkpoint -> checkpoint.id() + "," + checkpoint.position().x() + "," + checkpoint.position().y())
+        boardCheckpoints = board.orderedCheckpoints().stream()
+                .map(checkpoint -> checkpoint.id() + "," + checkpoint.order() + ","
+                        + checkpoint.position().x() + "," + checkpoint.position().y())
                 .collect(Collectors.joining("|"));
         boardControlPoints = board.controlPoints().stream()
                 .sorted(java.util.Comparator.comparingInt(Position::x).thenComparingInt(Position::y))
@@ -105,7 +106,10 @@ class GameEntity {
         java.util.Set<Checkpoint> checkpoints = boardCheckpoints == null || boardCheckpoints.isBlank() ? java.util.Set.of()
                 : java.util.Arrays.stream(boardCheckpoints.split("\\|"))
                 .map(value -> value.split(","))
-                .map(parts -> new Checkpoint(parts[0], new Position(Integer.parseInt(parts[1]), Integer.parseInt(parts[2]))))
+                .map(parts -> parts.length == 4
+                        ? new Checkpoint(parts[0], Integer.parseInt(parts[1]),
+                                new Position(Integer.parseInt(parts[2]), Integer.parseInt(parts[3])))
+                        : new Checkpoint(parts[0], new Position(Integer.parseInt(parts[1]), Integer.parseInt(parts[2]))))
                 .collect(Collectors.toUnmodifiableSet());
         java.util.Set<Position> controlPoints = boardControlPoints == null || boardControlPoints.isBlank() ? java.util.Set.of()
                 : java.util.Arrays.stream(boardControlPoints.split("\\|"))

@@ -53,6 +53,10 @@ class GameServiceTest {
         assertThat(board.spawnPoints().subList(0, 2)).extracting(spawn -> spawn.position())
                 .containsExactly(new Position(0, 0), new Position(1, 0));
         assertThat(board.checkpointAt(new Position(2, 0))).isNotNull();
+        assertThat(board.orderedCheckpoints()).extracting(Checkpoint::id)
+                .containsExactly("CP1", "CP2", "CP3", "CP4");
+        assertThat(board.orderedCheckpoints()).extracting(Checkpoint::order)
+                .containsExactly(1, 2, 3, 4);
         assertThat(board.walls()).isNotEmpty();
         assertThat(board.pits()).isNotEmpty();
         assertThat(board.conveyors()).isNotEmpty();

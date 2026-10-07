@@ -24,7 +24,7 @@ test('two players complete a deterministic authoritative match', async ({ browse
       await expect(page.getByTestId('game-board')).toHaveAttribute('data-width', '10')
       await expect(page.getByTestId('board-wall')).toHaveCount(1)
       await expect(page.getByTestId('board-pit')).toHaveCount(1)
-      await expect(page.getByTestId('board-checkpoint')).toHaveCount(1)
+      await expect(page.getByTestId('board-checkpoint')).toHaveCount(4)
       await expect(page.getByTestId('board-conveyor')).toHaveCount(1)
       await expect(page.getByTestId('board-rotator')).toHaveCount(1)
       await expect(page.getByTestId('board-control-point')).toHaveCount(1)

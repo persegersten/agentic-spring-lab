@@ -98,13 +98,16 @@ public final class Round {
         List<RoundEvent> events = new ArrayList<>();
         Map<UUID, Player> playersById = players.stream().collect(java.util.stream.Collectors.toMap(Player::getId, p -> p));
         int cardPositions = programs.values().iterator().next().commands().size();
+        boolean checkpointVictory = false;
+        resolution:
         for (int index = 0; index < cardPositions; index++) {
             int registerIndex = index + 1;
             var registerEffects = new se.segersten.wreckage.game.engine.RegisterEffects();
             var preActions = actions.resolve(ActionTiming.PRE_MOVEMENT, registerIndex, state, programs, initiative,
                     registerEffects);
             state = preActions.state();
-            addScoredEvents(events, preActions.events(), playersById, configuration, false, true);
+            checkpointVictory = addScoredEvents(events, preActions.events(), playersById, configuration, false, true);
+            if (checkpointVictory) break;
             for (UUID playerId : initiative) {
                 VehicleState vehicle = state.vehicleStates().stream()
                         .filter(candidate -> candidate.vehicle().playerId().equals(playerId))
@@ -115,16 +118,20 @@ public final class Round {
                             new Turn(List.of(new VehicleTurn(vehicle, programs.get(playerId).commands().get(index)))),
                             state, registerEffects);
                     state = result.state();
-                    addScoredEvents(events,result.events(),playersById,configuration,true, false);
+                    checkpointVictory = addScoredEvents(events,result.events(),playersById,configuration,true, false);
+                    if (checkpointVictory) break resolution;
                 }
             }
             var postActions = actions.resolve(ActionTiming.POST_MOVEMENT, registerIndex, state, programs, initiative,
                     registerEffects);
             state = postActions.state();
-            addScoredEvents(events, postActions.events(), playersById, configuration, true, true);
+            checkpointVictory = addScoredEvents(events, postActions.events(), playersById, configuration, true, true);
+            if (checkpointVictory) break;
             var result=effects.resolve(state, registerEffects);state=result.state();addScoredEvents(events,result.events(),playersById,configuration,false, false);
+            checkpointVictory = playersById.values().stream().anyMatch(player -> player.hasCompletedCheckpoints(initialState.board()));
+            if (checkpointVictory) break;
         }
-        awardControlPoints(events, state, playersById, configuration);
+        if (!checkpointVictory) awardControlPoints(events, state, playersById, configuration);
         playback = List.copyOf(events);
         phase = RoundPhase.PLAYBACK;
     }
@@ -147,7 +154,7 @@ public final class Round {
         }
     }
 
-    private void addScoredEvents(List<RoundEvent> target, List<RoundEvent> movementEvents,
+    private boolean addScoredEvents(List<RoundEvent> target, List<RoundEvent> movementEvents,
                                  Map<UUID,Player>players,GameConfiguration configuration,boolean rewardPush,
                                  boolean rewardWeapon) {
         java.util.Set<UUID> rewardedCrashes = new java.util.HashSet<>();
@@ -156,9 +163,10 @@ public final class Round {
             Player subject = players.get(event.playerId());
             if(subject!=null&&(event.type()==RoundEventType.MOVE||event.type()==RoundEventType.SIDE_STEP||event.type()==RoundEventType.RAM||event.type()==RoundEventType.PUSH||event.type()==RoundEventType.CONVEYOR_MOVE||event.type()==RoundEventType.CONVEYOR_RAM||event.type()==RoundEventType.CONVEYOR_PUSH)){
                 Checkpoint checkpoint = initialState.board().checkpointAt(event.newPosition());
-                if (checkpoint != null && subject.visitCheckpoint(checkpoint.id())) {
+                if (checkpoint != null && subject.captureCheckpoint(checkpoint, initialState.board())) {
                     addScoreEvent(target, event, subject, configuration.checkpointScore(),
                             ScoreChangeReason.CHECKPOINT, checkpoint.id());
+                    if (subject.hasCompletedCheckpoints(initialState.board())) return true;
                 }
             }
             if(subject!=null&&(event.type()==RoundEventType.CRASH||event.type()==RoundEventType.CONVEYOR_CRASH
@@ -179,6 +187,7 @@ public final class Round {
                 }
             }
         }
+        return false;
     }
 
     private void addScoreEvent(List<RoundEvent> target, RoundEvent cause, Player player, int delta,

@@ -9,8 +9,8 @@ test('score table follows authoritative score events and shows checkpoint progre
   const state = {
     id: gameId, playerId, status: 'RUNNING', roundLimit: 6, configuration,
     joinDeadline: '2026-01-01T00:05:00Z',
-    players: [{ id: playerId, name: 'Per', score: 2, visitedCheckpoints: ['cp-1'] }],
-    board: { width: 5, height: 5, walls: [], pits: [], checkpoints: [{ id: 'cp-1', position: { x: 2, y: 2 } }] },
+    players: [{ id: playerId, name: 'Per', score: 2, visitedCheckpoints: ['CP1'], capturedCheckpoints: 1, nextCheckpoint: 'CP2' }],
+    board: { width: 5, height: 5, walls: [], pits: [], checkpoints: [{ id: 'CP1', order: 1, position: { x: 2, y: 2 } }, { id: 'CP2', order: 2, position: { x: 3, y: 2 } }, { id: 'CP3', order: 3, position: { x: 3, y: 3 } }, { id: 'CP4', order: 4, position: { x: 2, y: 3 } }] },
     vehicles: [{ ...vehicle, x: 2 }],
     round: { state: { number: 1, phase: 'PLAYBACK', planningDeadline: '2026-01-01T00:02:00Z',
       ready: { [playerId]: true }, initiative: [playerId], initialVehicles: [vehicle], initialScores: { [playerId]: 0 },
@@ -21,7 +21,7 @@ test('score table follows authoritative score events and shows checkpoint progre
         { sequence: 2, type: 'SCORE_CHANGED', playerId, vehicleId: vehicle.id, sourcePlayerId: playerId,
           sourceVehicleId: vehicle.id, oldPosition: { x: 2, y: 2 }, newPosition: { x: 2, y: 2 },
           oldDirection: 'EAST', newDirection: 'EAST',
-          oldScore: 0, newScore: 2, scoreDelta: 2, scoreReason: 'CHECKPOINT', checkpointId: 'cp-1' },
+          oldScore: 0, newScore: 2, scoreDelta: 2, scoreReason: 'CHECKPOINT', checkpointId: 'CP1' },
       ] }, program: [] },
   }
   const playbackTime = new Date('2026-01-01T00:00:00Z')
@@ -32,7 +32,9 @@ test('score table follows authoritative score events and shows checkpoint progre
   await page.route(`**/games/${gameId}/players/${playerId}`, route => route.fulfill({ json: state }))
 
   await page.goto(`/game/${gameId}`)
-  await expect(page.getByTestId('board-checkpoint')).toHaveAttribute('data-checkpoint-id', 'cp-1')
+  await expect(page.getByTestId('board-checkpoint')).toHaveCount(4)
+  await expect(page.getByTestId('checkpoint-progress')).toContainText('Checkpoints: 1 / 4')
+  await expect(page.getByTestId('next-checkpoint')).toHaveText('CP2')
   await expect(page.getByTestId('player-score')).toHaveText('0')
   await page.clock.runFor(1)
   await expect(page.getByTestId('current-playback-event')).toHaveAttribute('data-event-type', 'MOVE')

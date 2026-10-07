@@ -80,9 +80,11 @@ class GameApiIntegrationTest {
         assertThat(game.path("board").path("pits")).hasSize(1);
         assertThat(game.path("board").path("pits").path(0).path("x").asInt()).isEqualTo(4);
         assertThat(game.path("board").path("pits").path(0).path("y").asInt()).isEqualTo(5);
-        assertThat(game.path("board").path("checkpoints")).hasSize(1);
+        assertThat(game.path("board").path("checkpoints")).hasSize(4);
         assertThat(game.path("board").path("checkpoints").path(0).path("id").asText())
-                .isEqualTo("checkpoint-1");
+                .isEqualTo("CP1");
+        assertThat(game.path("board").path("checkpoints")).extracting(node -> node.path("order").asInt())
+                .containsExactly(1, 2, 3, 4);
         assertThat(game.path("board").path("controlPoints")).hasSize(1);
         assertThat(game.path("board").path("controlPoints").path(0).path("x").asInt()).isEqualTo(5);
         assertThat(game.path("board").path("controlPoints").path(0).path("y").asInt()).isEqualTo(5);
@@ -534,9 +536,9 @@ class GameApiIntegrationTest {
         transaction.executeWithoutResult(status -> {
             Game current = gameRepository.findById(gameId).orElseThrow();
             current.requirePlayer(firstId).changeScore(4);
-            current.requirePlayer(firstId).visitCheckpoint("one");
+            current.requirePlayer(firstId).visitCheckpoint("CP1");
             current.requirePlayer(secondId).changeScore(4);
-            current.requirePlayer(secondId).visitCheckpoint("one");
+            current.requirePlayer(secondId).visitCheckpoint("CP1");
             gameRepository.save(new Game(current.getId(), current.getPlayers(), current.getBoard(),
                     GameStatus.FINISHED, current.getVehicleStates().stream().collect(java.util.stream.Collectors.toMap(
                             state -> state.vehicle().playerId(), state -> state, (a, b) -> a, LinkedHashMap::new)),
@@ -547,13 +549,18 @@ class GameApiIntegrationTest {
 
         assertThat(game.path("placements")).hasSize(2);
         assertThat(game.path("placements")).allSatisfy(result -> {
-            assertThat(result.path("placement").asInt()).isEqualTo(1);
-            assertThat(result.path("winner").asBoolean()).isTrue();
             assertThat(result.path("score").asInt()).isEqualTo(4);
             assertThat(result.path("checkpointsVisited").asInt()).isEqualTo(1);
             assertThat(result.path("crashes").asInt()).isZero();
         });
+        assertThat(game.path("placements")).extracting(result -> result.path("placement").asInt())
+                .containsExactly(1, 2);
+        assertThat(game.path("placements")).filteredOn(result -> result.path("winner").asBoolean()).hasSize(1);
         assertThat(game.path("players")).allSatisfy(player -> assertThat(player.path("crashes").asInt()).isZero());
+        assertThat(game.path("players")).allSatisfy(player -> {
+            assertThat(player.path("capturedCheckpoints").asInt()).isEqualTo(1);
+            assertThat(player.path("nextCheckpoint").asText()).isEqualTo("CP2");
+        });
     }
 
     @Test

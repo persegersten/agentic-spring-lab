@@ -46,9 +46,13 @@ class InMemoryProfileIntegrationTest {
         var player = Player.create(playerId, "Alice", "token");
         var vehicle = new Vehicle(java.util.UUID.randomUUID(), playerId);
         var state = new VehicleState(vehicle, new Position(1, 2), Direction.EAST);
-        var checkpoint = new se.segersten.wreckage.game.domain.Checkpoint("cp-1", new Position(2, 2));
+        var checkpoint = new se.segersten.wreckage.game.domain.Checkpoint("CP1", 1, new Position(2, 2));
+        var checkpoints = java.util.Set.of(checkpoint,
+                new se.segersten.wreckage.game.domain.Checkpoint("CP2", 2, new Position(3, 2)),
+                new se.segersten.wreckage.game.domain.Checkpoint("CP3", 3, new Position(3, 3)),
+                new se.segersten.wreckage.game.domain.Checkpoint("CP4", 4, new Position(2, 3)));
         var base = new Board(5, 5);
-        var board = new Board(5, 5, java.util.Set.of(), java.util.Set.of(), java.util.Set.of(checkpoint),
+        var board = new Board(5, 5, java.util.Set.of(), java.util.Set.of(), checkpoints,
                 base.spawnPoints(), java.util.List.of(), java.util.List.of(), java.util.Set.of(new Position(2, 2)));
         var program = new PlayerProgram(playerId, 1, java.util.List.of(MovementOrder.FORWARD_1), true);
         var round = new Round(1, RoundPhase.PLANNING, java.util.Map.of(playerId, program),
@@ -62,11 +66,11 @@ class InMemoryProfileIntegrationTest {
         gameRepository.save(game);
         Game retrieved = gameService.getGame(game.getId());
 
-        assertThat(retrieved.getBoard().checkpoints()).containsExactly(checkpoint);
+        assertThat(retrieved.getBoard().orderedCheckpoints()).containsExactlyElementsOf(board.orderedCheckpoints());
         assertThat(retrieved.getBoard().controlPoints()).containsExactly(new Position(2, 2));
         assertThat(retrieved.getConfiguration().controlPointScore()).isEqualTo(1);
         assertThat(retrieved.getPlayers().getFirst().getScore()).isEqualTo(3);
-        assertThat(retrieved.getPlayers().getFirst().getVisitedCheckpoints()).containsExactly("cp-1");
+        assertThat(retrieved.getPlayers().getFirst().getVisitedCheckpoints()).containsExactly("CP1");
         assertThat(retrieved.getRound().initialScores()).containsEntry(playerId, 0);
         assertThat(retrieved.getRound().playback()).extracting(event -> event.type())
                 .containsExactly(se.segersten.wreckage.game.domain.RoundEventType.MOVE,

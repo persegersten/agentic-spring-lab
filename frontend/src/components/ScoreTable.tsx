@@ -2,15 +2,17 @@ import type { Placement, Player } from '../types/game'
 
 export function ScoreTable({ players, scores, placements = [] }: { players: Player[]; scores?: Record<string, number>; placements?: Placement[] }) {
   const placementByPlayer = Object.fromEntries(placements.map(result => [result.playerId, result]))
+  const winnerCount = placements.filter(result => result.winner).length
   const rows = players.map(player => ({ ...player, shownScore: scores?.[player.id] ?? player.score }))
     .sort((left, right) => (placementByPlayer[left.id]?.placement ?? Number.MAX_SAFE_INTEGER)
       - (placementByPlayer[right.id]?.placement ?? Number.MAX_SAFE_INTEGER)
       || right.shownScore - left.shownScore || left.name.localeCompare(right.name))
   return <section className="panel score-table" aria-label="Poängställning" data-testid={placements.length ? 'final-standings' : 'score-table'}>
     <h2>{placements.length ? 'Final scores' : 'Poäng'}</h2>
+    {winnerCount > 1 && <p data-testid="draw-result">Draw</p>}
     <table><thead><tr>{placements.length > 0 && <th>Placering</th>}<th>Spelare</th><th>Poäng</th><th>Checkpoints</th><th>Krascher</th></tr></thead>
       <tbody>{rows.map(player => <tr key={player.id} data-testid={placements.length ? 'final-standing-row' : 'score-row'} data-player-id={player.id}>
-        {placements.length > 0 && <td data-testid="player-placement">{placementByPlayer[player.id]?.placement}</td>}<td>{player.name}</td><td data-testid="player-score">{player.shownScore}</td><td>{player.visitedCheckpoints?.length ?? 0}</td><td>{player.crashes ?? 0}</td>
+        {placements.length > 0 && <td data-testid="player-placement">{placementByPlayer[player.id]?.placement}</td>}<td>{player.name}</td><td data-testid="player-score">{player.shownScore}</td><td>{player.capturedCheckpoints ?? player.visitedCheckpoints?.length ?? 0}</td><td>{player.crashes ?? 0}</td>
       </tr>)}</tbody></table>
   </section>
 }
