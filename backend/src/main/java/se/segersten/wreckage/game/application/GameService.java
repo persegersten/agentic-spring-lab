@@ -35,31 +35,38 @@ public class GameService {
     private final Clock clock;
     private final PlayerAutomation playerAutomation;
     private final GameBoardFactory gameBoardFactory;
+    private final MapRepository mapRepository;
 
     @Autowired
     public GameService(GameRepository gameRepository, PlayerAutomation playerAutomation,
-                       GameBoardFactory gameBoardFactory) {
-        this(gameRepository, Clock.systemUTC(), playerAutomation, gameBoardFactory);
+                       GameBoardFactory gameBoardFactory, MapRepository mapRepository) {
+        this(gameRepository, Clock.systemUTC(), playerAutomation, gameBoardFactory, mapRepository);
     }
 
     public GameService(GameRepository gameRepository) {
-        this(gameRepository, Clock.systemUTC(), new NoOpPlayerAutomation(), new DefaultGameBoardFactory());
+        this(gameRepository, Clock.systemUTC(), new NoOpPlayerAutomation(), null, localMaps());
     }
 
     GameService(GameRepository gameRepository, Clock clock) {
-        this(gameRepository, clock, new NoOpPlayerAutomation(), new DefaultGameBoardFactory());
+        this(gameRepository, clock, new NoOpPlayerAutomation(), null, localMaps());
     }
 
     GameService(GameRepository gameRepository, Clock clock, PlayerAutomation playerAutomation) {
-        this(gameRepository, clock, playerAutomation, new DefaultGameBoardFactory());
+        this(gameRepository, clock, playerAutomation, null, localMaps());
     }
 
     GameService(GameRepository gameRepository, Clock clock, PlayerAutomation playerAutomation,
                 GameBoardFactory gameBoardFactory) {
+        this(gameRepository, clock, playerAutomation, gameBoardFactory, localMaps());
+    }
+
+    GameService(GameRepository gameRepository, Clock clock, PlayerAutomation playerAutomation,
+                GameBoardFactory gameBoardFactory, MapRepository mapRepository) {
         this.gameRepository = gameRepository;
         this.clock = clock;
         this.playerAutomation = java.util.Objects.requireNonNull(playerAutomation);
-        this.gameBoardFactory = java.util.Objects.requireNonNull(gameBoardFactory);
+        this.mapRepository = java.util.Objects.requireNonNull(mapRepository);
+        this.gameBoardFactory = gameBoardFactory;
     }
 
     public Game createGame() {
@@ -75,7 +82,11 @@ public class GameService {
     }
 
     public HostedGame createHostedGame(GameConfiguration configuration) {
-        Board board = gameBoardFactory.createBoard();
+        se.segersten.wreckage.game.domain.MapDefinition selected = configuration.mapId() == null
+                ? mapRepository.defaultFor(configuration.maxPlayers()) : mapRepository.get(configuration.mapId());
+        if (!selected.players().supports(configuration.maxPlayers()))
+            throw new IllegalArgumentException("Map '" + selected.id() + "' does not support the configured capacity");
+        Board board = gameBoardFactory == null ? selected.toBoard() : gameBoardFactory.createBoard(selected);
         Instant createdAt = clock.instant();
         String hostToken = UUID.randomUUID().toString() + UUID.randomUUID();
         Game game = gameRepository.save(new Game(UUID.randomUUID(), List.of(), board,
@@ -96,7 +107,19 @@ public class GameService {
     public Game startGame(UUID gameId, String hostToken) {
         Game game = findGameForUpdate(gameId);
         authenticateHost(game, hostToken);
-        game.start(clock.instant());
+        if (game.getPlayers().size() < 2) throw new IllegalStateException("At least two players are required");
+        var selected = game.getConfiguration().mapId() == null
+                ? mapRepository.defaultFor(game.getPlayers().size())
+                : mapRepository.get(game.getConfiguration().mapId());
+        Board selectedBoard = gameBoardFactory == null ? selected.toBoard()
+                : gameBoardFactory.createBoard(selected, game.getPlayers().size());
+        var effective = new se.segersten.wreckage.game.domain.MapDefinition(selectedBoard.mapId(), selectedBoard.mapName(),
+                selectedBoard.width(), selectedBoard.height(),
+                new se.segersten.wreckage.game.domain.PlayerCountRange(game.getPlayers().size(), game.getPlayers().size()),
+                selectedBoard.spawnPoints(), selectedBoard.orderedCheckpoints(), selectedBoard.obstacles().stream().toList(),
+                selectedBoard.walls().stream().toList(), selectedBoard.pits().stream().toList(),
+                selectedBoard.conveyors(), selectedBoard.rotators(), selectedBoard.controlPoints().stream().toList());
+        game.start(clock.instant(), effective);
         playerAutomation.lockHeadlessPrograms(game);
         resolveIfReady(game);
         return gameRepository.save(game);
@@ -262,4 +285,8 @@ public class GameService {
 
     public record PlayerJoin(Player player, String token) {}
     public record HostedGame(Game game, String hostToken) {}
+
+    private static MapRepository localMaps() {
+        return new ResourceMapRepository(new MapValidator());
+    }
 }

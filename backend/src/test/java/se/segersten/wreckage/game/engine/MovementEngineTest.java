@@ -500,6 +500,19 @@ class MovementEngineTest {
                 .singleElement().extracting(VehicleState::status).isEqualTo(VehicleStatus.CRASHED);
     }
 
+    @Test void obstacleBlocksMovementAndPushChains() {
+        Board obstacleBoard = new Board("test", "Test", 7, 7, Set.of(), Set.of(), Set.of(),
+                board.spawnPoints(), List.of(), List.of(), Set.of(), Set.of(new Position(3, 2)));
+        VehicleState moving = state(1, 2, Direction.EAST);
+        VehicleState pushed = state(2, 2, Direction.NORTH);
+
+        var result = engine.resolveTurnWithEvents(new Turn(List.of(order(moving, MovementOrder.FORWARD_1))),
+                new GameState(obstacleBoard, List.of(moving, pushed)));
+
+        assertThat(result.state().vehicleStates()).containsExactly(moving, pushed);
+        assertThat(result.events()).extracting(event -> event.type()).containsExactly(RoundEventType.MOVE_BLOCKED);
+    }
+
     private GameState resolve(List<VehicleState> states, VehicleTurn... turns) {
         return engine.resolveTurn(new Turn(List.of(turns)), new GameState(board, states));
     }

@@ -1,0 +1,18 @@
+{
+  "id": "default-small", "name": "Scrapyard Crossing", "width": 10, "height": 10,
+  "players": { "min": 2, "max": 3 },
+  "starts": [
+    { "position": { "x": 2, "y": 0 }, "orientation": "NORTH" },
+    { "position": { "x": 5, "y": 0 }, "orientation": "NORTH" },
+    { "position": { "x": 8, "y": 0 }, "orientation": "NORTH" }
+  ],
+  "checkpoints": [
+    { "id": "CP1", "order": 1, "position": { "x": 5, "y": 3 } },
+    { "id": "CP2", "order": 2, "position": { "x": 2, "y": 7 } },
+    { "id": "CP3", "order": 3, "position": { "x": 7, "y": 6 } },
+    { "id": "CP4", "order": 4, "position": { "x": 4, "y": 4 } }
+  ],
+  "obstacles": [{ "x": 4, "y": 5 }, { "x": 5, "y": 5 }],
+  "walls": [], "pits": [], "conveyors": [], "rotators": [],
+  "controlPoints": [{ "x": 5, "y": 6 }]
+}

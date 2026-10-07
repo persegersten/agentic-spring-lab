@@ -1,0 +1,22 @@
+{
+  "id": "default-medium", "name": "Crossfire", "width": 12, "height": 12,
+  "players": { "min": 4, "max": 6 },
+  "starts": [
+    { "position": { "x": 1, "y": 0 }, "orientation": "NORTH" },
+    { "position": { "x": 3, "y": 0 }, "orientation": "NORTH" },
+    { "position": { "x": 5, "y": 0 }, "orientation": "NORTH" },
+    { "position": { "x": 6, "y": 0 }, "orientation": "NORTH" },
+    { "position": { "x": 8, "y": 0 }, "orientation": "NORTH" },
+    { "position": { "x": 10, "y": 0 }, "orientation": "NORTH" }
+  ],
+  "checkpoints": [
+    { "id": "CP1", "order": 1, "position": { "x": 6, "y": 3 } },
+    { "id": "CP2", "order": 2, "position": { "x": 2, "y": 9 } },
+    { "id": "CP3", "order": 3, "position": { "x": 9, "y": 8 } },
+    { "id": "CP4", "order": 4, "position": { "x": 5, "y": 5 } }
+  ],
+  "obstacles": [{ "x": 4, "y": 6 }, { "x": 5, "y": 6 }, { "x": 7, "y": 6 }, { "x": 8, "y": 6 }],
+  "walls": [], "pits": [{ "x": 6, "y": 8 }], "conveyors": [],
+  "rotators": [{ "position": { "x": 6, "y": 5 }, "rotation": "CLOCKWISE" }],
+  "controlPoints": [{ "x": 6, "y": 7 }]
+}

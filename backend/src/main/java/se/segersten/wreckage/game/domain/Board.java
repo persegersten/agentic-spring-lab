@@ -5,9 +5,16 @@ import java.util.Set;
 import java.util.List;
 import java.util.stream.IntStream;
 
-public record Board(int width, int height, Set<Wall> walls, Set<Position> pits,
+public record Board(String mapId, String mapName, int width, int height, Set<Wall> walls, Set<Position> pits,
                     Set<Checkpoint> checkpoints,List<SpawnPoint> spawnPoints,List<Conveyor> conveyors,
-                    List<Rotator> rotators, Set<Position> controlPoints) {
+                    List<Rotator> rotators, Set<Position> controlPoints, Set<Position> obstacles) {
+
+    public Board(int width, int height, Set<Wall> walls, Set<Position> pits, Set<Checkpoint> checkpoints,
+                 List<SpawnPoint> spawnPoints, List<Conveyor> conveyors, List<Rotator> rotators,
+                 Set<Position> controlPoints) {
+        this("custom", "Custom", width, height, walls, pits, checkpoints, spawnPoints, conveyors, rotators,
+                controlPoints, Set.of());
+    }
 
     public Board(int width, int height) {
         this(width,height,Set.of(),Set.of(),Set.of(),defaultSpawnPoints(width,height),List.of(),List.of(),Set.of());
@@ -28,6 +35,8 @@ public record Board(int width, int height, Set<Wall> walls, Set<Position> pits,
     public Board(int w,int h,Set<Wall>walls,Set<Position>pits,Set<Checkpoint>checkpoints,List<SpawnPoint>spawns,List<Conveyor>conveyors,List<Rotator>rotators){this(w,h,walls,pits,checkpoints,spawns,conveyors,rotators,Set.of());}
 
     public Board {
+        if (mapId == null || mapId.isBlank()) throw new IllegalArgumentException("Map id must not be blank");
+        if (mapName == null || mapName.isBlank()) throw new IllegalArgumentException("Map name must not be blank");
         if (width <= 0 || height <= 0) throw new IllegalArgumentException("Board dimensions must be positive");
         walls = Set.copyOf(Objects.requireNonNull(walls));
         pits = Set.copyOf(Objects.requireNonNull(pits));
@@ -35,6 +44,7 @@ public record Board(int width, int height, Set<Wall> walls, Set<Position> pits,
         spawnPoints = List.copyOf(Objects.requireNonNull(spawnPoints));
         conveyors=List.copyOf(Objects.requireNonNull(conveyors));rotators=List.copyOf(Objects.requireNonNull(rotators));
         controlPoints = Set.copyOf(Objects.requireNonNull(controlPoints));
+        obstacles = Set.copyOf(Objects.requireNonNull(obstacles));
         if (walls.stream().anyMatch(wall -> !isWithinBounds(wall.cell(), width, height)))
             throw new IllegalArgumentException("Wall cells must be inside the board");
         if (pits.stream().anyMatch(position -> !isWithinBounds(position, width, height)))
@@ -58,6 +68,8 @@ public record Board(int width, int height, Set<Wall> walls, Set<Position> pits,
         if(rotators.stream().map(Rotator::position).distinct().count()!=rotators.size())throw new IllegalArgumentException("Rotator positions must be unique");
         if (controlPoints.stream().anyMatch(position -> !isWithinBounds(position, width, height)))
             throw new IllegalArgumentException("Control points must be inside the board");
+        if (obstacles.stream().anyMatch(position -> !isWithinBounds(position, width, height)))
+            throw new IllegalArgumentException("Obstacles must be inside the board");
     }
 
     public boolean isValidPosition(Position position) {
@@ -72,6 +84,7 @@ public record Board(int width, int height, Set<Wall> walls, Set<Position> pits,
     }
 
     public boolean isPit(Position position) { return pits.contains(position); }
+    public boolean isObstacle(Position position) { return obstacles.contains(position); }
 
     public Checkpoint checkpointAt(Position position) {
         return checkpoints.stream().filter(checkpoint -> checkpoint.position().equals(position)).findFirst().orElse(null);
@@ -91,7 +104,7 @@ public record Board(int width, int height, Set<Wall> walls, Set<Position> pits,
         List<SpawnPoint> selectedSpawns = spawnPoints.stream()
                 .filter(spawn -> inside.test(spawn.position())).toList();
         if (selectedSpawns.isEmpty()) selectedSpawns = defaultSpawnPoints(selectedWidth, selectedHeight);
-        return new Board(selectedWidth, selectedHeight,
+        return new Board(mapId, mapName, selectedWidth, selectedHeight,
                 walls.stream().filter(wall -> inside.test(wall.cell())).collect(java.util.stream.Collectors.toSet()),
                 pits.stream().filter(inside).collect(java.util.stream.Collectors.toSet()),
                 checkpoints.stream().filter(checkpoint -> inside.test(checkpoint.position()))
@@ -99,7 +112,8 @@ public record Board(int width, int height, Set<Wall> walls, Set<Position> pits,
                 selectedSpawns,
                 conveyors.stream().filter(conveyor -> inside.test(conveyor.position())).toList(),
                 rotators.stream().filter(rotator -> inside.test(rotator.position())).toList(),
-                controlPoints.stream().filter(inside).collect(java.util.stream.Collectors.toSet()));
+                controlPoints.stream().filter(inside).collect(java.util.stream.Collectors.toSet()),
+                obstacles.stream().filter(inside).collect(java.util.stream.Collectors.toSet()));
     }
 
     private boolean isWithinBounds(Position position) {

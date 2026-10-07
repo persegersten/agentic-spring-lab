@@ -59,7 +59,8 @@ public class GameController {
                         request.controlPointScore() == null ? GameConfiguration.DEFAULT_CONTROL_POINT_SCORE : request.controlPointScore(),
                         request.crashPenalty() == null ? GameConfiguration.DEFAULT_CRASH_PENALTY : request.crashPenalty(),
                         request.pushCrashScore() == null ? GameConfiguration.DEFAULT_PUSH_CRASH_SCORE : request.pushCrashScore(),
-                        request.weaponCrashScore() == null ? GameConfiguration.DEFAULT_WEAPON_CRASH_SCORE : request.weaponCrashScore());
+                        request.weaponCrashScore() == null ? GameConfiguration.DEFAULT_WEAPON_CRASH_SCORE : request.weaponCrashScore(),
+                        request.mapId());
         var created = gameService.createHostedGame(configuration);
         return new CreateGameResponse(GameResponse.from(created.game()), created.hostToken());
     }
@@ -191,7 +192,8 @@ public class GameController {
     public record CreateGameRequest(int maxPlayers, int joinTimeoutSeconds,
                                     int programSize, int planningTimeoutSeconds,
                                     Integer checkpointScore, Integer controlPointScore,
-                                    Integer crashPenalty, Integer pushCrashScore, Integer weaponCrashScore) {}
+                                    Integer crashPenalty, Integer pushCrashScore, Integer weaponCrashScore,
+                                    String mapId) {}
     public record ProgramRequest(List<MovementOrder> orders, ScheduledAction scheduledAction) {}
     public record LoadoutRequest(PrimaryWeapon weapon, SpecialAbility ability) {}
     public record PlayerJoinResponse(UUID id, String name, String token) {}

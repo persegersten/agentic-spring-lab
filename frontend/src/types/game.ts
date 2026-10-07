@@ -8,13 +8,13 @@ export type RoundPhase = 'PLANNING' | 'RESOLVING' | 'PLAYBACK'
 export type Player = { id: string; name: string; score: number; visitedCheckpoints: string[]; capturedCheckpoints?: number; nextCheckpoint?: string | null; crashes: number }
 export type PlayerJoin = Player & { token: string }
 export type GameStatus = 'WAITING_FOR_PLAYERS' | 'RUNNING' | 'FINISHED'
-export type GameConfiguration = { maxPlayers: number; joinTimeoutSeconds: number; programSize: number; planningTimeoutSeconds: number; roundLimit: number; checkpointScore: number; controlPointScore: number; crashPenalty: number; pushCrashScore: number; weaponCrashScore: number }
+export type GameConfiguration = { maxPlayers: number; joinTimeoutSeconds: number; programSize: number; planningTimeoutSeconds: number; roundLimit: number; checkpointScore: number; controlPointScore: number; crashPenalty: number; pushCrashScore: number; weaponCrashScore: number; mapId?: string | null }
 export type Position = { x: number; y: number }
 export type Wall = { cell: Position; direction: Direction }
 export type Checkpoint = { id: string; order: number; position: Position }
 export type SpawnPoint = { position: Position; orientation: Direction }
 export type Conveyor={position:Position;direction:Direction};export type Rotator={position:Position;rotation:'CLOCKWISE'|'COUNTER_CLOCKWISE'}
-export type Board={width:number;height:number;walls:Wall[];pits:Position[];checkpoints:Checkpoint[];spawnPoints:SpawnPoint[];conveyors:Conveyor[];rotators:Rotator[];controlPoints:Position[]}
+export type Board={mapId:string;mapName:string;width:number;height:number;walls:Wall[];pits:Position[];checkpoints:Checkpoint[];spawnPoints:SpawnPoint[];conveyors:Conveyor[];rotators:Rotator[];controlPoints:Position[];obstacles:Position[]}
 export type VehicleStatus = 'ACTIVE' | 'CRASHED'
 export type Vehicle = { id: string; playerId: string; x: number; y: number; direction: Direction; status: VehicleStatus; spawnPoint: Position; spawnOrientation: Direction; damage: number; rocketAmmo: number; primaryWeapon: PrimaryWeapon; specialAbility: SpecialAbility }
 export type RoundEventType='VEHICLE_RESPAWNED'|'MOVE'|'TURN'|'RAM'|'PUSH'|'PUSH_BLOCKED'|'MOVE_BLOCKED'|'CONVEYOR_MOVE'|'CONVEYOR_RAM'|'CONVEYOR_PUSH'|'CONVEYOR_CRASH'|'ROTATOR_TURN'|'CRASH'|'WEAPON_FIRED'|'WEAPON_HIT'|'DAMAGE_APPLIED'|'DAMAGE_PREVENTED'|'AMMO_CHANGED'|'VEHICLE_CRASHED'|'SHIELD_ACTIVATED'|'ANCHOR_ACTIVATED'|'TURBO_ACTIVATED'|'SIDE_STEP'|'SCORE_CHANGED'

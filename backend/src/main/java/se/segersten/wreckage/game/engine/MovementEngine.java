@@ -124,6 +124,10 @@ public class MovementEngine {
             return new MovementResult(gameState, moveInitiator ? List.of() : List.of(
                     event(RoundEventType.PUSH_BLOCKED, source, moving, moving)));
         }
+        if (gameState.board().isObstacle(destination)) {
+            return new MovementResult(gameState, moveInitiator ? List.of(event(RoundEventType.MOVE_BLOCKED, moving, moving))
+                    : List.of(event(RoundEventType.PUSH_BLOCKED, source, moving, moving)));
+        }
 
         List<Integer> pushedIndexes = new ArrayList<>();
         if (!moveInitiator) pushedIndexes.add(vehicleIndex);
@@ -136,6 +140,10 @@ public class MovementEngine {
             if (gameState.board().hasWall(origin, movementDirection)) {
                 return new MovementResult(gameState, moveInitiator ? List.of() : List.of(
                         event(RoundEventType.PUSH_BLOCKED, source, moving, moving)));
+            }
+            if (gameState.board().isObstacle(destination)) {
+                return new MovementResult(gameState, moveInitiator ? List.of(event(RoundEventType.MOVE_BLOCKED, moving, moving))
+                        : List.of(event(RoundEventType.PUSH_BLOCKED, source, moving, moving)));
             }
             lethalDestination = isLethal(gameState, destination);
             occupiedIndex = lethalDestination ? -1 : indexAt(currentStates, destination);
@@ -203,6 +211,7 @@ public class MovementEngine {
             Direction direction = left ? vehicle.orientation().turnLeft() : vehicle.orientation().turnRight();
             Position destination = vehicle.position().move(direction);
             if (state.board().hasWall(vehicle.position(), direction)
+                    || state.board().isObstacle(destination)
                     || state.board().isValidPosition(destination) && indexAt(state.vehicleStates(), destination) >= 0) {
                 return new MovementResult(state, List.of(withAction(event(RoundEventType.MOVE_BLOCKED,
                         vehicle, vehicle), action)));

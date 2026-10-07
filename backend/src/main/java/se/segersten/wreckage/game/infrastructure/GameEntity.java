@@ -30,10 +30,14 @@ class GameEntity {
     @Column(name = "weapon_crash_score", nullable = false) private Integer weaponCrashScore;
     @Column(name = "board_width") private Integer boardWidth;
     @Column(name = "board_height") private Integer boardHeight;
+    @Column(name = "map_id", nullable = false) private String mapId;
+    @Column(name = "map_name", nullable = false) private String mapName;
+    @Column(name = "configured_map_id") private String configuredMapId;
     @Column(name = "board_edge_walls", nullable = false) private String boardWalls;
     @Column(name = "board_pits", nullable = false) private String boardPits;
     @Column(name = "board_checkpoints", nullable = false) private String boardCheckpoints;
     @Column(name = "board_control_points", nullable = false) private String boardControlPoints;
+    @Column(name = "board_obstacles", nullable = false) private String boardObstacles;
     @Column(name = "board_spawn_points", nullable = false) private String boardSpawnPoints;
     @Column(name="board_conveyors",nullable=false)private String boardConveyors;@Column(name="board_rotators",nullable=false)private String boardRotators;
     @Enumerated(EnumType.STRING) @Column(name = "status", nullable = false) private GameStatus status;
@@ -53,12 +57,14 @@ class GameEntity {
         controlPointScore = configuration.controlPointScore();
         crashPenalty = configuration.crashPenalty(); pushCrashScore = configuration.pushCrashScore();
         weaponCrashScore = configuration.weaponCrashScore();
+        configuredMapId = configuration.mapId();
         joinDeadline = game.getJoinDeadline(); hostTokenHash = game.getHostTokenHash(); syncPlayers(game.getPlayers()); syncVehicles(game.getVehicleStates());
         if (game.getRound() != null) round = round == null ? RoundEntity.fromDomain(game.getRound(), this) : round.updateFrom(game.getRound());
         return this;
     }
     private void setBoard(Board board) {
         boardWidth = board.width(); boardHeight = board.height();
+        mapId = board.mapId(); mapName = board.mapName();
         boardWalls = board.walls().stream().sorted(java.util.Comparator
                         .comparingInt((Wall wall) -> wall.cell().x())
                         .thenComparingInt(wall -> wall.cell().y())
@@ -78,6 +84,9 @@ class GameEntity {
         boardSpawnPoints = board.spawnPoints().stream()
                 .map(spawn -> spawn.position().x() + "," + spawn.position().y() + "," + spawn.orientation())
                 .collect(Collectors.joining("|"));
+        boardObstacles = board.obstacles().stream()
+                .sorted(java.util.Comparator.comparingInt(Position::x).thenComparingInt(Position::y))
+                .map(position -> position.x() + "," + position.y()).collect(Collectors.joining("|"));
     }
     private void syncPlayers(List<Player> domainPlayers) {
         for (Player player : domainPlayers) {
@@ -116,6 +125,11 @@ class GameEntity {
                 .map(value -> value.split(","))
                 .map(parts -> new Position(Integer.parseInt(parts[0]), Integer.parseInt(parts[1])))
                 .collect(Collectors.toUnmodifiableSet());
+        java.util.Set<Position> obstacles = boardObstacles == null || boardObstacles.isBlank() ? java.util.Set.of()
+                : java.util.Arrays.stream(boardObstacles.split("\\|"))
+                .map(value -> value.split(","))
+                .map(parts -> new Position(Integer.parseInt(parts[0]), Integer.parseInt(parts[1])))
+                .collect(Collectors.toUnmodifiableSet());
         List<SpawnPoint> spawnPoints = boardSpawnPoints == null || boardSpawnPoints.isBlank()
                 ? new Board(boardWidth, boardHeight).spawnPoints()
                 : java.util.Arrays.stream(boardSpawnPoints.split("\\|"))
@@ -123,7 +137,8 @@ class GameEntity {
                 .map(parts -> new SpawnPoint(new Position(Integer.parseInt(parts[0]), Integer.parseInt(parts[1])),
                         Direction.valueOf(parts[2]))).toList();
         List<Conveyor> conveyors=boardConveyors==null||boardConveyors.isBlank()?List.of():java.util.Arrays.stream(boardConveyors.split("\\|")).map(v->v.split(",")).map(p->new Conveyor(new Position(Integer.parseInt(p[0]),Integer.parseInt(p[1])),Direction.valueOf(p[2]))).toList();List<Rotator> rotators=boardRotators==null||boardRotators.isBlank()?List.of():java.util.Arrays.stream(boardRotators.split("\\|")).map(v->v.split(",")).map(p->new Rotator(new Position(Integer.parseInt(p[0]),Integer.parseInt(p[1])),Rotation.valueOf(p[2]))).toList();
-        Board board=new Board(boardWidth,boardHeight,walls,pits,checkpoints,spawnPoints,conveyors,rotators,controlPoints);
+        Board board=new Board(mapId == null ? "legacy" : mapId, mapName == null ? "Legacy" : mapName,
+                boardWidth,boardHeight,walls,pits,checkpoints,spawnPoints,conveyors,rotators,controlPoints,obstacles);
         List<Player> domainPlayers = players.stream().map(PlayerEntity::toDomain).toList();
         var vehicleMap = new LinkedHashMap<UUID, VehicleState>();
         var byVehicleId = new LinkedHashMap<UUID, Vehicle>();
@@ -131,7 +146,7 @@ class GameEntity {
         Round domainRound = round == null ? null : round.toDomain(board, byVehicleId);
         GameConfiguration configuration = new GameConfiguration(maxPlayers, joinTimeoutSeconds,
                 programSize, planningTimeoutSeconds, roundLimit, checkpointScore, controlPointScore,
-                crashPenalty, pushCrashScore, weaponCrashScore);
+                crashPenalty, pushCrashScore, weaponCrashScore, configuredMapId);
         return new Game(domainId, domainPlayers, board, status, vehicleMap, domainRound,
                 configuration, createdAt.toInstant(), joinDeadline, hostTokenHash);
     }
