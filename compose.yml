@@ -1,6 +1,26 @@
 services:
+  backend:
+    build:
+      context: .
+      target: backend-runtime
+    expose:
+      - "8080"
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      target: frontend-runtime
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
   postgres:
     image: postgres:17
+    profiles:
+      - database
     environment:
       POSTGRES_DB: wreckage
       POSTGRES_USER: postgres

@@ -12,6 +12,40 @@ Current scope:
 There is no account system; private player views use the secret token returned
 when that player joins a game.
 
+## Local Docker alpha deployment
+
+Build and start the complete application in the background:
+
+```bash
+./start-with-docker.sh
+```
+
+Open <http://localhost>. The frontend production build is served by nginx on
+port 80, which forwards the existing `/games` API requests to an internal
+backend container. The backend is not published on a host port, and game data
+uses the existing in-memory database and is lost when the backend is replaced.
+
+For temporary external alpha testing, manually forward router TCP port 80 to
+this laptop's TCP port 80, then open `http://<PUBLIC-IP>`. This setup uses plain
+HTTP and is not intended for production hosting.
+
+Useful commands:
+
+```bash
+# Status
+docker compose ps
+
+# Logs
+docker compose logs -f
+
+# Stop
+./stop-with-docker.sh
+
+# Rebuild and restart
+./stop-with-docker.sh
+./start-with-docker.sh
+```
+
 ## Run backend and frontend
 
 Install frontend dependencies once:
