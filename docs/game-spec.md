@@ -21,7 +21,7 @@ Följande parametrar ska kunna konfigureras:
 * `maxPlayers` – maximalt antal spelare, mellan **2 och 10**.
 * `joinTimeoutSeconds` – antal sekunder som andra spelare har på sig att ansluta.
 * `planningTimeoutSeconds` – tidsgräns för spelarnas samtidiga planering.
-* `programSize` – antal kommandon i varje spelares program.
+* `programSize` – fem register i varje spelares program.
 * `mapId` – vilken kompatibel spelkarta som används.
 
 När lobbyn stängs bestämmer servern brädstorlek och `roundLimit` från antalet
@@ -79,10 +79,11 @@ men beräknar inte spelresultat.
 
 ## 4. Samtidig programplanering
 
-Under `PLANNING` bygger varje aktiv spelare ett ordnat program med exakt
-`programSize` kommandon. Samma tillgängliga kommandon visas för alla spelare;
-den fullständiga kommandouppsättningen och dess beteende definieras i
-`docs/game-rules.md`.
+Under `PLANNING` delar servern ut en privat hand med åtta viktat slumpade kort
+till varje aktiv spelare. Spelaren väljer exakt fem av de utdelade korten och
+ordnar dem i fem register. Dubbletter får bara användas så många gånger som de
+förekommer på handen. Den fullständiga kortuppsättningen och dess beteende
+definieras i `docs/game-rules.md`.
 
 Spelaren får dessutom välja högst en action för rundan och koppla den till ett
 av programmets register, eller uttryckligen välja att inte använda någon action.
@@ -197,9 +198,8 @@ tillstånd.
 
 The game must support deterministic automated testing.
 
-Wreckage v2 gameplay, including Combat v1, has no random behaviour. If
-randomness is introduced by a future, explicitly specified feature, its source
-must be injectable or persisted so tests and playback remain deterministic.
+The server-side programming-card deal uses an injectable random source and the
+resulting hands are persisted. Resolution and playback remain deterministic.
 
 Time-dependent behaviour must be testable without relying on long real-world
 waits.

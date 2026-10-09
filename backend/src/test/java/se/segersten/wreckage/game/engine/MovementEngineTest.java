@@ -79,6 +79,16 @@ class MovementEngineTest {
     }
 
     @Test
+    void forwardThreeCreatesThreeSequentialMovementEvents() {
+        VehicleState vehicle = state(2, 1, Direction.NORTH);
+        var result = engine.resolveTurnWithEvents(
+                new Turn(List.of(order(vehicle, MovementOrder.FORWARD_3))),
+                new GameState(board, List.of(vehicle)));
+        assertThat(result.events()).hasSize(3);
+        assertThat(result.state().vehicleStates().getFirst().position()).isEqualTo(new Position(2, 4));
+    }
+
+    @Test
     void forwardTwoResolvesInteractionsSeparatelyAtEachStep() {
         VehicleState moving = state(1, 2, Direction.EAST);
         VehicleState pushed = state(2, 2, Direction.NORTH);

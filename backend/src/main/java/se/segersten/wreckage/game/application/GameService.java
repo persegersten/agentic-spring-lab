@@ -36,37 +36,45 @@ public class GameService {
     private final PlayerAutomation playerAutomation;
     private final GameBoardFactory gameBoardFactory;
     private final MapRepository mapRepository;
+    private final ProgrammingCardDealer cardDealer;
 
     @Autowired
     public GameService(GameRepository gameRepository, PlayerAutomation playerAutomation,
-                       GameBoardFactory gameBoardFactory, MapRepository mapRepository) {
-        this(gameRepository, Clock.systemUTC(), playerAutomation, gameBoardFactory, mapRepository);
+                       GameBoardFactory gameBoardFactory, MapRepository mapRepository,
+                       ProgrammingCardDealer cardDealer) {
+        this(gameRepository, Clock.systemUTC(), playerAutomation, gameBoardFactory, mapRepository, cardDealer);
     }
 
     public GameService(GameRepository gameRepository) {
-        this(gameRepository, Clock.systemUTC(), new NoOpPlayerAutomation(), null, localMaps());
+        this(gameRepository, Clock.systemUTC(), new NoOpPlayerAutomation(), null, localMaps(), defaultDealer());
     }
 
     GameService(GameRepository gameRepository, Clock clock) {
-        this(gameRepository, clock, new NoOpPlayerAutomation(), null, localMaps());
+        this(gameRepository, clock, new NoOpPlayerAutomation(), null, localMaps(), defaultDealer());
     }
 
     GameService(GameRepository gameRepository, Clock clock, PlayerAutomation playerAutomation) {
-        this(gameRepository, clock, playerAutomation, null, localMaps());
+        this(gameRepository, clock, playerAutomation, null, localMaps(), defaultDealer());
     }
 
     GameService(GameRepository gameRepository, Clock clock, PlayerAutomation playerAutomation,
                 GameBoardFactory gameBoardFactory) {
-        this(gameRepository, clock, playerAutomation, gameBoardFactory, localMaps());
+        this(gameRepository, clock, playerAutomation, gameBoardFactory, localMaps(), defaultDealer());
     }
 
     GameService(GameRepository gameRepository, Clock clock, PlayerAutomation playerAutomation,
                 GameBoardFactory gameBoardFactory, MapRepository mapRepository) {
+        this(gameRepository, clock, playerAutomation, gameBoardFactory, mapRepository, defaultDealer());
+    }
+
+    GameService(GameRepository gameRepository, Clock clock, PlayerAutomation playerAutomation,
+                GameBoardFactory gameBoardFactory, MapRepository mapRepository, ProgrammingCardDealer cardDealer) {
         this.gameRepository = gameRepository;
         this.clock = clock;
         this.playerAutomation = java.util.Objects.requireNonNull(playerAutomation);
         this.mapRepository = java.util.Objects.requireNonNull(mapRepository);
         this.gameBoardFactory = gameBoardFactory;
+        this.cardDealer = java.util.Objects.requireNonNull(cardDealer);
     }
 
     public Game createGame() {
@@ -119,7 +127,7 @@ public class GameService {
                 selectedBoard.spawnPoints(), selectedBoard.orderedCheckpoints(), selectedBoard.obstacles().stream().toList(),
                 selectedBoard.walls().stream().toList(), selectedBoard.pits().stream().toList(),
                 selectedBoard.conveyors(), selectedBoard.rotators(), selectedBoard.controlPoints().stream().toList());
-        game.start(clock.instant(), effective);
+        game.start(clock.instant(), effective, dealHands(game));
         playerAutomation.lockHeadlessPrograms(game);
         resolveIfReady(game);
         return gameRepository.save(game);
@@ -140,7 +148,7 @@ public class GameService {
             return game.getRound();
         if (game.getRound().number() < completedRoundNumber)
             throw new IllegalArgumentException("The completed round does not exist");
-        Round round = game.startRound(clock.instant());
+        Round round = game.startRound(clock.instant(), dealHands(game));
         playerAutomation.lockHeadlessPrograms(game);
         resolveIfReady(game);
         gameRepository.save(game);
@@ -288,5 +296,19 @@ public class GameService {
 
     private static MapRepository localMaps() {
         return new ResourceMapRepository(new MapValidator());
+    }
+
+    private Map<UUID, List<MovementOrder>> dealHands(Game game) {
+        return game.getPlayers().stream().collect(java.util.stream.Collectors.toMap(
+                Player::getId, ignored -> cardDealer.deal(), (left, right) -> left, java.util.LinkedHashMap::new));
+    }
+
+    private static ProgrammingCardDealer defaultDealer() {
+        var weights = new java.util.LinkedHashMap<MovementOrder, Integer>();
+        weights.put(MovementOrder.FORWARD_1, 20); weights.put(MovementOrder.FORWARD_2, 15);
+        weights.put(MovementOrder.FORWARD_3, 10); weights.put(MovementOrder.REVERSE_1, 10);
+        weights.put(MovementOrder.TURN_LEFT, 15); weights.put(MovementOrder.TURN_RIGHT, 15);
+        weights.put(MovementOrder.U_TURN, 5);
+        return new ProgrammingCardDealer(weights, java.util.random.RandomGenerator.getDefault());
     }
 }

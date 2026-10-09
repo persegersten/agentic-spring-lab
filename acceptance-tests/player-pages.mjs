@@ -16,11 +16,10 @@ export async function chooseLoadout(page, weapon, ability) {
   await expect(page.getByRole('status')).toHaveCount(0)
 }
 
-export async function fillProgram(page, command = 'WAIT') {
+export async function fillProgram(page) {
   const slots = page.getByTestId('program-slot')
   for (let index = 0; index < await slots.count(); index++) {
-    const selected = Array.isArray(command) ? command[index] : command
-    const card = page.locator(`[data-testid="command-card"][data-command="${selected}"]`)
+    const card = page.locator('[data-testid="command-card"]:enabled').first()
     await expect(card).toBeEnabled()
     await card.dblclick()
     await expect(page.getByRole('status')).toHaveCount(0)

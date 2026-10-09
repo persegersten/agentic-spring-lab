@@ -278,6 +278,27 @@ class GameServiceTest {
     }
 
     @Test
+    void shouldDealEightFreshCardsForTheNextRound() {
+        InMemoryGameRepository repository = new InMemoryGameRepository();
+        GameService service = new GameService(repository);
+        var hosted = service.createHostedGame();
+        var alice = service.addPlayer(hosted.game().getId(), "Alice");
+        var bob = service.addPlayer(hosted.game().getId(), "Bob");
+        Game game = service.startGame(hosted.game().getId(), hosted.hostToken());
+        var firstAliceHand = game.getRound().programs().get(alice.player().getId()).hand();
+        var firstBobHand = game.getRound().programs().get(bob.player().getId()).hand();
+        assertThat(firstAliceHand).hasSize(8);
+        assertThat(firstBobHand).hasSize(8);
+        service.submitProgram(game.getId(), alice.player().getId(), alice.token(), firstAliceHand.subList(0, 5));
+        service.submitProgram(game.getId(), bob.player().getId(), bob.token(), firstBobHand.subList(0, 5));
+
+        var next = service.startRound(game.getId(), alice.player().getId(), alice.token(), 1);
+
+        assertThat(next.programs().get(alice.player().getId()).hand()).hasSize(8).isNotSameAs(firstAliceHand);
+        assertThat(next.programs().get(bob.player().getId()).hand()).hasSize(8).isNotSameAs(firstBobHand);
+    }
+
+    @Test
     void shouldFillLobbyAndLockHeadlessProgramsInDealtOrder() {
         InMemoryGameRepository repository = new InMemoryGameRepository();
         GameService service = new GameService(repository, Clock.systemUTC(), new HeadlessPlayerAutomation());

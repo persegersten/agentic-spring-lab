@@ -23,7 +23,7 @@ Wreckage v2 is built around five ideas:
 
 1. **Simultaneous planning** — all players choose their programs at the same time.
 2. **Programmed movement** — each player commits several commands before seeing how opponents move.
-3. **Deterministic chaos** — interaction comes from pushing, walls, pits, board elements and initiative, not dice or random cards.
+3. **Deterministic resolution** — interaction comes from pushing, walls, pits, board elements and initiative; only the server-side programming-card deal is random.
 4. **Short fixed matches** — no player is permanently eliminated and the game ends after a configured number of rounds.
 5. **Positional combat** — weapons and abilities change positions, future moves and access to board features more often than they merely accumulate damage.
 
@@ -204,7 +204,7 @@ Recommended defaults:
 maxPlayers = 9
 joinTimeoutSeconds = 300
 planningTimeoutSeconds = 30
-programSize = 3
+programSize = 5
 checkpointScore = 2
 controlPointScore = 1
 crashPenalty = -1
@@ -214,9 +214,14 @@ weaponCrashScore = 1
 
 `maxPlayers` must be between 2 and 10.
 
-`programSize` is configurable, but **3 is the normal game mode**. The first
-implementation should support values from 1 to 5 unless a narrower range is
-chosen explicitly elsewhere.
+The normal and default programming mode uses exactly five registers.
+
+At the start of every round the server deals each active player eight cards. A
+hand is sampled with replacement, so duplicates are allowed, from these relative
+weights: `FORWARD_1=20`, `FORWARD_2=15`, `FORWARD_3=10`, `REVERSE_1=10`,
+`TURN_LEFT=15`, `TURN_RIGHT=15`, and `U_TURN=5`. The player submits exactly five
+of those cards in register order. Unused cards are discarded after the round.
+Hands and unfinished programs are private and are persisted for reconnection.
 
 The selected map must support the configured number of players.
 
@@ -282,23 +287,22 @@ Playback must never influence game results.
 
 ## 7. Commands
 
-Every active player always has access to the same command set.
-
-There is no random card draw and no private dealt hand.
+Every active player receives a private, server-owned hand of eight cards.
 
 The core commands are:
 
 ```text
 FORWARD_1
 FORWARD_2
+FORWARD_3
 REVERSE_1
 TURN_LEFT
 TURN_RIGHT
 U_TURN
-WAIT
 ```
 
-Commands may be repeated within the same program.
+Cards may be repeated within the same program only when the dealt hand contains
+the required multiplicity.
 
 Example program:
 
@@ -313,7 +317,7 @@ FORWARD_1
 ## 8. Planning
 
 During `PLANNING`, every active player constructs an ordered program containing
-exactly `programSize` commands and may also schedule at most one action for the
+exactly five cards from the dealt hand and may also schedule at most one action for the
 round. A scheduled action consists of an action type and one register number in
 the range `1..programSize`. Choosing no action is valid.
 
@@ -328,12 +332,8 @@ A player may edit the program until either:
 
 A locked program and its optional action are immutable for that round.
 
-If the planning timeout expires before a player has filled every register,
-missing registers are filled with:
-
-```text
-WAIT
-```
+If the planning timeout expires before a player has filled every register, the
+server fills the remaining registers in dealt-hand order from unused cards.
 
 Timeout does not create an action. If the player did not schedule one, the
 round resolves with no action for that vehicle.
@@ -1034,10 +1034,9 @@ score changes
 event sequence
 ```
 
-Wreckage v2, including Combat v1, requires no gameplay randomness.
-
-If randomness is introduced by a later feature, it must use an injectable or
-persisted seed/source so replays and tests remain deterministic.
+The card deal is the only gameplay randomness in this feature. Its random source
+is injectable and every resulting hand is persisted before player input, so
+resolution, reconnects, replays and tests remain deterministic.
 
 ---
 
@@ -1099,8 +1098,6 @@ Client-side animation never changes authoritative game state.
 The following old v1 mechanics are **not part of Wreckage v2 or Combat v1** and
 must not influence resolution:
 
-- random command-card dealing,
-- mandatory use of a dealt hand,
 - old cannon rules,
 - the old hit-point and damage-counter model,
 - malfunction cards,
@@ -1128,14 +1125,15 @@ The minimum playable v2 slice is:
 ```text
 2–10 players
 square grid
-programSize = 3 by default
+programSize = 5 by default
 FORWARD_1
 FORWARD_2
+FORWARD_3
 REVERSE_1
 TURN_LEFT
 TURN_RIGHT
 U_TURN
-WAIT
+eight-card private hands
 rotating initiative
 edge walls
 push chains

@@ -49,6 +49,7 @@ test('playback stays paused and automatically starts the next round when finishe
   const vehicle = { id: 'vehicle-1', playerId, x: 0, y: 0, direction: 'EAST', status: 'ACTIVE' }
   const playback = Array.from({ length: 12 }, (_, index) => ({
     sequence: index + 1, type: 'MOVE', playerId, vehicleId: vehicle.id,
+    registerIndex: Math.min(5, Math.floor(index / 3) + 1),
     sourcePlayerId: playerId, sourceVehicleId: vehicle.id,
     oldPosition: { x: index, y: 0 }, newPosition: { x: index + 1, y: 0 },
     oldDirection: 'EAST', newDirection: 'EAST',
@@ -82,6 +83,8 @@ test('playback stays paused and automatically starts the next round when finishe
   })
   await page.goto(`/game/${gameId}`)
   await expect(page.getByRole('button', { name: 'Pausa', exact: true })).toBeVisible()
+  await page.clock.runFor(300)
+  await expect(page.getByTestId('current-register')).toContainText('Register 1 av 5')
   await expect(page.getByTestId('initial-game-state')).not.toBeVisible()
   await page.clock.runFor(1000)
   await page.getByRole('button', { name: 'Pausa', exact: true }).click()

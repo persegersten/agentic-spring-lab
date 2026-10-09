@@ -1,13 +1,13 @@
 import { useEffect, useState, type DragEvent, type KeyboardEvent } from 'react'
 import type { ActionType, MovementOrder, ScheduledAction, PrimaryWeapon, SpecialAbility } from '../types/game'
 
-const all: MovementOrder[] = ['FORWARD_1', 'FORWARD_2', 'REVERSE_1', 'TURN_LEFT', 'TURN_RIGHT', 'U_TURN', 'WAIT']
-const labels: Record<MovementOrder, string> = { FORWARD_1: 'Framåt 1', FORWARD_2: 'Framåt 2', REVERSE_1: 'Backa 1', TURN_LEFT: 'Sväng vänster', TURN_RIGHT: 'Sväng höger', U_TURN: 'U-sväng', WAIT: 'Vänta' }
+const labels: Record<MovementOrder, string> = { FORWARD_1: 'Framåt 1', FORWARD_2: 'Framåt 2', FORWARD_3: 'Framåt 3', REVERSE_1: 'Backa 1', TURN_LEFT: 'Sväng vänster', TURN_RIGHT: 'Sväng höger', U_TURN: 'U-sväng', WAIT: 'Vänta' }
 const actionLabels: Record<ActionType, string> = { LASER: 'Laser', REPULSOR: 'Repulsor', ROCKET: 'Rocket', TURBO: 'Turbo', SHIELD: 'Shield', ANCHOR: 'Anchor', SIDE_STEP_LEFT: 'Side Step vänster', SIDE_STEP_RIGHT: 'Side Step höger' }
 const withDefaults = (program: MovementOrder[], size: number): MovementOrder[] => Array.from({ length: size }, (_, index) => program[index] ?? 'WAIT')
-type DraggedCard = { source: 'commands'; command: MovementOrder } | { source: 'program'; index: number }
+type DraggedCard = { source: 'hand'; index: number; command: MovementOrder } | { source: 'program'; index: number }
 
-export function CommandHand({ program, scheduledAction, programSize, locked, rocketAmmo, primaryWeapon, specialAbility, onReorder, onSubmit }: {
+export function CommandHand({ hand, program, scheduledAction, programSize, locked, rocketAmmo, primaryWeapon, specialAbility, onReorder, onSubmit }: {
+  hand: MovementOrder[]
   program: MovementOrder[]
   scheduledAction: ScheduledAction | null
   programSize: number
@@ -62,11 +62,17 @@ export function CommandHand({ program, scheduledAction, programSize, locked, roc
     void save(next)
   }
 
-  function startCommandDrag(event: DragEvent<HTMLButtonElement>, command: MovementOrder) {
-    if (disabled || draft.length >= programSize) { event.preventDefault(); return }
+  function isUsed(handIndex: number) {
+    const command = hand[handIndex]
+    const occurrence = hand.slice(0, handIndex + 1).filter(card => card === command).length
+    return draft.filter(card => card === command).length >= occurrence
+  }
+
+  function startCommandDrag(event: DragEvent<HTMLButtonElement>, command: MovementOrder, index: number) {
+    if (disabled || draft.length >= programSize || isUsed(index)) { event.preventDefault(); return }
     event.dataTransfer.effectAllowed = 'copy'
     event.dataTransfer.setData('text/plain', command)
-    setDragged({ source: 'commands', command })
+    setDragged({ source: 'hand', index, command })
   }
 
   function startProgramDrag(event: DragEvent<HTMLLIElement>, index: number) {
@@ -80,14 +86,14 @@ export function CommandHand({ program, scheduledAction, programSize, locked, roc
     if (disabled || !dragged) return
     event.preventDefault()
     event.stopPropagation()
-    event.dataTransfer.dropEffect = dragged.source === 'commands' ? 'copy' : 'move'
+    event.dataTransfer.dropEffect = dragged.source === 'hand' ? 'copy' : 'move'
     setDropIndex(index)
   }
 
   function drop(event: DragEvent<HTMLOListElement | HTMLLIElement>, index: number) {
     event.preventDefault()
     event.stopPropagation()
-    if (!disabled && dragged?.source === 'commands') add(dragged.command)
+    if (!disabled && dragged?.source === 'hand' && !isUsed(dragged.index)) add(dragged.command)
     if (!disabled && dragged?.source === 'program') move(dragged.index, index)
     stopDragging()
   }
@@ -144,19 +150,21 @@ export function CommandHand({ program, scheduledAction, programSize, locked, roc
         </li>
       })}
     </ol>
-    <h3 className="command-heading">Kommandon</h3>
-    <ul className="command-cards" data-testid="command-cards" aria-label="Tillgängliga kommandon">
-      {all.map(command => <li key={command}>
+    <h3 className="command-heading">Din hand</h3>
+    <ul className="command-cards" data-testid="programming-hand" aria-label="Utdelade programmeringskort">
+      {hand.map((command, index) => <li key={`${command}-${index}`}>
         <button
           type="button"
           className="command-card"
           data-testid="command-card"
           data-command={command}
-          disabled={disabled || draft.length >= programSize}
-          draggable={!disabled && draft.length < programSize}
-          onDoubleClick={() => add(command)}
+          data-hand-index={index}
+          data-used={isUsed(index)}
+          disabled={disabled || draft.length >= programSize || isUsed(index)}
+          draggable={!disabled && draft.length < programSize && !isUsed(index)}
+          onDoubleClick={() => { if (!isUsed(index)) add(command) }}
           onKeyDown={event => commandKeyDown(event, command)}
-          onDragStart={event => startCommandDrag(event, command)}
+          onDragStart={event => startCommandDrag(event, command, index)}
           onDragEnd={stopDragging}
         >{labels[command]}</button>
       </li>)}
@@ -184,7 +192,7 @@ export function CommandHand({ program, scheduledAction, programSize, locked, roc
       {primaryWeapon === 'ROCKET' && <p data-testid="rocket-ammo">Rocket ammunition: {rocketAmmo}</p>}
     </fieldset>
     <div className="actions">
-      <button data-testid="lock-program" disabled={disabled} onClick={() => void onSubmit(withDefaults(draft, programSize), action)}>{locked ? 'Program låst' : 'Lås program'}</button>
+      <button data-testid="lock-program" disabled={disabled || draft.length !== programSize} onClick={() => void onSubmit(draft, action)}>{locked ? 'Program låst' : 'Lås program'}</button>
       <button className="secondary" disabled={disabled || !draft.length} onClick={() => void save([])}>Rensa</button>
     </div>
   </section>
