@@ -118,7 +118,7 @@ public final class Round {
                             new Turn(List.of(new VehicleTurn(vehicle, programs.get(playerId).commands().get(index)))),
                             state, registerEffects);
                     state = result.state();
-                    checkpointVictory = addScoredEvents(events,result.events(),playersById,configuration,true, false, registerIndex);
+                    checkpointVictory = addScoredEvents(events,result.events(),playersById,configuration,false, false, registerIndex);
                     if (checkpointVictory) break resolution;
                 }
             }

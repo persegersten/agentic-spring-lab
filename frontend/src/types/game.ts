@@ -1,4 +1,4 @@
-export type MovementOrder = 'FORWARD_1'|'FORWARD_2'|'FORWARD_3'|'REVERSE_1'|'TURN_LEFT'|'TURN_RIGHT'|'U_TURN'|'WAIT'
+export type MovementOrder = 'FORWARD_1'|'FORWARD_2'|'FORWARD_3'|'REVERSE_1'|'TURN_LEFT'|'TURN_RIGHT'|'U_TURN'|'LASER'|'WAIT'
 export type ActionType = 'LASER'|'REPULSOR'|'ROCKET'|'TURBO'|'SHIELD'|'ANCHOR'|'SIDE_STEP_LEFT'|'SIDE_STEP_RIGHT'
 export type PrimaryWeapon = 'LASER'|'REPULSOR'|'ROCKET'
 export type SpecialAbility = 'TURBO'|'SHIELD'|'SIDE_STEP'|'ANCHOR'

@@ -219,7 +219,7 @@ The normal and default programming mode uses exactly five registers.
 At the start of every round the server deals each active player eight cards. A
 hand is sampled with replacement, so duplicates are allowed, from these relative
 weights: `FORWARD_1=20`, `FORWARD_2=15`, `FORWARD_3=10`, `REVERSE_1=10`,
-`TURN_LEFT=15`, `TURN_RIGHT=15`, and `U_TURN=5`. The player submits exactly five
+`TURN_LEFT=15`, `TURN_RIGHT=15`, `U_TURN=5`, and `LASER=10`. The player submits exactly five
 of those cards in register order. Unused cards are discarded after the round.
 Hands and unfinished programs are private and are persisted for reconnection.
 
@@ -299,7 +299,12 @@ REVERSE_1
 TURN_LEFT
 TURN_RIGHT
 U_TURN
+LASER
 ```
+
+`LASER` is a programming card, occupies one register, and resolves in initiative
+order at that register. It is distinct from the temporarily retained lobby
+loadout action described later in this document.
 
 Cards may be repeated within the same program only when the dealt hand contains
 the required multiplicity.
@@ -700,7 +705,17 @@ becomes:
 The orientation of pushed vehicles does not change.
 
 A push chain is one atomic movement step. It either resolves to a valid result
-or, when blocked by a wall or an active Anchor, does not move any vehicle.
+or, when blocked by a wall, obstacle, board boundary, or an immovable vehicle,
+does not move any vehicle.
+
+Ramming and programming-card Laser displacement use the same one-cell push-chain
+resolution. Ramming pushes one cell and moves the initiating vehicle into the
+vacated cell only after the push succeeds. Programming-card Laser fires in the
+vehicle's current direction with board-limited unlimited range, stops at the
+first wall, obstacle, or vehicle, and pushes the first vehicle hit through up to
+two successive one-cell attempts. A successful first Laser displacement remains
+applied if the second is blocked. Neither mechanic changes orientation, deals
+damage, or directly awards points.
 
 Pits and open board edges are not blockers. They are lethal destinations and are
 resolved as crashes.

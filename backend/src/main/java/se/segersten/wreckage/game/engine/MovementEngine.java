@@ -64,7 +64,41 @@ public class MovementEngine {
             case FORWARD_2 -> applyForward(gameState, vehicleIndex, state, effects, 2);
             case FORWARD_3 -> applyForward(gameState, vehicleIndex, state, effects, 3);
             case U_TURN -> applyTurn(gameState, vehicleIndex, state.orientation().reverse());
+            case LASER -> applyLaser(gameState, state, effects);
         };
+    }
+
+    private MovementResult applyLaser(GameState gameState, VehicleState shooter, RegisterEffects effects) {
+        Position cursor = shooter.position();
+        VehicleState target = null;
+        while (!gameState.board().hasWall(cursor, shooter.orientation())) {
+            Position next = cursor.move(shooter.orientation());
+            if (!gameState.board().isValidPosition(next) || gameState.board().isObstacle(next)) break;
+            cursor = next;
+            int occupiedIndex = indexAt(gameState.vehicleStates(), cursor);
+            if (occupiedIndex >= 0) {
+                target = gameState.vehicleStates().get(occupiedIndex);
+                break;
+            }
+        }
+
+        List<RoundEvent> events = new ArrayList<>();
+        events.add(withAction(event(RoundEventType.WEAPON_FIRED, shooter, shooter,
+                at(shooter, cursor)), ActionType.LASER));
+        if (target == null) return new MovementResult(gameState, List.copyOf(events));
+
+        events.add(withAction(event(RoundEventType.WEAPON_HIT, shooter, target, target), ActionType.LASER));
+        GameState current = gameState;
+        for (int distance = 0; distance < 2; distance++) {
+            MovementResult pushed = applyWeaponPush(current, target.vehicle().id(), shooter.orientation(),
+                    shooter, effects);
+            current = pushed.state();
+            events.addAll(pushed.events().stream()
+                    .map(event -> event.actionType() == null ? withAction(event, ActionType.LASER) : event)
+                    .toList());
+            if (pushed.events().stream().anyMatch(event -> event.type() == RoundEventType.PUSH_BLOCKED)) break;
+        }
+        return new MovementResult(current, List.copyOf(events));
     }
 
     private MovementResult applyForward(GameState gameState, int vehicleIndex, VehicleState state,
@@ -132,6 +166,10 @@ public class MovementEngine {
             return new MovementResult(gameState, moveInitiator ? List.of(event(RoundEventType.MOVE_BLOCKED, moving, moving))
                     : List.of(event(RoundEventType.PUSH_BLOCKED, source, moving, moving)));
         }
+        if (!moveInitiator && !gameState.board().isValidPosition(destination)) {
+            return new MovementResult(gameState, List.of(
+                    event(RoundEventType.PUSH_BLOCKED, source, moving, moving)));
+        }
 
         List<Integer> pushedIndexes = new ArrayList<>();
         if (!moveInitiator) pushedIndexes.add(vehicleIndex);
@@ -148,6 +186,10 @@ public class MovementEngine {
             if (gameState.board().isObstacle(destination)) {
                 return new MovementResult(gameState, moveInitiator ? List.of(event(RoundEventType.MOVE_BLOCKED, moving, moving))
                         : List.of(event(RoundEventType.PUSH_BLOCKED, source, moving, moving)));
+            }
+            if (!gameState.board().isValidPosition(destination)) {
+                return new MovementResult(gameState, moveInitiator ? List.of() : List.of(
+                        event(RoundEventType.PUSH_BLOCKED, source, moving, moving)));
             }
             lethalDestination = isLethal(gameState, destination);
             occupiedIndex = lethalDestination ? -1 : indexAt(currentStates, destination);
@@ -262,6 +304,11 @@ public class MovementEngine {
         return new RoundEvent(0, type, subject.playerId(), subject.id(), sourceVehicle.playerId(),
                 sourceVehicle.id(), oldState.position(), newState.position(), oldState.orientation(),
                 newState.orientation());
+    }
+
+    private VehicleState at(VehicleState state, Position position) {
+        return new VehicleState(state.vehicle(), position, state.orientation(), state.status(),
+                state.damage(), state.rocketAmmo());
     }
 
     private int indexOf(List<VehicleState> states, Vehicle vehicle) {

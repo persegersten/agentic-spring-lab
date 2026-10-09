@@ -8,6 +8,7 @@ public enum MovementOrder {
     TURN_LEFT,
     TURN_RIGHT,
     U_TURN,
+    LASER,
     WAIT;
 
     public boolean isProgrammingCard() {

@@ -9,7 +9,7 @@ function describeEvent(event: RoundEvent, players: Player[]) {
     case 'MOVE': return `${name} kör`
     case 'TURN': return `${name} svänger`
     case 'RAM': return `${name} rammar`
-    case 'PUSH': return `${name} knuffas${event.actionType === 'REPULSOR' ? ' av Repulsor' : ''}`
+    case 'PUSH': return `${name} knuffas${event.actionType === 'REPULSOR' ? ' av Repulsor' : event.actionType === 'LASER' ? ' av Laser' : ''}`
     case 'PUSH_BLOCKED': return event.actionType === 'ANCHOR'
       ? `${name}s Anchor blockerar knuffen`
       : `Repulsor-knuffen mot ${name} blockeras`
@@ -72,7 +72,7 @@ export function RoundPlayback({board,round,players,onVehicles,onScores,onCurrent
   useEffect(() => {
     if (!playing || finished) return
     const duration = !current ? 0
-      : ['CRASH','VEHICLE_CRASHED','WEAPON_FIRED','WEAPON_HIT','DAMAGE_APPLIED','DAMAGE_PREVENTED','SHIELD_ACTIVATED','ANCHOR_ACTIVATED','TURBO_ACTIVATED','AMMO_CHANGED','SCORE_CHANGED'].includes(current.type) ? 450 : 250
+      : ['CRASH','VEHICLE_CRASHED','WEAPON_FIRED','WEAPON_HIT','DAMAGE_APPLIED','DAMAGE_PREVENTED','SHIELD_ACTIVATED','ANCHOR_ACTIVATED','TURBO_ACTIVATED','AMMO_CHANGED','SCORE_CHANGED'].includes(current.type) ? 450 : 350
     const id = window.setTimeout(() => {
       if (eventIndex >= timeline.playback.length) {
         setFinished(true)

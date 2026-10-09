@@ -43,7 +43,7 @@ At round start the application uses an injectable random source and configurable
 relative weights to deal eight server-owned programming cards per active player.
 Players submit five cards, validated as a multiset against their persisted hand.
 The dealable set is `FORWARD_1`, `FORWARD_2`, `FORWARD_3`, `REVERSE_1`,
-`TURN_LEFT`, `TURN_RIGHT`, and `U_TURN`; `WAIT` remains an internal legacy value.
+`TURN_LEFT`, `TURN_RIGHT`, `U_TURN`, and `LASER`; `WAIT` remains an internal legacy value.
 Only the authenticated owner receives a hand through the player-specific API.
 
 Each program may additionally contain one scheduled action and register. The
@@ -60,6 +60,14 @@ edges and edge walls, resolves chains of rams and pushes, and emits movement,
 turn, ram, push, or crash events. `FORWARD_2` and `FORWARD_3` perform two or
 three complete one-cell steps, so any step can interact with another vehicle or
 board boundary.
+
+The same one-cell chain resolver powers ramming and programming-card Laser.
+Laser traces to the first vehicle in its current direction and makes at most two
+successive displacement attempts, emitting authoritative fire, hit, and push
+events. This register-card path is separate from the temporarily retained
+loadout action path and therefore does not invoke legacy damage or combat-score
+effects. Every successful forced-movement event participates in checkpoint
+capture before resolution continues.
 
 After every register, `BoardEffectEngine` resolves conveyors in board order and
 then rotators. Conveyors reuse the movement and pushing rules and have explicit

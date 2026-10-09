@@ -264,7 +264,7 @@ class GameRoundTest {
     }
 
     @Test
-    void forwardTwoAwardsPenaltiesAndOnePushScoreForEachOpponentCrashed() {
+    void boundaryBlockedRammingAwardsNoDamageOrPoints() {
         UUID pusherId = UUID.randomUUID(); UUID middleId = UUID.randomUUID(); UUID frontId = UUID.randomUUID();
         Player pusher = Player.create(pusherId, "Pusher", "p");
         Player middle = Player.create(middleId, "Middle", "m");
@@ -277,15 +277,12 @@ class GameRoundTest {
 
         round.resolve(new MovementEngine(), List.of(pusher, middle, front), GameConfiguration.defaults());
 
-        assertThat(pusher.getScore()).isEqualTo(2);
-        assertThat(middle.getScore()).isEqualTo(-1);
-        assertThat(front.getScore()).isEqualTo(-1);
-        assertThat(round.playback()).filteredOn(event -> event.type() == RoundEventType.SCORE_CHANGED)
-                .extracting(RoundEvent::scoreReason).containsExactly(
-                        ScoreChangeReason.CRASH_PENALTY, ScoreChangeReason.PUSH_CRASH,
-                        ScoreChangeReason.CRASH_PENALTY, ScoreChangeReason.PUSH_CRASH);
-        assertThat(round.playback()).extracting(RoundEvent::sequence)
-                .containsExactlyElementsOf(java.util.stream.IntStream.rangeClosed(1, round.playback().size()).boxed().toList());
+        assertThat(pusher.getScore()).isZero();
+        assertThat(middle.getScore()).isZero();
+        assertThat(front.getScore()).isZero();
+        assertThat(round.playback()).isEmpty();
+        assertThat(round.finalVehicleStates()).extracting(VehicleState::position)
+                .containsExactly(new Position(0, 1), new Position(1, 1), new Position(2, 1));
     }
 
     @Test
@@ -304,6 +301,57 @@ class GameRoundTest {
         assertThat(pusher.getScore()).isZero();
         assertThat(round.playback()).extracting(RoundEvent::type).containsExactly(
                 RoundEventType.PUSH, RoundEventType.SCORE_CHANGED, RoundEventType.RAM);
+    }
+
+    @Test
+    void laserDisplacementCapturesCheckpointWithoutAwardingTheShooterCombatPoints() {
+        UUID shooterId = UUID.randomUUID();
+        UUID targetId = UUID.randomUUID();
+        Player shooter = Player.create(shooterId, "Shooter", "s");
+        Player target = Player.create(targetId, "Target", "t");
+        Board board = new Board(7, 3, java.util.Set.of(), java.util.Set.of(),
+                checkpoints(new Position(3, 1), new Position(4, 2), new Position(5, 2), new Position(6, 2)));
+        Round round = new Round(1, Map.of(
+                shooterId, locked(shooterId, MovementOrder.LASER),
+                targetId, locked(targetId, MovementOrder.WAIT)),
+                List.of(shooterId, targetId), new GameState(board,
+                        List.of(state(shooterId, 0, 1), state(targetId, 2, 1))));
+
+        round.resolve(new MovementEngine(), List.of(shooter, target), GameConfiguration.defaults());
+
+        assertThat(target.getVisitedCheckpoints()).containsExactly("CP1");
+        assertThat(target.getScore()).isEqualTo(GameConfiguration.DEFAULT_CHECKPOINT_SCORE);
+        assertThat(shooter.getScore()).isZero();
+        assertThat(round.playback()).extracting(RoundEvent::type).containsExactly(
+                RoundEventType.WEAPON_FIRED, RoundEventType.WEAPON_HIT,
+                RoundEventType.PUSH, RoundEventType.SCORE_CHANGED, RoundEventType.PUSH);
+    }
+
+    @Test
+    void fourthCheckpointCapturedByLaserPushStopsAtTheWinningDisplacement() {
+        UUID shooterId = UUID.randomUUID();
+        UUID targetId = UUID.randomUUID();
+        Player shooter = Player.create(shooterId, "Shooter", "s");
+        Player target = Player.create(targetId, "Target", "t");
+        target.visitCheckpoint("CP1");
+        target.visitCheckpoint("CP2");
+        target.visitCheckpoint("CP3");
+        Board board = new Board(7, 3, java.util.Set.of(), java.util.Set.of(),
+                checkpoints(new Position(0, 2), new Position(1, 2), new Position(2, 2), new Position(3, 1)));
+        Round round = new Round(1, Map.of(
+                shooterId, locked(shooterId, MovementOrder.LASER),
+                targetId, locked(targetId, MovementOrder.WAIT)),
+                List.of(shooterId, targetId), new GameState(board,
+                        List.of(state(shooterId, 0, 1), state(targetId, 2, 1))));
+
+        round.resolve(new MovementEngine(), List.of(shooter, target), GameConfiguration.defaults());
+
+        assertThat(target.hasCompletedCheckpoints(board)).isTrue();
+        assertThat(round.finalVehicleStates()).filteredOn(v -> v.vehicle().playerId().equals(targetId))
+                .singleElement().extracting(VehicleState::position).isEqualTo(new Position(3, 1));
+        assertThat(round.playback()).extracting(RoundEvent::type).containsExactly(
+                RoundEventType.WEAPON_FIRED, RoundEventType.WEAPON_HIT,
+                RoundEventType.PUSH, RoundEventType.SCORE_CHANGED);
     }
 
     @Test

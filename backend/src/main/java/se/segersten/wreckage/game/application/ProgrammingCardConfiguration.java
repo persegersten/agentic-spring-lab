@@ -27,7 +27,8 @@ public class ProgrammingCardConfiguration {
             @Value("${wreckage.cards.weights.backward-1:10}") int backward1,
             @Value("${wreckage.cards.weights.turn-left:15}") int turnLeft,
             @Value("${wreckage.cards.weights.turn-right:15}") int turnRight,
-            @Value("${wreckage.cards.weights.u-turn:5}") int uTurn) {
+            @Value("${wreckage.cards.weights.u-turn:5}") int uTurn,
+            @Value("${wreckage.cards.weights.laser:10}") int laser) {
         Map<MovementOrder, Integer> weights = new LinkedHashMap<>();
         weights.put(MovementOrder.FORWARD_1, forward1);
         weights.put(MovementOrder.FORWARD_2, forward2);
@@ -36,6 +37,7 @@ public class ProgrammingCardConfiguration {
         weights.put(MovementOrder.TURN_LEFT, turnLeft);
         weights.put(MovementOrder.TURN_RIGHT, turnRight);
         weights.put(MovementOrder.U_TURN, uTurn);
+        weights.put(MovementOrder.LASER, laser);
         return new ProgrammingCardDealer(weights, programmingCardRandomGenerator);
     }
 }

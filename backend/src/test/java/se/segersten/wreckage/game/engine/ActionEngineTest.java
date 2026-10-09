@@ -112,7 +112,7 @@ class ActionEngineTest {
     }
 
     @Test
-    void repulsorCrashesChainEndInPitAndOpenEdge() {
+    void repulsorCrashesChainEndInPitButIsBlockedByBoardEdge() {
         VehicleState shooter = vehicle(0, 1, Direction.EAST, 0, VehicleStatus.ACTIVE);
         VehicleState first = vehicle(1, 1, Direction.NORTH, 0, VehicleStatus.ACTIVE);
         VehicleState second = vehicle(2, 1, Direction.WEST, 0, VehicleStatus.ACTIVE);
@@ -126,7 +126,10 @@ class ActionEngineTest {
         VehicleState edgeShooter = vehicle(1, 2, Direction.EAST, 0, VehicleStatus.ACTIVE);
         VehicleState edgeTarget = vehicle(2, 2, Direction.NORTH, 0, VehicleStatus.ACTIVE);
         ActionResult edge = fire(ActionType.REPULSOR, new Board(3, 3), edgeShooter, edgeTarget);
-        assertThat(state(edge, edgeTarget).status()).isEqualTo(VehicleStatus.CRASHED);
+        assertThat(state(edge, edgeTarget).status()).isEqualTo(VehicleStatus.ACTIVE);
+        assertThat(state(edge, edgeTarget).position()).isEqualTo(edgeTarget.position());
+        assertThat(edge.events()).extracting(RoundEvent::type).containsExactly(
+                RoundEventType.WEAPON_FIRED, RoundEventType.WEAPON_HIT, RoundEventType.PUSH_BLOCKED);
     }
 
     @Test
