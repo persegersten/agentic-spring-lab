@@ -61,21 +61,25 @@ public class MovementEngine {
                     applyTranslation(gameState,vehicleIndex,state.orientation().reverse(),false,effects);
             case TURN_LEFT -> applyTurn(gameState, vehicleIndex, state.orientation().turnLeft());
             case TURN_RIGHT -> applyTurn(gameState, vehicleIndex, state.orientation().turnRight());
-            case FORWARD_2 -> applyForwardTwo(gameState, vehicleIndex, state, effects);
+            case FORWARD_2 -> applyForward(gameState, vehicleIndex, state, effects, 2);
+            case FORWARD_3 -> applyForward(gameState, vehicleIndex, state, effects, 3);
             case U_TURN -> applyTurn(gameState, vehicleIndex, state.orientation().reverse());
         };
     }
 
-    private MovementResult applyForwardTwo(GameState gameState, int vehicleIndex, VehicleState state, RegisterEffects effects) {
-        MovementResult first=applyTranslation(gameState,vehicleIndex,state.orientation(),false,effects);
-        int currentIndex = indexOf(first.state().vehicleStates(), state.vehicle());
-        if (currentIndex < 0 || !first.state().vehicleStates().get(currentIndex).isActive()) {
-            return first;
+    private MovementResult applyForward(GameState gameState, int vehicleIndex, VehicleState state,
+                                        RegisterEffects effects, int distance) {
+        GameState current = gameState;
+        int currentIndex = vehicleIndex;
+        List<RoundEvent> events = new ArrayList<>();
+        for (int step = 0; step < distance; step++) {
+            MovementResult movement = applyTranslation(current, currentIndex, state.orientation(), false, effects);
+            current = movement.state();
+            events.addAll(movement.events());
+            currentIndex = indexOf(current.vehicleStates(), state.vehicle());
+            if (currentIndex < 0 || !current.vehicleStates().get(currentIndex).isActive()) break;
         }
-        MovementResult second=applyTranslation(first.state(),currentIndex,state.orientation(),false,effects);
-        List<RoundEvent> events = new ArrayList<>(first.events());
-        events.addAll(second.events());
-        return new MovementResult(second.state(), List.copyOf(events));
+        return new MovementResult(current, List.copyOf(events));
     }
 
     private MovementResult applyTurn(GameState gameState, int vehicleIndex, Direction orientation) {

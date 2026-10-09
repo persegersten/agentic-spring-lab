@@ -37,7 +37,13 @@ public class HeadlessPlayerAutomation implements PlayerAutomation {
         game.getPlayers().stream().filter(se.segersten.wreckage.game.domain.Player::isAutomated).forEach(player -> {
             var program = game.getRound().programs().get(player.getId());
             if (program != null && !program.ready()) {
-                game.getRound().lock(player.getId(),java.util.Collections.nCopies(game.getConfiguration().programSize(),MovementOrder.WAIT));
+                if (program.hand().isEmpty()) {
+                    game.getRound().lock(player.getId(), java.util.Collections.nCopies(
+                            game.getConfiguration().programSize(), MovementOrder.WAIT));
+                } else {
+                    game.getRound().lock(player.getId(), program.hand().subList(0,
+                            game.getConfiguration().programSize()));
+                }
             }
         });
     }

@@ -103,10 +103,12 @@ class InMemoryProfileIntegrationTest {
 
         Game aliceView = gameService.getPlayerGame(game.getId(), alice.player().getId(), alice.token());
         Game bobView = gameService.getPlayerGame(game.getId(), bob.player().getId(), bob.token());
+        assertThat(aliceView.getRound().programs().get(alice.player().getId()).hand()).hasSize(8);
+        assertThat(bobView.getRound().programs().get(bob.player().getId()).hand()).hasSize(8);
         gameService.submitProgram(game.getId(), alice.player().getId(), alice.token(),
-                java.util.Collections.nCopies(5, MovementOrder.WAIT));
+                aliceView.getRound().programs().get(alice.player().getId()).hand().subList(0, 5));
         gameService.submitProgram(game.getId(), bob.player().getId(), bob.token(),
-                java.util.Collections.nCopies(5, MovementOrder.WAIT));
+                bobView.getRound().programs().get(bob.player().getId()).hand().subList(0, 5));
 
         Game retrieved = gameService.getGame(game.getId());
         assertThat(retrieved.getRound().phase()).isEqualTo(RoundPhase.PLAYBACK);

@@ -77,6 +77,7 @@ class GameRoundTest {
         assertThat(first.playback()).isEqualTo(second.playback());
         assertThat(first.finalVehicleStates()).isEqualTo(second.finalVehicleStates());
         assertThat(first.playback()).extracting(RoundEvent::sequence).containsExactly(1, 2, 3, 4);
+        assertThat(first.playback()).extracting(RoundEvent::registerIndex).containsExactly(1, 1, 2, 2);
     }
 
     @Test

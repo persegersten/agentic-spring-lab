@@ -8,13 +8,13 @@ public record PlayerGameResponse(UUID id, UUID playerId, GameStatus status, int 
         List<GamePlacement> placements) {
     static PlayerGameResponse from(Game game, UUID playerId) {
         Round r=game.getRound(); PlayerRoundResponse round=null;
-        if(r!=null){ PlayerProgram p=r.programs().get(playerId); boolean privatePlanning=r.phase()==RoundPhase.PLANNING&&p!=null; round=new PlayerRoundResponse(PublicRoundResponse.from(r),privatePlanning?p.commands():List.of(),privatePlanning?p.scheduledAction():null); }
+        if(r!=null){ PlayerProgram p=r.programs().get(playerId); boolean privatePlanning=r.phase()==RoundPhase.PLANNING&&p!=null; round=new PlayerRoundResponse(PublicRoundResponse.from(r),privatePlanning?p.hand():List.of(),privatePlanning?p.commands():List.of(),privatePlanning?p.scheduledAction():null); }
         return new PlayerGameResponse(game.getId(), playerId, game.getStatus(), game.getConfiguration().roundLimit(),
                 game.getConfiguration(),
                 game.getPlayers().stream().map(player -> PlayerResponse.from(player, game.getBoard())).toList(),
                 BoardResponse.from(game.getBoard()), game.getVehicleStates().stream().map(VehicleResponse::from).toList(), round,
                 game.getPlacements());
     }
-    public record PlayerRoundResponse(PublicRoundResponse state, List<MovementOrder> program,
+    public record PlayerRoundResponse(PublicRoundResponse state, List<MovementOrder> hand, List<MovementOrder> program,
                                       ScheduledAction scheduledAction) {}
 }

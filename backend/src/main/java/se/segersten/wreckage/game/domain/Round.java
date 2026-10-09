@@ -106,7 +106,7 @@ public final class Round {
             var preActions = actions.resolve(ActionTiming.PRE_MOVEMENT, registerIndex, state, programs, initiative,
                     registerEffects);
             state = preActions.state();
-            checkpointVictory = addScoredEvents(events, preActions.events(), playersById, configuration, false, true);
+            checkpointVictory = addScoredEvents(events, preActions.events(), playersById, configuration, false, true, registerIndex);
             if (checkpointVictory) break;
             for (UUID playerId : initiative) {
                 VehicleState vehicle = state.vehicleStates().stream()
@@ -118,16 +118,16 @@ public final class Round {
                             new Turn(List.of(new VehicleTurn(vehicle, programs.get(playerId).commands().get(index)))),
                             state, registerEffects);
                     state = result.state();
-                    checkpointVictory = addScoredEvents(events,result.events(),playersById,configuration,true, false);
+                    checkpointVictory = addScoredEvents(events,result.events(),playersById,configuration,true, false, registerIndex);
                     if (checkpointVictory) break resolution;
                 }
             }
             var postActions = actions.resolve(ActionTiming.POST_MOVEMENT, registerIndex, state, programs, initiative,
                     registerEffects);
             state = postActions.state();
-            checkpointVictory = addScoredEvents(events, postActions.events(), playersById, configuration, true, true);
+            checkpointVictory = addScoredEvents(events, postActions.events(), playersById, configuration, true, true, registerIndex);
             if (checkpointVictory) break;
-            var result=effects.resolve(state, registerEffects);state=result.state();addScoredEvents(events,result.events(),playersById,configuration,false, false);
+            var result=effects.resolve(state, registerEffects);state=result.state();addScoredEvents(events,result.events(),playersById,configuration,false, false, registerIndex);
             checkpointVictory = playersById.values().stream().anyMatch(player -> player.hasCompletedCheckpoints(initialState.board()));
             if (checkpointVictory) break;
         }
@@ -156,9 +156,10 @@ public final class Round {
 
     private boolean addScoredEvents(List<RoundEvent> target, List<RoundEvent> movementEvents,
                                  Map<UUID,Player>players,GameConfiguration configuration,boolean rewardPush,
-                                 boolean rewardWeapon) {
+                                 boolean rewardWeapon, int registerIndex) {
         java.util.Set<UUID> rewardedCrashes = new java.util.HashSet<>();
         for (RoundEvent event : movementEvents) {
+            event = event.withRegister(registerIndex);
             target.add(event.withSequence(target.size() + 1));
             Player subject = players.get(event.playerId());
             if(subject!=null&&(event.type()==RoundEventType.MOVE||event.type()==RoundEventType.SIDE_STEP||event.type()==RoundEventType.RAM||event.type()==RoundEventType.PUSH||event.type()==RoundEventType.CONVEYOR_MOVE||event.type()==RoundEventType.CONVEYOR_RAM||event.type()==RoundEventType.CONVEYOR_PUSH)){
@@ -198,6 +199,7 @@ public final class Round {
         RoundEvent scoreEvent = RoundEvent.scoreChanged(player.getId(), vehicleId, cause.sourcePlayerId(),
                 cause.sourceVehicleId(), cause.newPosition(), cause.newDirection(), oldScore, newScore,
                 reason, checkpointId);
+        if (cause.registerIndex() != null) scoreEvent = scoreEvent.withRegister(cause.registerIndex());
         target.add(scoreEvent.withSequence(target.size() + 1));
     }
 

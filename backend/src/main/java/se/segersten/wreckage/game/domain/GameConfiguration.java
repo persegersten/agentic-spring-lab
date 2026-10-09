@@ -15,7 +15,7 @@ public record GameConfiguration(
 
     public static final int DEFAULT_MAX_PLAYERS = 9;
     public static final int DEFAULT_JOIN_TIMEOUT_SECONDS = 300;
-    public static final int DEFAULT_PROGRAM_SIZE = 3;
+    public static final int DEFAULT_PROGRAM_SIZE = 5;
     public static final int DEFAULT_PLANNING_TIMEOUT_SECONDS = 120;
     public static final int DEFAULT_ROUND_LIMIT = 6;
     public static final int DEFAULT_CHECKPOINT_SCORE = 2;

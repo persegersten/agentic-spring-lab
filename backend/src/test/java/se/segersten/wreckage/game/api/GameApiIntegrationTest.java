@@ -62,7 +62,7 @@ class GameApiIntegrationTest {
         assertThat(game.path("players").isEmpty()).isTrue();
         assertThat(game.path("status").asText()).isEqualTo("WAITING_FOR_PLAYERS");
         assertThat(game.path("configuration").path("maxPlayers").asInt()).isEqualTo(9);
-        assertThat(game.path("configuration").path("programSize").asInt()).isEqualTo(3);
+        assertThat(game.path("configuration").path("programSize").asInt()).isEqualTo(5);
         assertThat(game.path("configuration").path("roundLimit").asInt()).isEqualTo(6);
         assertThat(game.path("configuration").path("checkpointScore").asInt()).isEqualTo(2);
         assertThat(game.path("configuration").path("controlPointScore").asInt()).isEqualTo(1);
@@ -215,14 +215,20 @@ class GameApiIntegrationTest {
         JsonNode aliceGame = json(getPlayerGame(gameId, alice));
 
         assertThat(publicGame.toString()).doesNotContain("\"program\":", "orders");
+        assertThat(perGame.path("round").path("hand")).hasSize(8);
+        assertThat(aliceGame.path("round").path("hand")).hasSize(8);
         assertThat(perGame.path("round").path("program")).isEmpty();
-        assertThat(aliceGame.path("round").path("program")).isEmpty();
         assertThat(perGame.path("round").has("state")).isTrue();
         assertThat(perGame.path("round").path("scheduledAction").isNull()).isTrue();
-        assertThat(perGame.path("round").size()).isEqualTo(3);
+        assertThat(perGame.path("round").size()).isEqualTo(4);
+
+        HttpResponse<String> invented = postPlayer(
+                "/games/%s/rounds/current/program".formatted(gameId), per,
+                "{\"orders\":[\"WAIT\",\"WAIT\",\"WAIT\",\"WAIT\",\"WAIT\"]}");
+        assertThat(invented.statusCode()).isEqualTo(HttpStatus.BAD_REQUEST.value());
 
         var selectedOrder = objectMapper.createArrayNode();
-        for (int index = 0; index < 5; index++) selectedOrder.add("WAIT");
+        for (int index = 0; index < 5; index++) selectedOrder.add(perGame.path("round").path("hand").get(index));
         HttpResponse<String> submitted = postPlayer(
                 "/games/%s/rounds/current/program".formatted(gameId), per,
                 objectMapper.createObjectNode()
@@ -239,10 +245,12 @@ class GameApiIntegrationTest {
         assertThat(aliceAfterSubmission.path("round").path("program")).isEmpty();
         assertThat(aliceAfterSubmission.toString()).doesNotContain("orders", "playback\":[{");
 
+        var aliceSelectedOrder = objectMapper.createArrayNode();
+        for (int index = 0; index < 5; index++) aliceSelectedOrder.add(aliceGame.path("round").path("hand").get(index));
         HttpResponse<String> resolved = postPlayer(
                 "/games/%s/rounds/current/program".formatted(gameId), alice,
                 objectMapper.createObjectNode()
-                        .set("orders", selectedOrder)
+                        .set("orders", aliceSelectedOrder)
                         .toString());
 
         assertThat(resolved.statusCode()).isEqualTo(HttpStatus.OK.value());

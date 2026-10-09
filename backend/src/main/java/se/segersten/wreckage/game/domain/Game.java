@@ -98,10 +98,14 @@ public class Game {
     }
 
     public void start(Instant now) {
-        start(now, null);
+        start(now, null, Map.of());
     }
 
     public void start(Instant now, MapDefinition selectedMap) {
+        start(now, selectedMap, Map.of());
+    }
+
+    public void start(Instant now, MapDefinition selectedMap, Map<UUID, List<MovementOrder>> hands) {
         Objects.requireNonNull(now);
         if (status != GameStatus.WAITING_FOR_PLAYERS || round != null)
             throw new IllegalStateException("The lobby is closed");
@@ -122,7 +126,7 @@ public class Game {
             vehicles.put(playerId, new VehicleState(vehicle, spawn.position(), spawn.orientation(),
                     VehicleStatus.ACTIVE, 0, old.primaryWeapon() == PrimaryWeapon.ROCKET ? 1 : 0));
         }
-        startRound(now);
+        startRound(now, hands);
     }
 
     private List<SpawnPoint> balancedSpawns(List<SpawnPoint> starts, int count) {
@@ -134,6 +138,10 @@ public class Game {
     }
 
     public Round startRound(Instant now) {
+        return startRound(now, Map.of());
+    }
+
+    public Round startRound(Instant now, Map<UUID, List<MovementOrder>> hands) {
         if (status == GameStatus.FINISHED) throw new IllegalStateException("The game is finished");
         if (round != null && round.number() >= configuration.roundLimit())
             throw new IllegalStateException("The round limit has been reached");
@@ -148,7 +156,10 @@ public class Game {
         for (Player player : players) {
             VehicleState vehicle = vehicles.get(player.getId());
             if (vehicle == null || !vehicle.isActive()) continue;
-            programs.put(player.getId(),PlayerProgram.empty(player.getId(),configuration.programSize()));
+            List<MovementOrder> hand = hands.get(player.getId());
+            programs.put(player.getId(), hand == null || configuration.programSize() != 5
+                    ? PlayerProgram.empty(player.getId(), configuration.programSize())
+                    : PlayerProgram.dealt(player.getId(), configuration.programSize(), hand));
         }
         List<UUID> initiative = nextInitiative(programs);
         round = new Round(round == null ? 1 : round.number() + 1,RoundPhase.PLANNING, programs, initiative,

@@ -31,16 +31,20 @@ and becomes `FINISHED` only after that fixed round limit.
 
 Each round moves through three externally visible phases:
 
-1. `PLANNING`: every active vehicle owner edits a private program and locks it.
-   A planning timeout fills missing registers with `WAIT` and locks the program.
+1. `PLANNING`: every active vehicle owner selects five cards from a private
+   eight-card hand and locks their order. A planning timeout fills remaining
+   registers from unused cards in dealt-hand order and locks the program.
 2. `RESOLVING`: the backend synchronously resolves each register. Players act in
    the persisted initiative order, which rotates between rounds.
 3. `PLAYBACK`: the completed, ordered event stream is public and immutable. Each
    client independently animates that same stream before requesting the next round.
 
-Programs use the complete v2 command set: `FORWARD_1`, `FORWARD_2`, `REVERSE_1`,
-`TURN_LEFT`, `TURN_RIGHT`, `U_TURN`, and `WAIT`. Programs do not depend on a
-vehicle's previous interactions.
+At round start the application uses an injectable random source and configurable
+relative weights to deal eight server-owned programming cards per active player.
+Players submit five cards, validated as a multiset against their persisted hand.
+The dealable set is `FORWARD_1`, `FORWARD_2`, `FORWARD_3`, `REVERSE_1`,
+`TURN_LEFT`, `TURN_RIGHT`, and `U_TURN`; `WAIT` remains an internal legacy value.
+Only the authenticated owner receives a hand through the player-specific API.
 
 Each program may additionally contain one scheduled action and register. The
 application validates that action against the authoritative vehicle loadout and
@@ -53,8 +57,9 @@ state, but hiding controls is not a security boundary.
 
 `MovementEngine` applies vehicle commands one cell at a time. It enforces board
 edges and edge walls, resolves chains of rams and pushes, and emits movement,
-turn, ram, push, or crash events. `FORWARD_2` performs two complete one-cell
-steps, so either step can interact with another vehicle or board boundary.
+turn, ram, push, or crash events. `FORWARD_2` and `FORWARD_3` perform two or
+three complete one-cell steps, so any step can interact with another vehicle or
+board boundary.
 
 After every register, `BoardEffectEngine` resolves conveyors in board order and
 then rotators. Conveyors reuse the movement and pushing rules and have explicit
