@@ -23,4 +23,9 @@ class ProgrammingCardDealerTest {
         var dealer = new ProgrammingCardDealer(weights, new Random(4));
         assertThat(dealer.deal()).containsOnly(MovementOrder.FORWARD_1, MovementOrder.U_TURN);
     }
+
+    @Test void dealsLaserThroughTheExistingWeightedCardInfrastructure() {
+        var dealer = new ProgrammingCardDealer(Map.of(MovementOrder.LASER, 10), new Random(9));
+        assertThat(dealer.deal()).hasSize(8).containsOnly(MovementOrder.LASER);
+    }
 }

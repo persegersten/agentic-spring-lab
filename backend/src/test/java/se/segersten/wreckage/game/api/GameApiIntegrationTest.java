@@ -27,6 +27,8 @@ import se.segersten.wreckage.game.domain.Game;
 import se.segersten.wreckage.game.domain.GameRepository;
 import se.segersten.wreckage.game.domain.GameState;
 import se.segersten.wreckage.game.domain.GameStatus;
+import se.segersten.wreckage.game.domain.MovementOrder;
+import se.segersten.wreckage.game.domain.PlayerProgram;
 import se.segersten.wreckage.game.domain.Round;
 import se.segersten.wreckage.game.domain.RoundPhase;
 import se.segersten.wreckage.game.domain.VehicleState;
@@ -278,6 +280,49 @@ class GameApiIntegrationTest {
         assertThat(json(duplicateRequest).path("round").path("state").path("number").asInt()).isEqualTo(2);
         assertThat(json(duplicateRequest).path("round").path("state").path("phase").asText())
                 .isEqualTo("PLANNING");
+    }
+
+    @Test
+    void persistsAndReturnsLaserProgrammingCardsToTheirOwnerOnly() throws Exception {
+        HttpResponse<String> created = post("/games", """
+                {"maxPlayers":2,"joinTimeoutSeconds":90,"programSize":5,"planningTimeoutSeconds":45}
+                """);
+        UUID gameId = UUID.fromString(json(created).path("id").asText());
+        JsonNode per = json(post("/games/%s/players".formatted(gameId), "{\"name\":\"Per\"}"));
+        JsonNode alice = json(post("/games/%s/players".formatted(gameId), "{\"name\":\"Alice\"}"));
+        UUID perId = UUID.fromString(per.path("id").asText());
+        UUID aliceId = UUID.fromString(alice.path("id").asText());
+        List<MovementOrder> laserHand = java.util.Collections.nCopies(8, MovementOrder.LASER);
+        TransactionTemplate transaction = new TransactionTemplate(transactionManager);
+        transaction.executeWithoutResult(status -> {
+            Game current = gameRepository.findById(gameId).orElseThrow();
+            Map<UUID, PlayerProgram> programs = new LinkedHashMap<>();
+            programs.put(perId, PlayerProgram.dealt(perId, 5, laserHand));
+            programs.put(aliceId, PlayerProgram.dealt(aliceId, 5, laserHand));
+            Round round = new Round(1, programs, List.of(perId, aliceId),
+                    new GameState(current.getBoard(), current.getVehicleStates()));
+            Map<UUID, VehicleState> vehicles = current.getVehicleStates().stream().collect(
+                    java.util.stream.Collectors.toMap(state -> state.vehicle().playerId(), state -> state,
+                            (first, second) -> first, LinkedHashMap::new));
+            gameRepository.save(new Game(current.getId(), current.getPlayers(), current.getBoard(),
+                    GameStatus.RUNNING, vehicles, round, current.getConfiguration(), current.getCreatedAt(),
+                    current.getJoinDeadline(), current.getHostTokenHash()));
+        });
+
+        JsonNode ownerView = json(getPlayerGame(gameId.toString(), per));
+        HttpResponse<String> submitted = postPlayer("/games/%s/rounds/current/program".formatted(gameId), per,
+                "{\"orders\":[\"LASER\",\"LASER\",\"LASER\",\"LASER\",\"LASER\"]}");
+        JsonNode reconnectedOwnerView = json(getPlayerGame(gameId.toString(), per));
+        JsonNode otherView = json(getPlayerGame(gameId.toString(), alice));
+        JsonNode publicView = json(get("/games/" + gameId));
+
+        assertThat(ownerView.path("round").path("hand")).hasSize(8)
+                .allSatisfy(card -> assertThat(card.asText()).isEqualTo("LASER"));
+        assertThat(submitted.statusCode()).isEqualTo(HttpStatus.OK.value());
+        assertThat(reconnectedOwnerView.path("round").path("program")).hasSize(5)
+                .allSatisfy(card -> assertThat(card.asText()).isEqualTo("LASER"));
+        assertThat(otherView.path("round").path("program")).isEmpty();
+        assertThat(publicView.toString()).doesNotContain("\"hand\"", "\"program\"");
     }
 
     @Test

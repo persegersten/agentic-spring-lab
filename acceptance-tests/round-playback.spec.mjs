@@ -146,6 +146,51 @@ test('playback removes a vehicle exactly when its crash event is reached', async
 
 })
 
+test('programming-card Laser renders its beam and both displacement steps', async ({ page }) => {
+  const gameId = '10000000-0000-0000-0000-000000000012'
+  const shooterId = '20000000-0000-0000-0000-000000000012'
+  const targetId = '20000000-0000-0000-0000-000000000013'
+  const shooter = { id: 'vehicle-shooter', playerId: shooterId, x: 0, y: 1, direction: 'EAST', status: 'ACTIVE', damage: 0, rocketAmmo: 0, primaryWeapon: 'LASER', specialAbility: 'SHIELD' }
+  const target = { id: 'vehicle-target', playerId: targetId, x: 2, y: 1, direction: 'NORTH', status: 'ACTIVE', damage: 0, rocketAmmo: 0, primaryWeapon: 'LASER', specialAbility: 'SHIELD' }
+  const event = (sequence, type, subject, oldPosition, newPosition) => ({
+    sequence, type, playerId: subject.playerId, vehicleId: subject.id,
+    sourcePlayerId: shooterId, sourceVehicleId: shooter.id, actionType: 'LASER', registerIndex: 1,
+    oldPosition, newPosition, oldDirection: subject.direction, newDirection: subject.direction,
+  })
+  const playback = [
+    event(1, 'WEAPON_FIRED', shooter, { x: 0, y: 1 }, { x: 2, y: 1 }),
+    event(2, 'WEAPON_HIT', target, { x: 2, y: 1 }, { x: 2, y: 1 }),
+    event(3, 'PUSH', target, { x: 2, y: 1 }, { x: 3, y: 1 }),
+    event(4, 'PUSH', target, { x: 3, y: 1 }, { x: 4, y: 1 }),
+  ]
+  const state = {
+    id: gameId, playerId: shooterId, status: 'RUNNING', roundLimit: 7,
+    configuration: { maxPlayers: 2, programSize: 5, planningTimeoutSeconds: 30, joinTimeoutSeconds: 30 },
+    players: [
+      { id: shooterId, name: 'Shooter', score: 0, visitedCheckpoints: [], crashes: 0 },
+      { id: targetId, name: 'Target', score: 0, visitedCheckpoints: [], crashes: 0 },
+    ],
+    board: { width: 6, height: 3, walls: [], pits: [], obstacles: [], checkpoints: [], spawnPoints: [], conveyors: [], rotators: [], controlPoints: [] },
+    vehicles: [shooter, { ...target, x: 4 }],
+    round: { state: { number: 1, phase: 'PLAYBACK', ready: { [shooterId]: true, [targetId]: true }, initiative: [shooterId, targetId], initialVehicles: [shooter, target], initialScores: { [shooterId]: 0, [targetId]: 0 }, startEvents: [], playback }, program: [] },
+  }
+  await page.clock.install()
+  await page.addInitScript(session => localStorage.setItem(`wreckage-session:${session.gameId}`, JSON.stringify(session)),
+    { gameId, playerId: shooterId, token: 'test-token' })
+  await page.route(`**/games/${gameId}/players/${shooterId}`, route => route.fulfill({ json: state }))
+
+  await page.goto(`/game/${gameId}`)
+  await page.clock.runFor(1)
+  await expect(page.getByTestId('laser-shot')).toBeVisible()
+  await expect(page.getByTestId('laser-shot')).toHaveAttribute('data-end-x', '2')
+  await page.clock.runFor(900)
+  await expect(page.getByTestId('current-playback-event')).toHaveAttribute('data-event-type', 'PUSH')
+  await expect(page.getByTestId('player-vehicle').filter({ hasText: 'Target' })).toHaveAttribute('data-x', '3')
+  await page.clock.runFor(350)
+  await expect(page.getByTestId('player-vehicle').filter({ hasText: 'Target' })).toHaveAttribute('data-x', '4')
+  await expect(page.getByTestId('player-vehicle').filter({ hasText: 'Target' })).toHaveAttribute('data-direction', 'NORTH')
+})
+
 test('finishing the last round does not request another round', async ({ page }) => {
   const gameId = '10000000-0000-0000-0000-000000000009'
   const playerId = '20000000-0000-0000-0000-000000000009'
