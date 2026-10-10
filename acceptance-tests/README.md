@@ -35,7 +35,7 @@ Playwright starts the Spring Boot backend with the disposable `in-memory`
 and `deterministic-e2e` profiles and starts the Vite development server
 automatically. The deterministic board retains the standard board dimensions
 and edge-wall fixture while allowing a fixed two-player program to cover a
-push, checkpoint score, reload, and final standings. If compatible
+push, shield protection, checkpoint progress, reload, and final standings. If compatible
 servers are already running locally, Playwright reuses them. Set `BASE_URL` to
 run the browser against a different frontend URL:
 

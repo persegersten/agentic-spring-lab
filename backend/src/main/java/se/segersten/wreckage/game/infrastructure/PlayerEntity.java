@@ -41,39 +41,39 @@ class PlayerEntity {
     @Column(name = "automated", nullable = false)
     private boolean automated;
 
-    @Column(name = "score", nullable = false)
-    private int score;
-
     @Column(name = "visited_checkpoints", nullable = false)
     private String visitedCheckpoints;
 
     @Column(name = "crashes", nullable = false)
     private int crashes;
 
+    @Column(name = "shield_consumed", nullable = false)
+    private boolean shieldConsumed;
+
     protected PlayerEntity() {
     }
 
     private PlayerEntity(UUID domainId, GameEntity game, String name, String accessTokenHash,
-                         boolean automated, int score, String visitedCheckpoints, int crashes) {
+                         boolean automated, String visitedCheckpoints, int crashes, boolean shieldConsumed) {
         this.domainId = domainId;
         this.game = game;
         this.name = name;
         this.accessTokenHash = accessTokenHash;
         this.automated = automated;
-        this.score = score;
         this.visitedCheckpoints = visitedCheckpoints;
         this.crashes = crashes;
+        this.shieldConsumed = shieldConsumed;
     }
 
     static PlayerEntity fromDomain(Player player, GameEntity game) {
         return new PlayerEntity(player.getId(), game, player.getName(), player.getAccessTokenHash(),
-                player.isAutomated(), player.getScore(), encodeCheckpoints(player.getVisitedCheckpoints()), player.getCrashes());
+                player.isAutomated(), encodeCheckpoints(player.getVisitedCheckpoints()), player.getCrashes(), player.isShieldConsumed());
     }
 
     PlayerEntity updateFrom(Player player) {
-        score = player.getScore();
         visitedCheckpoints = encodeCheckpoints(player.getVisitedCheckpoints());
         crashes = player.getCrashes();
+        shieldConsumed = player.isShieldConsumed();
         return this;
     }
 
@@ -84,7 +84,7 @@ class PlayerEntity {
     Player toDomain() {
         Set<String> checkpoints = visitedCheckpoints == null || visitedCheckpoints.isBlank() ? Set.of()
                 : Arrays.stream(visitedCheckpoints.split("\\|", -1)).collect(Collectors.toUnmodifiableSet());
-        return Player.rehydrate(domainId, name, accessTokenHash, automated, score, checkpoints, crashes);
+        return Player.rehydrate(domainId, name, accessTokenHash, automated, checkpoints, crashes, shieldConsumed);
     }
 
     private static String encodeCheckpoints(Set<String> checkpoints) {

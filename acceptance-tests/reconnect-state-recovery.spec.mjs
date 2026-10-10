@@ -38,9 +38,7 @@ test('reload during planning restores map, round and private planning state', as
     const playerId = await perVehicle.getAttribute('data-player-id')
     await per.locator('[data-testid="command-card"][data-command="TURN_LEFT"]').dblclick()
     await expect(per.getByRole('status')).toHaveCount(0)
-    await per.getByTestId('action-type').selectOption('SHIELD')
-    await expect(per.getByRole('status')).toHaveCount(0)
-    await per.getByTestId('action-register').selectOption('1')
+    await per.getByTestId('activate-shield').check()
     await expect(per.getByRole('status')).toHaveCount(0)
 
     await per.reload()
@@ -53,7 +51,7 @@ test('reload during planning restores map, round and private planning state', as
       .toHaveAttribute('data-player-id', playerId)
     await expect(per.getByTestId('program-slot').nth(0)).toHaveAttribute('data-command', 'TURN_LEFT')
     await expect(per.getByTestId('program-slot').nth(0)).toHaveAttribute('data-filled', 'true')
-    await expect(per.getByTestId('selected-action')).toHaveText('Shield · programsteg 1')
+    await expect(per.getByTestId('shield-status')).toContainText('Vald')
   })
 })
 
@@ -78,7 +76,7 @@ test('a temporary player disconnect does not change another players state', asyn
     const positionsAfter = await alice.getByTestId('player-vehicle').evaluateAll(vehicles =>
       vehicles.map(vehicle => `${vehicle.dataset.playerId}:${vehicle.dataset.x}:${vehicle.dataset.y}`).sort())
     expect(positionsAfter).toEqual(positionsBefore)
-    await expect(alice.locator('[data-testid="command-card"][data-command="WAIT"]')).toBeEnabled()
+    await expect(alice.locator('[data-testid="command-card"]:enabled').first()).toBeEnabled()
   })
 })
 
@@ -94,11 +92,12 @@ test('reload restores a locked private program', async ({ browser }) => {
     await expect(per.getByRole('heading', { name: 'Planering', exact: true })).toBeVisible()
     await fillProgram(per)
     await expect(per.getByRole('button', { name: 'Program låst', exact: true })).toBeDisabled()
+    const firstCommand = await per.getByTestId('program-slot').nth(0).getAttribute('data-command')
 
     await per.reload()
 
     await expect(per.getByRole('button', { name: 'Program låst', exact: true })).toBeDisabled()
-    await expect(per.getByTestId('program-slot').nth(0)).toHaveAttribute('data-command', 'WAIT')
+    await expect(per.getByTestId('program-slot').nth(0)).toHaveAttribute('data-command', firstCommand)
     await expect(per.getByTestId('program-slot').nth(0)).toHaveAttribute('data-filled', 'true')
   })
 })

@@ -1,12 +1,30 @@
 package se.segersten.wreckage.game.domain;
-import static org.assertj.core.api.Assertions.*;import java.time.Instant;import java.util.*;import org.junit.jupiter.api.Test;
-class ProgramPlanningTest{
- @Test void loadoutEligibilityIncludesBothSideStepDirections(){var vehicle=new Vehicle(UUID.randomUUID(),UUID.randomUUID(),new Position(0,0),Direction.NORTH,PrimaryWeapon.REPULSOR,SpecialAbility.SIDE_STEP);assertThat(vehicle.permits(ActionType.REPULSOR)).isTrue();assertThat(vehicle.permits(ActionType.SIDE_STEP_LEFT)).isTrue();assertThat(vehicle.permits(ActionType.SIDE_STEP_RIGHT)).isTrue();assertThat(vehicle.permits(ActionType.LASER)).isFalse();assertThat(vehicle.permits(ActionType.SHIELD)).isFalse();}
- @Test void supportsDraftsDuplicatesLockingAndTimeout(){UUID id=UUID.randomUUID();var p=PlayerProgram.empty(id,3).edit(List.of(MovementOrder.FORWARD_1,MovementOrder.FORWARD_1));var locked=p.lock(List.of(MovementOrder.FORWARD_1,MovementOrder.FORWARD_1,MovementOrder.WAIT));assertThat(locked.ready()).isTrue();assertThatThrownBy(()->locked.edit(List.of())).isInstanceOf(IllegalStateException.class);Instant deadline=Instant.parse("2099-01-01T00:00:00Z");var round=new Round(1,RoundPhase.PLANNING,Map.of(id,p),List.of(id),new GameState(new Board(5,5),List.of()),List.of(),deadline);assertThat(round.completeTimedOutPrograms(deadline)).isTrue();assertThat(round.programs().get(id).commands()).containsExactly(MovementOrder.FORWARD_1,MovementOrder.FORWARD_1,MovementOrder.WAIT);}
- @Test void exposesProgrammingCardCommandsAndKeepsWaitInternal(){assertThat(MovementOrder.values()).containsExactly(MovementOrder.FORWARD_1,MovementOrder.FORWARD_2,MovementOrder.FORWARD_3,MovementOrder.REVERSE_1,MovementOrder.TURN_LEFT,MovementOrder.TURN_RIGHT,MovementOrder.U_TURN,MovementOrder.LASER,MovementOrder.WAIT);assertThat(Arrays.stream(MovementOrder.values()).filter(MovementOrder::isProgrammingCard)).contains(MovementOrder.LASER).doesNotContain(MovementOrder.WAIT);}
- @Test void dealtHandsValidateCardCountsAndRequireACompleteLock(){UUID id=UUID.randomUUID();var hand=List.of(MovementOrder.FORWARD_1,MovementOrder.FORWARD_1,MovementOrder.FORWARD_2,MovementOrder.FORWARD_3,MovementOrder.REVERSE_1,MovementOrder.TURN_LEFT,MovementOrder.TURN_RIGHT,MovementOrder.U_TURN);var program=PlayerProgram.dealt(id,5,hand);assertThat(program.hand()).hasSize(8);assertThatThrownBy(()->program.lock(List.of(MovementOrder.FORWARD_1))).isInstanceOf(IllegalArgumentException.class);assertThatThrownBy(()->program.edit(List.of(MovementOrder.FORWARD_2,MovementOrder.FORWARD_2))).isInstanceOf(IllegalArgumentException.class);assertThatThrownBy(()->program.edit(List.of(MovementOrder.WAIT))).isInstanceOf(IllegalArgumentException.class);assertThat(program.lock(List.of(MovementOrder.U_TURN,MovementOrder.FORWARD_1,MovementOrder.FORWARD_3,MovementOrder.TURN_LEFT,MovementOrder.FORWARD_1)).commands()).containsExactly(MovementOrder.U_TURN,MovementOrder.FORWARD_1,MovementOrder.FORWARD_3,MovementOrder.TURN_LEFT,MovementOrder.FORWARD_1);}
- @Test void classifiesActionTimingServerSide(){assertThat(ActionType.values()).filteredOn(a->a.timing()==ActionTiming.PRE_MOVEMENT).containsExactly(ActionType.SHIELD,ActionType.ANCHOR);assertThat(ActionType.values()).filteredOn(a->a.timing()==ActionTiming.POST_MOVEMENT).containsExactly(ActionType.LASER,ActionType.REPULSOR,ActionType.ROCKET,ActionType.TURBO,ActionType.SIDE_STEP_LEFT,ActionType.SIDE_STEP_RIGHT);}
- @Test void schedulesChangesAndClearsOneActionBeforeLock(){UUID id=UUID.randomUUID();var laser=new ScheduledAction(ActionType.LASER,2);var repulsor=new ScheduledAction(ActionType.REPULSOR,3);var program=PlayerProgram.empty(id,3).schedule(laser);assertThat(program.scheduledAction()).isEqualTo(laser);program=program.schedule(repulsor);assertThat(program.scheduledAction()).isEqualTo(repulsor);program=program.schedule(null);assertThat(program.scheduledAction()).isNull();assertThat(program.lock(List.of(MovementOrder.WAIT,MovementOrder.WAIT,MovementOrder.WAIT)).scheduledAction()).isNull();}
- @Test void validatesActionRegisterAndLocksTheCompletePlan(){UUID id=UUID.randomUUID();assertThatThrownBy(()->PlayerProgram.empty(id,3).schedule(new ScheduledAction(ActionType.LASER,4))).isInstanceOf(IllegalArgumentException.class);assertThatThrownBy(()->new ScheduledAction(ActionType.LASER,0)).isInstanceOf(IllegalArgumentException.class);var locked=PlayerProgram.empty(id,3).lock(List.of(MovementOrder.WAIT,MovementOrder.WAIT,MovementOrder.WAIT),new ScheduledAction(ActionType.SHIELD,1));assertThatThrownBy(()->locked.schedule(null)).isInstanceOf(IllegalStateException.class);assertThatThrownBy(()->locked.edit(List.of())).isInstanceOf(IllegalStateException.class);}
- @Test void timeoutPreservesAnExplicitAction(){UUID id=UUID.randomUUID();Instant deadline=Instant.parse("2099-01-01T00:00:00Z");var action=new ScheduledAction(ActionType.ANCHOR,2);var program=PlayerProgram.empty(id,3).schedule(action);var round=new Round(1,RoundPhase.PLANNING,Map.of(id,program),List.of(id),new GameState(new Board(5,5),List.of()),List.of(),deadline);round.completeTimedOutPrograms(deadline);assertThat(round.programs().get(id).scheduledAction()).isEqualTo(action);assertThat(round.programs().get(id).ready()).isTrue();}
+
+import static org.assertj.core.api.Assertions.*;
+import java.util.*;
+import org.junit.jupiter.api.Test;
+
+class ProgramPlanningTest {
+    @Test void shieldDoesNotOccupyAProgrammingSlot() {
+        UUID id = UUID.randomUUID();
+        List<MovementOrder> hand = List.of(MovementOrder.FORWARD_1, MovementOrder.FORWARD_2,
+                MovementOrder.FORWARD_3, MovementOrder.REVERSE_1, MovementOrder.TURN_LEFT,
+                MovementOrder.TURN_RIGHT, MovementOrder.U_TURN, MovementOrder.LASER);
+        PlayerProgram program = PlayerProgram.dealt(id, 5, hand)
+                .lock(hand.subList(0, 5), true);
+        assertThat(program.commands()).hasSize(5);
+        assertThat(program.shieldSelected()).isTrue();
+    }
+
+    @Test void validatesHandMultiplicityAndKeepsLaserAsAProgrammingCard() {
+        UUID id = UUID.randomUUID();
+        List<MovementOrder> hand = List.of(MovementOrder.LASER, MovementOrder.FORWARD_1,
+                MovementOrder.FORWARD_2, MovementOrder.FORWARD_3, MovementOrder.REVERSE_1,
+                MovementOrder.TURN_LEFT, MovementOrder.TURN_RIGHT, MovementOrder.U_TURN);
+        PlayerProgram program = PlayerProgram.dealt(id, 5, hand);
+        assertThatThrownBy(() -> program.lock(Collections.nCopies(5, MovementOrder.LASER), false))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThat(MovementOrder.LASER.isProgrammingCard()).isTrue();
+        assertThat(program.lock(hand.subList(0, 5), false).ready()).isTrue();
+    }
 }

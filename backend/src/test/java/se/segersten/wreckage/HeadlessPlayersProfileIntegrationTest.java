@@ -20,7 +20,7 @@ class HeadlessPlayersProfileIntegrationTest {
 
     @Test
     void runsAConfiguredMultiplayerGameWithOnlyTheFirstPlayerConnected() {
-        var hosted = gameService.createHostedGame(new GameConfiguration(4, 300, 3, 120));
+        var hosted = gameService.createHostedGame(new GameConfiguration(4, 300, 5, 120));
         var game = hosted.game();
         var human = gameService.addPlayer(game.getId(), "Alice");
         gameService.addHeadlessPlayers();
@@ -38,8 +38,8 @@ class HeadlessPlayersProfileIntegrationTest {
                 assertThat(persisted.getRound().programs().get(player.getId()).ready()).isTrue());
 
         gameService.submitProgram(game.getId(), human.player().getId(), human.token(),
-                java.util.Collections.nCopies(game.getConfiguration().programSize(),
-                        se.segersten.wreckage.game.domain.MovementOrder.WAIT));
+                persisted.getRound().programs().get(human.player().getId()).hand()
+                        .subList(0, game.getConfiguration().programSize()));
 
         var resolved = gameService.getPlayerGame(game.getId(), human.player().getId(), human.token());
         assertThat(resolved.getRound().phase()).isEqualTo(RoundPhase.PLAYBACK);
@@ -58,7 +58,7 @@ class HeadlessPlayersProfileIntegrationTest {
 
     @Test
     void addsAtMostNinePlayersAndStopsAfterTheHostStarts() {
-        var hosted = gameService.createHostedGame(new GameConfiguration(10, 300, 3, 120));
+        var hosted = gameService.createHostedGame(new GameConfiguration(10, 300, 5, 120));
         for (int tick = 0; tick < 12; tick++) gameService.addHeadlessPlayers();
 
         var waiting = gameService.getGame(hosted.game().getId());

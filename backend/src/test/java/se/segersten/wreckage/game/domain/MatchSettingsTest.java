@@ -38,7 +38,7 @@ class MatchSettingsTest {
         Instant created = Instant.parse("2026-01-01T00:00:00Z");
         Game game = new Game(UUID.randomUUID(), List.of(), new Board(20, 20),
                 GameStatus.WAITING_FOR_PLAYERS, Map.of(), null,
-                new GameConfiguration(10, 60, 1, 30), created, created.plusSeconds(60));
+                new GameConfiguration(10, 60, 5, 30), created, created.plusSeconds(60));
         game.addPlayer("A", "a", created);
         game.addPlayer("B", "b", created);
         game.addPlayer("C", "c", created);
@@ -49,8 +49,8 @@ class MatchSettingsTest {
         assertThat(game.getBoard().height()).isEqualTo(12);
         assertThat(game.getConfiguration().roundLimit()).isEqualTo(6);
 
-        game.getRound().initiative().forEach(id -> game.getRound().lock(id, List.of(MovementOrder.WAIT)));
-        game.getRound().resolve(new se.segersten.wreckage.game.engine.MovementEngine());
+        game.getRound().initiative().forEach(id -> game.getRound().lock(id, java.util.Collections.nCopies(5, MovementOrder.WAIT)));
+        game.getRound().resolve(new se.segersten.wreckage.game.engine.MovementEngine(), game.getPlayers(), game.getConfiguration());
         game.completeRound();
         game.startRound(created.plusSeconds(61));
 

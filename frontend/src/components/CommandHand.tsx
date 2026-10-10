@@ -1,44 +1,36 @@
 import { useEffect, useState, type DragEvent, type KeyboardEvent } from 'react'
-import type { ActionType, MovementOrder, ScheduledAction, PrimaryWeapon, SpecialAbility } from '../types/game'
+import type { MovementOrder, ShieldStatus } from '../types/game'
 
 const labels: Record<MovementOrder, string> = { FORWARD_1: 'Framåt 1', FORWARD_2: 'Framåt 2', FORWARD_3: 'Framåt 3', REVERSE_1: 'Backa 1', TURN_LEFT: 'Sväng vänster', TURN_RIGHT: 'Sväng höger', U_TURN: 'U-sväng', LASER: 'Laser', WAIT: 'Vänta' }
-const actionLabels: Record<ActionType, string> = { LASER: 'Laser', REPULSOR: 'Repulsor', ROCKET: 'Rocket', TURBO: 'Turbo', SHIELD: 'Shield', ANCHOR: 'Anchor', SIDE_STEP_LEFT: 'Side Step vänster', SIDE_STEP_RIGHT: 'Side Step höger' }
 const withDefaults = (program: MovementOrder[], size: number): MovementOrder[] => Array.from({ length: size }, (_, index) => program[index] ?? 'WAIT')
 type DraggedCard = { source: 'hand'; index: number; command: MovementOrder } | { source: 'program'; index: number }
 
-export function CommandHand({ hand, program, scheduledAction, programSize, locked, rocketAmmo, primaryWeapon, specialAbility, onReorder, onSubmit }: {
+export function CommandHand({ hand, program, shieldSelected, shieldStatus, programSize, locked, onReorder, onSubmit }: {
   hand: MovementOrder[]
   program: MovementOrder[]
-  scheduledAction: ScheduledAction | null
+  shieldSelected: boolean
+  shieldStatus: ShieldStatus
   programSize: number
   locked: boolean
-  rocketAmmo: number
-  primaryWeapon: PrimaryWeapon
-  specialAbility: SpecialAbility
-  onReorder: (value: MovementOrder[], action: ScheduledAction | null) => Promise<void>
-  onSubmit: (value: MovementOrder[], action: ScheduledAction | null) => Promise<void>
+  onReorder: (value: MovementOrder[], shieldSelected: boolean) => Promise<void>
+  onSubmit: (value: MovementOrder[], shieldSelected: boolean) => Promise<void>
 }) {
   const [draft, setDraft] = useState(() => program.slice(0, programSize))
-  const [action, setAction] = useState<ScheduledAction | null>(scheduledAction)
+  const [shield, setShield] = useState(shieldSelected)
   const [saving, setSaving] = useState(false)
   const [dragged, setDragged] = useState<DraggedCard | null>(null)
   const [dropIndex, setDropIndex] = useState<number | null>(null)
   const disabled = locked || saving
-  const actionTypes: ActionType[] = [
-    ...(primaryWeapon === 'ROCKET' && rocketAmmo === 0 ? [] : [primaryWeapon]),
-    ...(specialAbility === 'SIDE_STEP' ? ['SIDE_STEP_LEFT', 'SIDE_STEP_RIGHT'] as ActionType[] : [specialAbility]),
-  ]
-
-  useEffect(() => { if (!saving) { setDraft(program.slice(0, programSize)); setAction(scheduledAction) } }, [program, scheduledAction, programSize, saving])
+  useEffect(() => { if (!saving) { setDraft(program.slice(0, programSize)); setShield(shieldSelected) } }, [program, shieldSelected, programSize, saving])
 
   async function save(next: MovementOrder[]) {
     setDraft(next)
     setSaving(true)
-    try { await onReorder(next, action) } finally { setSaving(false) }
+    try { await onReorder(next, shield) } finally { setSaving(false) }
   }
 
-  async function saveAction(next: ScheduledAction | null) {
-    setAction(next)
+  async function saveShield(next: boolean) {
+    setShield(next)
     setSaving(true)
     try { await onReorder(draft, next) } finally { setSaving(false) }
   }
@@ -115,7 +107,6 @@ export function CommandHand({ hand, program, scheduledAction, programSize, locke
     <h2>Ditt program</h2>
     <p>Välj kort nedan. Programmet fylls från vänster och registren utförs i ordning.</p>
     <p className="program-state" data-testid="program-lock-state">{locked ? 'Programmet är låst' : 'Programmet kan ändras'}</p>
-    <p data-testid="player-loadout">Loadout: {primaryWeapon} + {specialAbility.replace('_', ' ')}</p>
     {saving && <p role="status">Sparar program…</p>}
     <ol
       className={`program-stack${dragged ? ' program-stack-active' : ''}`}
@@ -169,30 +160,14 @@ export function CommandHand({ hand, program, scheduledAction, programSize, locke
         >{labels[command]}</button>
       </li>)}
     </ul>
-    <fieldset className="scheduled-action" disabled={disabled} data-testid="scheduled-action-controls">
-      <legend>Valfri action</legend>
-      <label>Action
-        <select data-testid="action-type" value={action?.actionType ?? ''} onChange={event => {
-          const actionType = event.target.value as ActionType
-          void saveAction(actionType ? { actionType, registerIndex: action?.registerIndex ?? 1 } : null)
-        }}>
-          <option value="">Ingen action</option>
-          {actionTypes.map(value => <option key={value} value={value}>{actionLabels[value]}</option>)}
-        </select>
-      </label>
-      <label>Programsteg
-        <select data-testid="action-register" disabled={disabled || !action} value={action?.registerIndex ?? 1} onChange={event => {
-          if (action) void saveAction({ ...action, registerIndex: Number(event.target.value) })
-        }}>
-          {Array.from({ length: programSize }, (_, index) => <option key={index + 1} value={index + 1}>{index + 1}</option>)}
-        </select>
-      </label>
-      <button type="button" className="secondary" data-testid="clear-action" disabled={disabled || !action} onClick={() => void saveAction(null)}>Rensa action</button>
-      <p data-testid="selected-action">{action ? `${actionLabels[action.actionType]} · programsteg ${action.registerIndex}` : 'Ingen action vald'}</p>
-      {primaryWeapon === 'ROCKET' && <p data-testid="rocket-ammo">Rocket ammunition: {rocketAmmo}</p>}
+    <fieldset className="shield-control" disabled={disabled || shieldStatus === 'CONSUMED'} data-testid="shield-controls">
+      <legend>Sköld — engångsresurs</legend>
+      <label><input type="checkbox" data-testid="activate-shield" checked={shield}
+        onChange={event => void saveShield(event.target.checked)} /> Aktivera sköld för denna runda</label>
+      <p data-testid="shield-status">Status: {{AVAILABLE:'Tillgänglig',SELECTED:'Vald',ACTIVE:'Aktiv',CONSUMED:'Förbrukad'}[shieldStatus]}</p>
     </fieldset>
     <div className="actions">
-      <button data-testid="lock-program" disabled={disabled || draft.length !== programSize} onClick={() => void onSubmit(draft, action)}>{locked ? 'Program låst' : 'Lås program'}</button>
+      <button data-testid="lock-program" disabled={disabled || draft.length !== programSize} onClick={() => void onSubmit(draft, shield)}>{locked ? 'Program låst' : 'Lås program'}</button>
       <button className="secondary" disabled={disabled || !draft.length} onClick={() => void save([])}>Rensa</button>
     </div>
   </section>

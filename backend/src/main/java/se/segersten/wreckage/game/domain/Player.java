@@ -12,15 +12,15 @@ public class Player {
     private final String name;
     private final String accessTokenHash;
     private final boolean automated;
-    private int score;
     private final Set<String> visitedCheckpoints;
     private int crashes;
+    private boolean shieldConsumed;
 
     Player(UUID id, String name, String accessTokenHash) {
-        this(id, name, accessTokenHash, false, 0, Set.of(), 0);
+        this(id, name, accessTokenHash, false, Set.of(), 0, false);
     }
 
-    Player(UUID id, String name, String accessTokenHash, boolean automated, int score, Set<String> visitedCheckpoints, int crashes) {
+    Player(UUID id, String name, String accessTokenHash, boolean automated, Set<String> visitedCheckpoints, int crashes, boolean shieldConsumed) {
         this.id = Objects.requireNonNull(id, "id must not be null");
         if (name == null || name.isBlank()) {
             throw new IllegalArgumentException("Player name must not be blank");
@@ -28,10 +28,10 @@ public class Player {
         this.name = name.trim();
         this.accessTokenHash = Objects.requireNonNull(accessTokenHash, "accessTokenHash must not be null");
         this.automated = automated;
-        this.score = score;
         this.visitedCheckpoints = new LinkedHashSet<>(Objects.requireNonNull(visitedCheckpoints));
         if (crashes < 0) throw new IllegalArgumentException("crashes must not be negative");
         this.crashes = crashes;
+        this.shieldConsumed = shieldConsumed;
     }
 
     public static Player create(UUID id, String name, String accessTokenHash) {
@@ -39,7 +39,7 @@ public class Player {
     }
 
     public static Player createAutomated(UUID id, String name, String accessTokenHash) {
-        return new Player(id, name, accessTokenHash, true, 0, Set.of(), 0);
+        return new Player(id, name, accessTokenHash, true, Set.of(), 0, false);
     }
 
     public static Player rehydrate(UUID id, String name, String accessTokenHash) {
@@ -47,17 +47,22 @@ public class Player {
     }
 
     public static Player rehydrate(UUID id, String name, String accessTokenHash, int score, Set<String> visitedCheckpoints) {
-        return new Player(id, name, accessTokenHash, false, score, visitedCheckpoints, 0);
+        return new Player(id, name, accessTokenHash, false, visitedCheckpoints, 0, false);
     }
 
     public static Player rehydrate(UUID id, String name, String accessTokenHash, int score,
                                    Set<String> visitedCheckpoints, int crashes) {
-        return new Player(id, name, accessTokenHash, false, score, visitedCheckpoints, crashes);
+        return new Player(id, name, accessTokenHash, false, visitedCheckpoints, crashes, false);
     }
 
     public static Player rehydrate(UUID id, String name, String accessTokenHash, boolean automated,
                                    int score, Set<String> visitedCheckpoints, int crashes) {
-        return new Player(id, name, accessTokenHash, automated, score, visitedCheckpoints, crashes);
+        return new Player(id, name, accessTokenHash, automated, visitedCheckpoints, crashes, false);
+    }
+
+    public static Player rehydrate(UUID id, String name, String accessTokenHash, boolean automated,
+                                   Set<String> visitedCheckpoints, int crashes, boolean shieldConsumed) {
+        return new Player(id, name, accessTokenHash, automated, visitedCheckpoints, crashes, shieldConsumed);
     }
 
     public UUID getId() {
@@ -70,7 +75,6 @@ public class Player {
 
     public String getAccessTokenHash() { return accessTokenHash; }
     public boolean isAutomated() { return automated; }
-    public int getScore() { return score; }
     public Set<String> getVisitedCheckpoints() { return Set.copyOf(visitedCheckpoints); }
     public boolean visitCheckpoint(String checkpointId) { return visitedCheckpoints.add(checkpointId); }
     public int getCapturedCheckpointCount(Board board) {
@@ -93,7 +97,11 @@ public class Player {
     public boolean hasCompletedCheckpoints(Board board) {
         return !board.checkpoints().isEmpty() && getCapturedCheckpointCount(board) == board.checkpoints().size();
     }
-    public int changeScore(int delta) { score += delta; return score; }
     public int getCrashes() { return crashes; }
     public void recordCrash() { crashes++; }
+    public boolean isShieldConsumed() { return shieldConsumed; }
+    public void consumeShield() {
+        if (shieldConsumed) throw new IllegalStateException("Shield has already been consumed");
+        shieldConsumed = true;
+    }
 }
