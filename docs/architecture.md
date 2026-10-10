@@ -124,6 +124,7 @@ The principal endpoints are:
 - `GET /games/configuration/defaults`
 - `POST /games`
 - `POST /games/{gameId}/players`
+- `POST /games/{gameId}/bots`
 - `POST /games/{gameId}/start`
 - `GET /games/{gameId}`
 - `GET /games/{gameId}/players/{playerId}`
@@ -149,9 +150,9 @@ state.
 
 Dependencies point inward. `Game` is the aggregate root and owns player, vehicle,
 round, scoring, respawn, and completion invariants. `PlayerAutomation` is an
-application-layer profile seam: the default implementation does nothing, while
-the `headless-players` profile fills the lobby and locks non-human programs for
-manual and acceptance testing.
+application-layer seam that locks programs for automated players. Authenticated
+human players add bots on demand through the lobby; bots otherwise use the same
+aggregate membership, vehicles, cards, round lifecycle, and persistence as humans.
 
 ## Persistence and migrations
 
@@ -172,6 +173,4 @@ use PostgreSQL Testcontainers to cover Flyway, Hibernate validation, repository
 mapping, authentication, and JSON responses. The in-memory integration test
 covers the H2 profile. Playwright starts the H2-backed backend and Vite frontend
 to test planning, resolution, board effects, scoring, playback, reconnects,
-results, and respawning. A separate Playwright configuration covers the
-`headless-players` profile. In that profile one automated player joins each waiting
-lobby every three seconds, up to nine total players, and stops when the host starts.
+results, respawning, and adding automated players from the lobby.

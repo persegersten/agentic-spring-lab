@@ -34,7 +34,7 @@ test('Alice creates a game and Bob joins from a separate session', async ({ brow
 
     for (const page of [alice, bob]) {
       await expect(page.getByText(`Spel ${gameId.slice(0, 8)}`, { exact: true })).toBeVisible()
-      await expect(page.getByTestId('game-lobby').getByRole('listitem')).toHaveText(['Alice', 'Bob'])
+      await expect(page.getByTestId('game-lobby').getByRole('listitem')).toHaveText(['Alice (Human)', 'Bob (Human)'])
     }
   })
 })
@@ -64,10 +64,10 @@ test('the lobby stays at the root while two games remain active in one browser',
     await secondGame.reload()
 
     await expect(firstGame.getByText(`Spel ${firstGameId.slice(0, 8)}`, { exact: true })).toBeVisible()
-    await expect(firstGame.getByRole('listitem')).toHaveText(['Första spelaren'])
+    await expect(firstGame.getByRole('listitem')).toHaveText(['Första spelaren (Human)'])
     await expect(firstGame.getByRole('button', { name: 'Starta spelet', exact: true })).toBeDisabled()
     await expect(secondGame.getByText(`Spel ${secondGameId.slice(0, 8)}`, { exact: true })).toBeVisible()
-    await expect(secondGame.getByRole('listitem')).toHaveText(['Andra spelaren'])
+    await expect(secondGame.getByRole('listitem')).toHaveText(['Andra spelaren (Human)'])
     await expect(secondGame.getByRole('button', { name: 'Starta spelet', exact: true })).toBeDisabled()
 
     await firstGame.goto('/')

@@ -3,7 +3,7 @@
 set -euo pipefail
 
 usage() {
-    echo "Usage: $0 <postgres|in-memory> [headless-players|deterministic-e2e ...]" >&2
+    echo "Usage: $0 <postgres|in-memory> [deterministic-e2e]" >&2
 }
 
 if [[ $# -lt 1 ]]; then
@@ -25,7 +25,7 @@ esac
 profiles=$profile
 shift
 for optional_profile in "$@"; do
-    if [[ $optional_profile != "headless-players" && $optional_profile != "deterministic-e2e" ]]; then
+    if [[ $optional_profile != "deterministic-e2e" ]]; then
         echo "Unknown optional profile: $optional_profile" >&2
         usage
         exit 1
