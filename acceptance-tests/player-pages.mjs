@@ -9,14 +9,11 @@ export async function startGame(page) {
   await page.getByRole('button', { name: 'Starta spelet', exact: true }).click()
 }
 
-export async function chooseLoadout(page, weapon, ability) {
-  await page.getByTestId('loadout-weapon').selectOption(weapon)
-  await expect(page.getByRole('status')).toHaveCount(0)
-  await page.getByTestId('loadout-ability').selectOption(ability)
-  await expect(page.getByRole('status')).toHaveCount(0)
-}
-
-export async function fillProgram(page) {
+export async function fillProgram(page, { shield = false } = {}) {
+  if (shield) {
+    await page.getByTestId('activate-shield').check()
+    await expect(page.getByTestId('shield-status')).toContainText('Vald')
+  }
   const slots = page.getByTestId('program-slot')
   for (let index = 0; index < await slots.count(); index++) {
     const card = page.locator('[data-testid="command-card"]:enabled').first()

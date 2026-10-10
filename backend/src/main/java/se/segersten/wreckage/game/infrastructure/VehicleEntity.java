@@ -17,14 +17,10 @@ class VehicleEntity {
     @Column(name="spawn_x", nullable=false) private Integer spawnX;
     @Column(name="spawn_y", nullable=false) private Integer spawnY;
     @Enumerated(EnumType.STRING) @Column(name="spawn_direction", nullable=false) private Direction spawnDirection;
-    @Column(name="damage", nullable=false) private Integer damage;
-    @Column(name="rocket_ammo", nullable=false) private Integer rocketAmmo;
-    @Enumerated(EnumType.STRING) @Column(name="primary_weapon", nullable=false) private PrimaryWeapon primaryWeapon;
-    @Enumerated(EnumType.STRING) @Column(name="special_ability", nullable=false) private SpecialAbility specialAbility;
     protected VehicleEntity() {}
     static VehicleEntity fromDomain(VehicleState state, GameEntity game) { var e = new VehicleEntity(); e.domainId=state.vehicle().id(); e.playerDomainId=state.vehicle().playerId(); e.game=game; return e.updateFrom(state); }
-    VehicleEntity updateFrom(VehicleState state) { x=(double)state.position().x(); y=(double)state.position().y(); direction=state.orientation(); status=state.status(); spawnX=state.vehicle().spawnPoint().x(); spawnY=state.vehicle().spawnPoint().y(); spawnDirection=state.vehicle().spawnOrientation(); damage=state.damage(); rocketAmmo=state.rocketAmmo(); primaryWeapon=state.vehicle().primaryWeapon(); specialAbility=state.vehicle().specialAbility(); return this; }
+    VehicleEntity updateFrom(VehicleState state) { x=(double)state.position().x(); y=(double)state.position().y(); direction=state.orientation(); status=state.status(); spawnX=state.vehicle().spawnPoint().x(); spawnY=state.vehicle().spawnPoint().y(); spawnDirection=state.vehicle().spawnOrientation(); return this; }
     UUID domainId() { return domainId; }
     VehicleState toDomain() { return new VehicleState(new Vehicle(domainId, playerDomainId,
-            new Position(spawnX, spawnY), spawnDirection, primaryWeapon, specialAbility), new Position(x.intValue(), y.intValue()), direction, status, damage, rocketAmmo); }
+            new Position(spawnX, spawnY), spawnDirection), new Position(x.intValue(), y.intValue()), direction, status); }
 }

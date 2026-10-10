@@ -80,21 +80,8 @@ public class Game {
         players.add(player);
         SpawnPoint spawn = board.spawnPoints().get(index);
         Vehicle vehicle = new Vehicle(UUID.randomUUID(), player.getId(), spawn.position(), spawn.orientation());
-        vehicles.put(player.getId(), new VehicleState(vehicle, spawn.position(), spawn.orientation(),
-                VehicleStatus.ACTIVE, 0, 0));
+        vehicles.put(player.getId(), new VehicleState(vehicle, spawn.position(), spawn.orientation(), VehicleStatus.ACTIVE));
         return player;
-    }
-
-    public void updateLoadout(UUID playerId, PrimaryWeapon weapon, SpecialAbility ability) {
-        Objects.requireNonNull(weapon, "weapon must not be null");
-        Objects.requireNonNull(ability, "ability must not be null");
-        requirePlayer(playerId);
-        if (status != GameStatus.WAITING_FOR_PLAYERS || round != null)
-            throw new IllegalStateException("The loadout is fixed after the match starts");
-        VehicleState current = vehicles.get(playerId);
-        if (current == null) throw new IllegalArgumentException("Player has no vehicle");
-        vehicles.put(playerId, new VehicleState(current.vehicle().withLoadout(weapon, ability), current.position(),
-                current.orientation(), current.status(), current.damage(), 0));
     }
 
     public void start(Instant now) {
@@ -121,10 +108,8 @@ public class Game {
             UUID playerId = players.get(index).getId(); VehicleState state = vehicles.get(playerId);
             SpawnPoint spawn = selectedSpawns.get(index);
             Vehicle old = state.vehicle();
-            Vehicle vehicle = new Vehicle(old.id(), old.playerId(), spawn.position(), spawn.orientation(),
-                    old.primaryWeapon(), old.specialAbility());
-            vehicles.put(playerId, new VehicleState(vehicle, spawn.position(), spawn.orientation(),
-                    VehicleStatus.ACTIVE, 0, old.primaryWeapon() == PrimaryWeapon.ROCKET ? 1 : 0));
+            Vehicle vehicle = new Vehicle(old.id(), old.playerId(), spawn.position(), spawn.orientation());
+            vehicles.put(playerId, new VehicleState(vehicle, spawn.position(), spawn.orientation(), VehicleStatus.ACTIVE));
         }
         startRound(now, hands);
     }
@@ -166,11 +151,11 @@ public class Game {
                 new GameState(board, getVehicleStates().stream()
                         .filter(VehicleState::isActive)
                         .toList()),List.of(),now.plusSeconds(configuration.planningTimeoutSeconds()),
-                players.stream().collect(java.util.stream.Collectors.toMap(Player::getId, Player::getScore)), startEvents);
+                startEvents);
         status = GameStatus.RUNNING;
         if (programs.isEmpty()) {
             round = new Round(round.number(), RoundPhase.PLAYBACK, programs, initiative,
-                    round.initialState(), List.of(),round.planningDeadline(), round.initialScores(), round.startEvents());
+                    round.initialState(), List.of(),round.planningDeadline(), round.startEvents());
             completeRound();
         }
         return round;
@@ -193,8 +178,7 @@ public class Game {
                 if (!occupied.contains(candidate.position())) { selected = candidate; break; }
             }
             if (selected == null) continue;
-            VehicleState respawned = new VehicleState(vehicle, selected.position(), vehicle.spawnOrientation(),
-                    VehicleStatus.ACTIVE, 0, crashed.rocketAmmo());
+            VehicleState respawned = new VehicleState(vehicle, selected.position(), vehicle.spawnOrientation(), VehicleStatus.ACTIVE);
             vehicles.put(player.getId(), respawned);
             occupied.add(selected.position());
             events.add(RoundEvent.vehicleRespawned(crashed, respawned).withSequence(events.size() + 1));
@@ -236,7 +220,7 @@ public class Game {
             if (previous == null
                     || player.getCapturedCheckpointCount(board) != previous.getCapturedCheckpointCount(board)
                     || distanceToNextCheckpoint(player) != distanceToNextCheckpoint(previous)) placement = index + 1;
-            result.add(new GamePlacement(player.getId(), placement, player.getScore(),
+            result.add(new GamePlacement(player.getId(), placement,
                     player.getCapturedCheckpointCount(board), nullableDistanceToNextCheckpoint(player),
                     player.getCrashes(), placement == 1));
             previous = player;
@@ -248,9 +232,21 @@ public class Game {
         Checkpoint next = player.getNextCheckpoint(board);
         VehicleState vehicle = vehicles.get(player.getId());
         if (next == null) return -1;
-        if (vehicle == null) return Integer.MAX_VALUE;
-        return Math.abs(vehicle.position().x() - next.position().x())
-                + Math.abs(vehicle.position().y() - next.position().y());
+        if (vehicle == null || !vehicle.isActive()) return Integer.MAX_VALUE;
+        java.util.ArrayDeque<Position> queue = new java.util.ArrayDeque<>();
+        java.util.Map<Position,Integer> distance = new java.util.HashMap<>();
+        queue.add(vehicle.position()); distance.put(vehicle.position(), 0);
+        while (!queue.isEmpty()) {
+            Position current = queue.removeFirst();
+            if (current.equals(next.position())) return distance.get(current);
+            for (Direction direction : Direction.values()) {
+                Position candidate = current.move(direction);
+                if (!board.isValidPosition(candidate) || board.isObstacle(candidate) || board.isPit(candidate)
+                        || board.hasWall(current, direction) || distance.containsKey(candidate)) continue;
+                distance.put(candidate, distance.get(current) + 1); queue.addLast(candidate);
+            }
+        }
+        return Integer.MAX_VALUE;
     }
 
     private Integer nullableDistanceToNextCheckpoint(Player player) {

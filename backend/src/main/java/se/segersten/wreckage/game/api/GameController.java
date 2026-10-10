@@ -27,9 +27,6 @@ import se.segersten.wreckage.game.application.GameService;
 import se.segersten.wreckage.game.domain.Player;
 import se.segersten.wreckage.game.domain.MovementOrder;
 import se.segersten.wreckage.game.domain.GameConfiguration;
-import se.segersten.wreckage.game.domain.ScheduledAction;
-import se.segersten.wreckage.game.domain.PrimaryWeapon;
-import se.segersten.wreckage.game.domain.SpecialAbility;
 
 @RestController
 @RequestMapping("/games")
@@ -54,13 +51,7 @@ public class GameController {
                 ? GameConfiguration.defaults()
                 : new GameConfiguration(request.maxPlayers(), request.joinTimeoutSeconds(),
                         request.programSize(), request.planningTimeoutSeconds(),
-                        GameConfiguration.DEFAULT_ROUND_LIMIT,
-                        request.checkpointScore() == null ? GameConfiguration.DEFAULT_CHECKPOINT_SCORE : request.checkpointScore(),
-                        request.controlPointScore() == null ? GameConfiguration.DEFAULT_CONTROL_POINT_SCORE : request.controlPointScore(),
-                        request.crashPenalty() == null ? GameConfiguration.DEFAULT_CRASH_PENALTY : request.crashPenalty(),
-                        request.pushCrashScore() == null ? GameConfiguration.DEFAULT_PUSH_CRASH_SCORE : request.pushCrashScore(),
-                        request.weaponCrashScore() == null ? GameConfiguration.DEFAULT_WEAPON_CRASH_SCORE : request.weaponCrashScore(),
-                        request.mapId());
+                        GameConfiguration.DEFAULT_ROUND_LIMIT, request.mapId());
         var created = gameService.createHostedGame(configuration);
         return new CreateGameResponse(GameResponse.from(created.game()), created.hostToken());
     }
@@ -109,14 +100,6 @@ public class GameController {
         return PlayerGameResponse.from(gameService.getPlayerGame(gameId, playerId, token), playerId);
     }
 
-    @PutMapping("/{gameId}/players/{playerId}/loadout")
-    public PlayerGameResponse updateLoadout(@PathVariable UUID gameId, @PathVariable UUID playerId,
-            @RequestHeader(value = "X-Player-Token", required = false) String token,
-            @RequestBody LoadoutRequest request) {
-        gameService.updateLoadout(gameId, playerId, token, request.weapon(), request.ability());
-        return PlayerGameResponse.from(gameService.getPlayerGame(gameId, playerId, token), playerId);
-    }
-
     @PostMapping("/{gameId}/rounds")
     @ResponseStatus(HttpStatus.CREATED)
     public PlayerGameResponse startRound(@PathVariable UUID gameId,
@@ -132,7 +115,7 @@ public class GameController {
             @RequestHeader("X-Player-Id") UUID playerId,
             @RequestHeader(value = "X-Player-Token", required = false) String token,
             @RequestBody ProgramRequest request) {
-        gameService.submitProgram(gameId, playerId, token, request.orders(), request.scheduledAction());
+        gameService.submitProgram(gameId, playerId, token, request.orders(), request.shieldSelected());
         return PlayerGameResponse.from(gameService.getPlayerGame(gameId, playerId, token), playerId);
     }
 
@@ -141,7 +124,7 @@ public class GameController {
             @RequestHeader("X-Player-Id") UUID playerId,
             @RequestHeader(value = "X-Player-Token", required = false) String token,
             @RequestBody ProgramRequest request) {
-        gameService.saveProgramDraft(gameId, playerId, token, request.orders(), request.scheduledAction());
+        gameService.saveProgramDraft(gameId, playerId, token, request.orders(), request.shieldSelected());
         return PlayerGameResponse.from(gameService.getPlayerGame(gameId, playerId, token), playerId);
     }
 
@@ -191,11 +174,8 @@ public class GameController {
     }
     public record CreateGameRequest(int maxPlayers, int joinTimeoutSeconds,
                                     int programSize, int planningTimeoutSeconds,
-                                    Integer checkpointScore, Integer controlPointScore,
-                                    Integer crashPenalty, Integer pushCrashScore, Integer weaponCrashScore,
                                     String mapId) {}
-    public record ProgramRequest(List<MovementOrder> orders, ScheduledAction scheduledAction) {}
-    public record LoadoutRequest(PrimaryWeapon weapon, SpecialAbility ability) {}
+    public record ProgramRequest(List<MovementOrder> orders, boolean shieldSelected) {}
     public record PlayerJoinResponse(UUID id, String name, String token) {}
     public record CreateGameResponse(@com.fasterxml.jackson.annotation.JsonUnwrapped GameResponse game,
                                      String hostToken) {}

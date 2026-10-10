@@ -1,13 +1,19 @@
 Wreckage
 
-Web-based turn-based multiplayer vehicle combat game.
+Web-based turn-based multiplayer checkpoint racing game.
 
 Current scope:
 - Create game
 - Add players
 - Read game state
-- Build a private ordered program from the complete v2 command set
-- Resolve simultaneous movement and replay each round in the browser
+- Receive eight random cards and privately program five registers per round
+- Use the Laser card and ramming to displace other robots
+- Activate one round-long shield once per match
+- Race through CP1–CP4 in order and replay each round in the browser
+
+Every player has identical capabilities. There are no lobby loadouts, hit
+points, damage, ammunition, or combat scores; results depend on checkpoint
+progress and the fixed maximum-round distance tie-breaker.
 
 There is no account system; private player views use the secret token returned
 when that player joins a game.

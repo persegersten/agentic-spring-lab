@@ -5,12 +5,12 @@ import java.util.Set;
 
 import se.segersten.wreckage.game.domain.Player;
 
-public record PlayerResponse(UUID id, String name, int score, Set<String> visitedCheckpoints,
+public record PlayerResponse(UUID id, String name, Set<String> visitedCheckpoints,
                              int capturedCheckpoints, String nextCheckpoint, int crashes) {
 
     public static PlayerResponse from(Player player, se.segersten.wreckage.game.domain.Board board) {
         var next = player.getNextCheckpoint(board);
-        return new PlayerResponse(player.getId(), player.getName(), player.getScore(), player.getVisitedCheckpoints(),
+        return new PlayerResponse(player.getId(), player.getName(), player.getVisitedCheckpoints(),
                 player.getCapturedCheckpointCount(board), next == null ? null : next.id(), player.getCrashes());
     }
 }
