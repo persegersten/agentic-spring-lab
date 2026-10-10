@@ -6,12 +6,14 @@ const actionLabels: Record<ActionType, string> = { LASER: 'Laser', REPULSOR: 'Re
 const withDefaults = (program: MovementOrder[], size: number): MovementOrder[] => Array.from({ length: size }, (_, index) => program[index] ?? 'WAIT')
 type DraggedCard = { source: 'hand'; index: number; command: MovementOrder } | { source: 'program'; index: number }
 
-export function CommandHand({ hand, program, scheduledAction, programSize, locked, rocketAmmo, primaryWeapon, specialAbility, onReorder, onSubmit }: {
+export function CommandHand({ hand, program, scheduledAction, programSize, locked, executing = false, activeRegister = null, rocketAmmo, primaryWeapon, specialAbility, onReorder, onSubmit }: {
   hand: MovementOrder[]
   program: MovementOrder[]
   scheduledAction: ScheduledAction | null
   programSize: number
   locked: boolean
+  executing?: boolean
+  activeRegister?: number | null
   rocketAmmo: number
   primaryWeapon: PrimaryWeapon
   specialAbility: SpecialAbility
@@ -23,7 +25,7 @@ export function CommandHand({ hand, program, scheduledAction, programSize, locke
   const [saving, setSaving] = useState(false)
   const [dragged, setDragged] = useState<DraggedCard | null>(null)
   const [dropIndex, setDropIndex] = useState<number | null>(null)
-  const disabled = locked || saving
+  const disabled = locked || executing || saving
   const actionTypes: ActionType[] = [
     ...(primaryWeapon === 'ROCKET' && rocketAmmo === 0 ? [] : [primaryWeapon]),
     ...(specialAbility === 'SIDE_STEP' ? ['SIDE_STEP_LEFT', 'SIDE_STEP_RIGHT'] as ActionType[] : [specialAbility]),
@@ -111,10 +113,10 @@ export function CommandHand({ hand, program, scheduledAction, programSize, locke
 
   const displayed = withDefaults(draft, programSize)
 
-  return <section className="panel program-panel" data-testid="player-program" data-locked={locked}>
+  return <section className="panel program-panel" data-testid="player-program" data-locked={locked} data-executing={executing}>
     <h2>Ditt program</h2>
     <p>Välj kort nedan. Programmet fylls från vänster och registren utförs i ordning.</p>
-    <p className="program-state" data-testid="program-lock-state">{locked ? 'Programmet är låst' : 'Programmet kan ändras'}</p>
+    <p className="program-state" data-testid="program-lock-state">{executing ? 'Programmet körs' : locked ? 'Programmet är låst' : 'Programmet kan ändras'}</p>
     <p data-testid="player-loadout">Loadout: {primaryWeapon} + {specialAbility.replace('_', ' ')}</p>
     {saving && <p role="status">Sparar program…</p>}
     <ol
@@ -126,13 +128,16 @@ export function CommandHand({ hand, program, scheduledAction, programSize, locke
     >
       {displayed.map((command, index) => {
         const filled = index < draft.length
+        const active = executing && activeRegister === index + 1
         return <li
-          className={`program-card${filled ? '' : ' program-card-default'}${dragged?.source === 'program' && dragged.index === index ? ' card-dragging' : ''}${dropIndex === index ? ' card-drop-target' : ''}`}
+          className={`program-card${filled ? '' : ' program-card-default'}${active ? ' program-card-active' : ''}${dragged?.source === 'program' && dragged.index === index ? ' card-dragging' : ''}${dropIndex === index ? ' card-drop-target' : ''}`}
           key={index}
           data-testid="program-slot"
           data-slot={index + 1}
           data-command={command}
           data-filled={filled}
+          data-active={active}
+          aria-current={active ? 'step' : undefined}
           draggable={filled && !disabled}
           onDragStart={event => startProgramDrag(event, index)}
           onDragOver={event => dragOver(event, index)}
