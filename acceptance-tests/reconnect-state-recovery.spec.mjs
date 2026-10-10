@@ -8,7 +8,7 @@ test('a player reloads the waiting lobby as the same player', async ({ page }) =
     response.request().method() === 'POST' && response.url().endsWith('/players'))
   await joinGame(page, 'Per')
   const player = await (await joinedResponse).json()
-  await expect(page.getByRole('listitem')).toHaveText(['Per'])
+  await expect(page.getByRole('listitem')).toHaveText(['Per (Human)'])
   const gameLink = await page.getByLabel('Spellänk').inputValue()
   const restoredResponse = page.waitForResponse(response =>
     response.request().method() === 'GET' && response.url().endsWith(`/players/${player.id}`))
@@ -17,7 +17,7 @@ test('a player reloads the waiting lobby as the same player', async ({ page }) =
 
   expect((await (await restoredResponse).json()).playerId).toBe(player.id)
   await expect(page).toHaveURL(gameLink)
-  await expect(page.getByRole('listitem')).toHaveText(['Per'])
+  await expect(page.getByRole('listitem')).toHaveText(['Per (Human)'])
   await expect(page.getByLabel('Spelarnamn')).not.toBeVisible()
   await expect(page.getByTestId('game-board')).not.toBeVisible()
   await expect(page.getByRole('button', { name: 'Starta spelet', exact: true })).toBeDisabled()

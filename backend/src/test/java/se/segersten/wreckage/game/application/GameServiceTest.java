@@ -57,7 +57,7 @@ class GameServiceTest {
     void createsGamesWithTheInjectedBoardFixture() {
         InMemoryGameRepository repository = new InMemoryGameRepository();
         Board fixture = new Board(3, 2);
-        GameService service = new GameService(repository, Clock.systemUTC(), new NoOpPlayerAutomation(),
+        GameService service = new GameService(repository, Clock.systemUTC(), new BotPlayerAutomation(),
                 () -> fixture);
 
         assertThat(service.createGame().getBoard()).isSameAs(fixture);
@@ -299,17 +299,19 @@ class GameServiceTest {
     }
 
     @Test
-    void shouldFillLobbyAndLockHeadlessProgramsInDealtOrder() {
+    void shouldAddUniquelyNamedBotsAndLockTheirProgramsInDealtOrder() {
         InMemoryGameRepository repository = new InMemoryGameRepository();
-        GameService service = new GameService(repository, Clock.systemUTC(), new HeadlessPlayerAutomation());
+        GameService service = new GameService(repository, Clock.systemUTC(), new BotPlayerAutomation());
         var hosted = service.createHostedGame(new GameConfiguration(4, 60, 3, 30));
         Game game = hosted.game();
-        var human = service.addPlayer(game.getId(), "Headless 1");
-        service.addHeadlessPlayers(); service.addHeadlessPlayers(); service.addHeadlessPlayers();
+        var human = service.addPlayer(game.getId(), "Bot 1");
+        service.addBot(game.getId(), human.player().getId(), human.token());
+        service.addBot(game.getId(), human.player().getId(), human.token());
+        service.addBot(game.getId(), human.player().getId(), human.token());
         service.startGame(game.getId(), hosted.hostToken());
 
         assertThat(game.getPlayers()).extracting(Player::getName)
-                .containsExactly("Headless 1", "Headless 2", "Headless 3", "Headless 4");
+                .containsExactly("Bot 1", "Bot 2", "Bot 3", "Bot 4");
         assertThat(game.getRound().phase()).isEqualTo(RoundPhase.PLANNING);
         assertThat(game.getRound().programs().get(human.player().getId()).ready()).isFalse();
         game.getPlayers().stream().skip(1).forEach(player -> {
@@ -320,13 +322,37 @@ class GameServiceTest {
     }
 
     @Test
-    void shouldResolveAndPrepareHeadlessPlayersForTheNextRound() {
+    void shouldAuthenticateBotCreationAndEnforceLobbyCapacityAndStatus() {
         InMemoryGameRepository repository = new InMemoryGameRepository();
-        GameService service = new GameService(repository, Clock.systemUTC(), new HeadlessPlayerAutomation());
+        GameService service = new GameService(repository);
+        var hosted = service.createHostedGame(new GameConfiguration(2, 60, 3, 30));
+        var human = service.addPlayer(hosted.game().getId(), "Alice");
+
+        assertThatThrownBy(() -> service.addBot(hosted.game().getId(), human.player().getId(), "wrong"))
+                .isInstanceOf(SecurityException.class).hasMessage("Invalid player token");
+
+        Player bot = service.addBot(hosted.game().getId(), human.player().getId(), human.token());
+        assertThat(bot.getName()).isEqualTo("Bot 1");
+        assertThat(bot.isAutomated()).isTrue();
+        assertThat(hosted.game().getVehicleStates()).hasSize(2);
+
+        assertThatThrownBy(() -> service.addBot(hosted.game().getId(), human.player().getId(), human.token()))
+                .isInstanceOf(IllegalStateException.class).hasMessage("The lobby is full");
+
+        service.startGame(hosted.game().getId(), hosted.hostToken());
+        assertThatThrownBy(() -> service.addBot(hosted.game().getId(), human.player().getId(), human.token()))
+                .isInstanceOf(IllegalStateException.class).hasMessage("The lobby is closed");
+    }
+
+    @Test
+    void shouldResolveAndPrepareBotsForTheNextRound() {
+        InMemoryGameRepository repository = new InMemoryGameRepository();
+        GameService service = new GameService(repository, Clock.systemUTC(), new BotPlayerAutomation());
         var hosted = service.createHostedGame(new GameConfiguration(3, 60, 3, 30));
         Game game = hosted.game();
         var human = service.addPlayer(game.getId(), "Alice");
-        service.addHeadlessPlayers(); service.addHeadlessPlayers();
+        service.addBot(game.getId(), human.player().getId(), human.token());
+        service.addBot(game.getId(), human.player().getId(), human.token());
         service.startGame(game.getId(), hosted.hostToken());
 
         service.submitProgram(game.getId(), human.player().getId(), human.token(),
@@ -348,30 +374,30 @@ class GameServiceTest {
     }
 
     @Test
-    void shouldLockHeadlessProgramInItsExistingOrder() {
+    void shouldLockBotProgramInItsExistingOrder() {
         UUID humanId = UUID.randomUUID();
-        UUID headlessId = UUID.randomUUID();
+        UUID botId = UUID.randomUUID();
         Player human = Player.create(humanId, "Alice", "human-token-hash");
-        Player headless = Player.createAutomated(headlessId, "Headless 1", "headless-token-hash");
+        Player bot = Player.createAutomated(botId, "Bot 1", "bot-token-hash");
         Board board = new Board(5, 5);
         var humanVehicle = new se.segersten.wreckage.game.domain.Vehicle(UUID.randomUUID(), humanId);
-        var headlessVehicle = new se.segersten.wreckage.game.domain.Vehicle(UUID.randomUUID(), headlessId);
+        var botVehicle = new se.segersten.wreckage.game.domain.Vehicle(UUID.randomUUID(), botId);
         var vehicles = Map.of(
                 humanId, new se.segersten.wreckage.game.domain.VehicleState(humanVehicle,
                         new se.segersten.wreckage.game.domain.Position(0, 0),
                         se.segersten.wreckage.game.domain.Direction.SOUTH),
-                headlessId, new se.segersten.wreckage.game.domain.VehicleState(headlessVehicle,
+                botId, new se.segersten.wreckage.game.domain.VehicleState(botVehicle,
                         new se.segersten.wreckage.game.domain.Position(1, 0),
                         se.segersten.wreckage.game.domain.Direction.SOUTH));
         Instant now = Instant.parse("2026-01-01T12:00:00Z");
-        Game game = new Game(UUID.randomUUID(), List.of(human, headless), board,
+        Game game = new Game(UUID.randomUUID(), List.of(human, bot), board,
                 GameStatus.RUNNING, vehicles, null, new GameConfiguration(2, 60, 3, 30),
                 now, now.plusSeconds(60));
         game.startRound(java.time.Instant.now());
 
-        new HeadlessPlayerAutomation().lockHeadlessPrograms(game);
+        new BotPlayerAutomation().lockBotPrograms(game);
 
-        var program = game.getRound().programs().get(headlessId);
+        var program = game.getRound().programs().get(botId);
         assertThat(program.commands()).containsExactly(MovementOrder.WAIT,
                 MovementOrder.WAIT, MovementOrder.WAIT);
         assertThat(program.commands()).containsExactlyElementsOf(program.commands());

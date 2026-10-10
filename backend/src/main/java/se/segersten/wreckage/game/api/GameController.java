@@ -97,6 +97,16 @@ public class GameController {
         return new PlayerJoinResponse(join.player().getId(), join.player().getName(), join.token());
     }
 
+    @PostMapping("/{gameId}/bots")
+    @ResponseStatus(HttpStatus.CREATED)
+    @Operation(summary = "Add a bot to a game lobby")
+    public PlayerResponse addBot(@PathVariable UUID gameId,
+            @RequestHeader("X-Player-Id") UUID playerId,
+            @RequestHeader(value = "X-Player-Token", required = false) String token) {
+        Player bot = gameService.addBot(gameId, playerId, token);
+        return PlayerResponse.from(bot, gameService.getGame(gameId).getBoard());
+    }
+
     @PostMapping("/{gameId}/start")
     public GameResponse startGame(@PathVariable UUID gameId,
             @RequestHeader(value = "X-Host-Token", required = false) String hostToken) {

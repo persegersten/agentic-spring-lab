@@ -46,11 +46,11 @@ public class GameService {
     }
 
     public GameService(GameRepository gameRepository) {
-        this(gameRepository, Clock.systemUTC(), new NoOpPlayerAutomation(), null, localMaps(), defaultDealer());
+        this(gameRepository, Clock.systemUTC(), new BotPlayerAutomation(), null, localMaps(), defaultDealer());
     }
 
     GameService(GameRepository gameRepository, Clock clock) {
-        this(gameRepository, clock, new NoOpPlayerAutomation(), null, localMaps(), defaultDealer());
+        this(gameRepository, clock, new BotPlayerAutomation(), null, localMaps(), defaultDealer());
     }
 
     GameService(GameRepository gameRepository, Clock clock, PlayerAutomation playerAutomation) {
@@ -112,6 +112,20 @@ public class GameService {
         return new PlayerJoin(player, token);
     }
 
+    public Player addBot(UUID gameId, UUID requestingPlayerId, String token) {
+        Game game = authenticatedGameForUpdate(gameId, requestingPlayerId, token);
+        if (game.requirePlayer(requestingPlayerId).isAutomated())
+            throw new SecurityException("Automated players cannot add bots");
+        int nameIndex = 1;
+        String name;
+        do {
+            name = "Bot " + nameIndex++;
+        } while (hasPlayerNamed(game, name));
+        Player bot = game.addAutomatedPlayer(name, hash(UUID.randomUUID().toString()), clock.instant());
+        gameRepository.save(game);
+        return bot;
+    }
+
     public Game startGame(UUID gameId, String hostToken) {
         Game game = findGameForUpdate(gameId);
         authenticateHost(game, hostToken);
@@ -128,7 +142,7 @@ public class GameService {
                 selectedBoard.walls().stream().toList(), selectedBoard.pits().stream().toList(),
                 selectedBoard.conveyors(), selectedBoard.rotators(), selectedBoard.controlPoints().stream().toList());
         game.start(clock.instant(), effective, dealHands(game));
-        playerAutomation.lockHeadlessPrograms(game);
+        playerAutomation.lockBotPrograms(game);
         resolveIfReady(game);
         return gameRepository.save(game);
     }
@@ -149,18 +163,12 @@ public class GameService {
         if (game.getRound().number() < completedRoundNumber)
             throw new IllegalArgumentException("The completed round does not exist");
         Round round = game.startRound(clock.instant(), dealHands(game));
-        playerAutomation.lockHeadlessPrograms(game);
+        playerAutomation.lockBotPrograms(game);
         resolveIfReady(game);
         gameRepository.save(game);
         return round;
     }
 
-    public void addHeadlessPlayers() {
-        Instant now = clock.instant();
-        for (Game game : gameRepository.findAllByStatusForUpdate(GameStatus.WAITING_FOR_PLAYERS)) {
-            if (playerAutomation.addHeadlessPlayer(game, now)) gameRepository.save(game);
-        }
-    }
     public void completeExpiredPlanning(){Instant now=clock.instant();for(Game game:gameRepository.findAllByStatusForUpdate(GameStatus.RUNNING)){Round round=game.getRound();if(round!=null&&round.completeTimedOutPrograms(now)){resolveIfReady(game);gameRepository.save(game);}}}
 
     public Game getPlayerGame(UUID gameId, UUID playerId, String token) {
@@ -289,6 +297,10 @@ public class GameService {
             return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
                     .digest(value.getBytes(StandardCharsets.UTF_8)));
         } catch (NoSuchAlgorithmException exception) { throw new IllegalStateException(exception); }
+    }
+
+    private static boolean hasPlayerNamed(Game game, String name) {
+        return game.getPlayers().stream().anyMatch(player -> player.getName().equals(name));
     }
 
     public record PlayerJoin(Player player, String token) {}

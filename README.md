@@ -62,18 +62,9 @@ Start both services with one database profile argument:
 ./start.sh in-memory
 ```
 
-For manual testing from a single browser, add the `headless-players` Spring
-profile:
-
-```bash
-./start.sh in-memory headless-players
-```
-
-The first player joining a game is controlled by the browser. The profile
-adds one headless player every three seconds up to nine total players or until the
-host starts the game, and locks each headless player's deterministic WAIT program.
-The first player remains the only participant requiring input. Omit the
-optional profile for normal multiplayer games.
+For manual testing from a single browser, join the created lobby and use the
+`Add Bot` button. Each bot occupies a normal player slot and submits its program
+automatically throughout the match.
 
 For PostgreSQL, start the database first:
 
@@ -94,7 +85,7 @@ Heroku builds the root `Dockerfile` using `heroku.yml`. The build installs
 Node.js 24, npm and frontend dependencies (including Vite), builds the frontend,
 and packages it inside the Spring Boot JAR using Java 25 and the Maven wrapper.
 The runtime image contains Java 25 and the JAR; Spring Boot serves both the
-frontend and API on Heroku's `PORT` with `in-memory,headless-players` enabled.
+frontend and API on Heroku's `PORT` with the `in-memory` profile enabled.
 No Vite development server or Maven runs in production.
 
 Set the existing Heroku app to the container stack once before deploying:
@@ -115,8 +106,8 @@ docker run --rm -p 8080:8080 -e PORT=8080 wreckage
 ```
 
 Open <http://localhost:8080>. In-memory game data is lost whenever the container
-or dyno restarts. Local development still uses `./start.sh in-memory headless-players`
-with Vite and the backend as separate processes.
+or dyno restarts. Local development uses `./start.sh in-memory` with Vite and the
+backend as separate processes.
 
 ## Run the backend only
 
@@ -134,12 +125,6 @@ use the `in-memory` profile:
 
 ```bash
 ./start-server.sh in-memory
-```
-
-The backend-only equivalent for single-browser testing is:
-
-```bash
-./start-server.sh in-memory headless-players
 ```
 
 The `in-memory` profile uses an H2 database that is discarded when the backend

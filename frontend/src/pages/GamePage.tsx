@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { addPlayer, createGame, getGame, getPlayerGame, saveProgramDraft, startGame, startRound, submitProgram, updateLoadout } from '../api/games'
+import { addBot, addPlayer, createGame, getGame, getPlayerGame, saveProgramDraft, startGame, startRound, submitProgram, updateLoadout } from '../api/games'
 import { CommandHand } from '../components/CommandHand'
 import { GameBoard } from '../components/GameBoard'
 import { RoundPlayback } from '../components/RoundPlayback'
@@ -163,6 +163,14 @@ export function GamePage() {
     })
   }
 
+  async function createBot() {
+    if (!session) return
+    await run(async () => {
+      await addBot(session)
+      await refresh()
+    })
+  }
+
   const lobby = view ?? game
 
   useEffect(() => {
@@ -210,10 +218,11 @@ export function GamePage() {
       <span className="game-code">Spel {lobby.id.slice(0, 8)}</span>
       {lobby.status === 'WAITING_FOR_PLAYERS' ? <>
         <label>Spellänk<input aria-label="Spellänk" readOnly value={gameLink} /></label>
-        <button className="secondary" onClick={() => void run(() => navigator.clipboard.writeText(gameLink))}>Kopiera spellänk</button>
+        <button className="secondary" disabled={working} onClick={() => void run(() => navigator.clipboard.writeText(gameLink))}>Kopiera spellänk</button>
+        {session && <button disabled={working || lobby.players.length >= lobby.configuration.maxPlayers} onClick={() => void createBot()}>Add Bot</button>}
         <p>Brädstorlek och antal rundor bestäms när matchen startar.</p>
         <h3>Spelare anslutna</h3>
-        {lobby.players.length ? <><ul>{lobby.players.map(player => <li key={player.id}>{player.name}</li>)}</ul><div className="lobby-loadouts">{lobby.players.map(player => { const vehicle=lobby.vehicles.find(candidate=>candidate.playerId===player.id); return <section key={player.id} data-testid="lobby-player"><strong>{player.name}</strong><span data-testid="public-loadout">{vehicle?.primaryWeapon} + {vehicle?.specialAbility.replace('_',' ')}</span>{session?.playerId===player.id&&vehicle&&<LoadoutSelector weapon={vehicle.primaryWeapon} ability={vehicle.specialAbility} disabled={working} onChange={async (weapon,ability)=>run(async()=>setView(await updateLoadout(session,weapon,ability)))} />}</section> })}</div></> : <p>Bli den första spelaren</p>}
+        {lobby.players.length ? <><ul>{lobby.players.map(player => <li key={player.id}>{player.name} <span data-testid="player-kind">({player.automated ? 'Bot' : 'Human'})</span></li>)}</ul><div className="lobby-loadouts">{lobby.players.map(player => { const vehicle=lobby.vehicles.find(candidate=>candidate.playerId===player.id); return <section key={player.id} data-testid="lobby-player"><strong>{player.name}</strong><span>{player.automated ? 'Bot' : 'Human'}</span><span data-testid="public-loadout">{vehicle?.primaryWeapon} + {vehicle?.specialAbility.replace('_',' ')}</span>{session?.playerId===player.id&&vehicle&&<LoadoutSelector weapon={vehicle.primaryWeapon} ability={vehicle.specialAbility} disabled={working} onChange={async (weapon,ability)=>run(async()=>setView(await updateLoadout(session,weapon,ability)))} />}</section> })}</div></> : <p>Bli den första spelaren</p>}
         <p>{lobby.players.length} / {lobby.configuration.maxPlayers} spelare</p>
         {!session && <>
           <input aria-label="Spelarnamn" placeholder="Ditt namn" value={name} onChange={e => setName(e.target.value)} />

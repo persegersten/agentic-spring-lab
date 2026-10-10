@@ -81,7 +81,7 @@ test('the host must join before starting even when two guests have joined', asyn
       await page.goto(gameLink)
       await joinGame(page, name)
     }
-    await expect(host.getByRole('listitem')).toHaveText(['Bob', 'Charlie'])
+    await expect(host.getByRole('listitem')).toHaveText(['Bob (Human)', 'Charlie (Human)'])
     await expect(host.getByRole('button', { name: 'Starta spelet', exact: true })).toBeDisabled()
     await joinGame(host, 'Alice')
     await expect(host.getByRole('button', { name: 'Starta spelet', exact: true })).toBeEnabled()

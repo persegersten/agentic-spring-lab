@@ -18,18 +18,9 @@ Then run the tests:
 npm test
 ```
 
-This runs both game creation and planning scenarios. The planning scenario checks
-private editable programs, repeated commands, locking, and shared readiness.
-
-Run the single-browser scenario separately:
-
-```bash
-npm run test:headless
-```
-
-This configuration starts the backend with both `in-memory` and
-`headless-players`, then verifies that the first player can complete rounds while
-all remaining players join and accept their program command order without browsers.
+This runs game creation, planning, multiplayer, and lobby-bot scenarios. The bot
+scenario verifies that a player can add automated opponents and complete rounds
+without opening browsers for them.
 
 Playwright starts the Spring Boot backend with the disposable `in-memory`
 and `deterministic-e2e` profiles and starts the Vite development server

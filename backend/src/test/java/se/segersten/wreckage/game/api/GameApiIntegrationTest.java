@@ -150,6 +150,63 @@ class GameApiIntegrationTest {
     }
 
     @Test
+    void authenticatedPlayerAddsBotsToTheCurrentLobby() throws Exception {
+        HttpResponse<String> created = post("/games", """
+                {"maxPlayers":3,"joinTimeoutSeconds":90,"programSize":3,"planningTimeoutSeconds":45}
+                """);
+        String gameId = json(created).path("id").asText();
+        JsonNode alice = json(post("/games/%s/players".formatted(gameId), "{\"name\":\"Alice\"}"));
+
+        HttpResponse<String> first = postBot(gameId, alice);
+        HttpResponse<String> second = postBot(gameId, alice);
+
+        assertThat(first.statusCode()).isEqualTo(HttpStatus.CREATED.value());
+        assertThat(json(first).path("name").asText()).isEqualTo("Bot 1");
+        assertThat(json(first).path("automated").asBoolean()).isTrue();
+        assertThat(json(second).path("name").asText()).isEqualTo("Bot 2");
+        JsonNode game = json(get("/games/" + gameId));
+        assertThat(game.path("players")).extracting(player -> player.path("name").asText())
+                .containsExactly("Alice", "Bot 1", "Bot 2");
+        assertThat(game.path("players").path(0).path("automated").asBoolean()).isFalse();
+        assertThat(game.path("players").path(1).path("automated").asBoolean()).isTrue();
+        assertThat(game.path("vehicles")).hasSize(3);
+
+        HttpResponse<String> full = postBot(gameId, alice);
+        assertThat(full.statusCode()).isEqualTo(HttpStatus.CONFLICT.value());
+        assertThat(json(full).path("message").asText()).isEqualTo("The lobby is full");
+    }
+
+    @Test
+    void botCreationRequiresAValidPlayerFromTheSameGame() throws Exception {
+        String firstGameId = createGameId();
+        JsonNode alice = json(post("/games/%s/players".formatted(firstGameId), "{\"name\":\"Alice\"}"));
+        String secondGameId = createGameId();
+
+        HttpResponse<String> wrongToken = postBot(firstGameId, alice, "wrong");
+        assertThat(wrongToken.statusCode()).isEqualTo(HttpStatus.FORBIDDEN.value());
+
+        HttpResponse<String> wrongGame = postBot(secondGameId, alice);
+        assertThat(wrongGame.statusCode()).isEqualTo(HttpStatus.BAD_REQUEST.value());
+        assertThat(json(wrongGame).path("message").asText()).isEqualTo("Player is not part of this game");
+    }
+
+    @Test
+    void cannotAddBotAfterTheGameStarts() throws Exception {
+        HttpResponse<String> created = post("/games", """
+                {"maxPlayers":3,"joinTimeoutSeconds":90,"programSize":3,"planningTimeoutSeconds":45}
+                """);
+        String gameId = json(created).path("id").asText();
+        JsonNode alice = json(post("/games/%s/players".formatted(gameId), "{\"name\":\"Alice\"}"));
+        postBot(gameId, alice);
+        postHost(gameId, json(created).path("hostToken").asText());
+
+        HttpResponse<String> response = postBot(gameId, alice);
+
+        assertThat(response.statusCode()).isEqualTo(HttpStatus.CONFLICT.value());
+        assertThat(json(response).path("message").asText()).isEqualTo("The lobby is closed");
+    }
+
+    @Test
     void onlyHostStartsPlanningAndPersistsThePhase() throws Exception {
         HttpResponse<String> created = post("/games", """
                 {"maxPlayers":2,"joinTimeoutSeconds":90,"programSize":3,"planningTimeoutSeconds":45}
@@ -675,6 +732,7 @@ class GameApiIntegrationTest {
         assertThat(paths.path("/games").has("post")).isTrue();
         assertThat(paths.path("/games/configuration/defaults").has("get")).isTrue();
         assertThat(paths.path("/games/{gameId}/players").has("post")).isTrue();
+        assertThat(paths.path("/games/{gameId}/bots").has("post")).isTrue();
         assertThat(paths.path("/games/{gameId}/start").has("post")).isTrue();
         assertThat(paths.path("/games/{gameId}").has("get")).isTrue();
         assertThat(paths.path("/games/{gameId}/players/{playerId}").has("get")).isTrue();
@@ -745,6 +803,21 @@ class GameApiIntegrationTest {
                 .header("X-Player-Id", player.path("id").asText())
                 .header("X-Player-Token", player.path("token").asText())
                 .POST(HttpRequest.BodyPublishers.ofString(body))
+                .build();
+        return httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+    }
+
+    private HttpResponse<String> postBot(String gameId, JsonNode player)
+            throws IOException, InterruptedException {
+        return postBot(gameId, player, player.path("token").asText());
+    }
+
+    private HttpResponse<String> postBot(String gameId, JsonNode player, String token)
+            throws IOException, InterruptedException {
+        HttpRequest request = HttpRequest.newBuilder(uri("/games/%s/bots".formatted(gameId)))
+                .header("X-Player-Id", player.path("id").asText())
+                .header("X-Player-Token", token)
+                .POST(HttpRequest.BodyPublishers.noBody())
                 .build();
         return httpClient.send(request, HttpResponse.BodyHandlers.ofString());
     }

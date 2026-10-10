@@ -16,9 +16,4 @@ public class LobbyScheduler {
     public void completeExpiredPlanning() {
         gameService.completeExpiredPlanning();
     }
-
-    @Scheduled(fixedDelay = 3000)
-    public void addHeadlessPlayers() {
-        gameService.addHeadlessPlayers();
-    }
 }
