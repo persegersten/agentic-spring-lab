@@ -6,7 +6,14 @@ import { RoundPlayback } from '../components/RoundPlayback'
 import { RoundStatus } from '../components/RoundStatus'
 import { ScoreTable } from '../components/ScoreTable'
 import { LoadoutSelector } from '../components/LoadoutSelector'
-import type { Game, PlayerGame, PlayerSession, RoundEvent, Vehicle } from '../types/game'
+import type { Game, MovementOrder, PlayerGame, PlayerSession, RoundEvent, ScheduledAction, Vehicle } from '../types/game'
+
+type ProgramSnapshot = {
+  roundNumber: number
+  hand: MovementOrder[]
+  program: MovementOrder[]
+  scheduledAction: ScheduledAction | null
+}
 
 function gameIdFromPath() {
   return window.location.pathname.match(/^\/game\/([0-9a-f-]+)(?:\/lobby)?\/?$/i)?.[1] ?? ''
@@ -52,6 +59,7 @@ export function GamePage() {
   const [scores, setScores] = useState<Record<string, number>>({})
   const [startingRound, setStartingRound] = useState<number | null>(null)
   const [combatEvent, setCombatEvent] = useState<RoundEvent | undefined>()
+  const [programSnapshot, setProgramSnapshot] = useState<ProgramSnapshot | null>(null)
   const advancingRound = useRef<number | null>(null)
 
   const refresh = useCallback(async () => {
@@ -103,6 +111,23 @@ export function GamePage() {
     const id = window.setTimeout(() => setStartingRound(null), 1800)
     return () => window.clearTimeout(id)
   }, [startingRound])
+
+  useEffect(() => {
+    const playerRound = view?.round
+    if (!playerRound) return
+    if (playerRound.state.phase === 'PLANNING' || playerRound.program.length > 0) {
+      setProgramSnapshot({
+        roundNumber: playerRound.state.number,
+        hand: playerRound.hand,
+        program: playerRound.program,
+        scheduledAction: playerRound.scheduledAction,
+      })
+    }
+  }, [view?.round])
+
+  useEffect(() => {
+    if (view?.round?.state.phase !== 'PLAYBACK') setCombatEvent(undefined)
+  }, [view?.round?.state.number, view?.round?.state.phase])
 
   async function run(action: () => Promise<void>) {
     setWorking(true); setError(null)
@@ -158,9 +183,15 @@ export function GamePage() {
     const winners = (view.placements ?? []).filter(result => result.winner).map(result => view.players.find(player => player.id === result.playerId)!).filter(Boolean)
     const boardVehicles = displayedVehicles.filter(v => v.status === 'ACTIVE')
     const respawned = round?.startEvents?.some(event => event.type === 'VEHICLE_RESPAWNED' && event.playerId === view.playerId)
-    const showProgram = round?.phase === 'PLANNING' && !ownCrashed && !finished
+    const planningProgram = round?.phase === 'PLANNING' ? view.round : null
+    const playbackProgram = round?.phase === 'PLAYBACK' && programSnapshot?.roundNumber === round.number ? programSnapshot : null
+    const displayedProgram = planningProgram ?? playbackProgram
+    const showProgram = !!displayedProgram && (round?.phase === 'PLAYBACK' || (!ownCrashed && !finished))
+    const activeRegister = round?.phase === 'PLAYBACK' && (!playbackDone || view.status === 'FINISHED')
+      ? combatEvent?.registerIndex ?? null
+      : null
     const ownVehicle = view.vehicles.find(vehicle => vehicle.playerId === view.playerId)
-    return <main className="game-page" data-testid="game-page" data-game-status={view.status}><header><div><p className="eyebrow">Wreckage control deck</p><h1>WRECKAGE</h1></div><div className="game-identity"><span className="game-code">Spel {view.id.slice(0, 8)}</span><strong data-testid="game-status">{view.status}</strong></div></header>{error && <p className="error" role="alert">{error}</p>}{startingRound !== null && <div className="round-start-overlay" role="dialog" aria-modal="true" aria-labelledby="round-start-title" data-testid="round-start-dialog"><div className="round-start-dialog"><p className="eyebrow">Ny runda</p><h2 id="round-start-title">Runda {startingRound} startar</h2></div></div>}<div className={`game-layout${showProgram ? ' game-layout-with-program' : ''}`}>{showProgram && <CommandHand hand={view.round?.hand ?? []} program={view.round?.program ?? []} scheduledAction={view.round?.scheduledAction ?? null} programSize={view.configuration.programSize} locked={round.ready[view.playerId]} rocketAmmo={ownVehicle?.rocketAmmo ?? 0} primaryWeapon={ownVehicle?.primaryWeapon ?? 'LASER'} specialAbility={ownVehicle?.specialAbility ?? 'SHIELD'} onReorder={async (orders, action) => run(async () => setView(await saveProgramDraft(session, orders, action)))} onSubmit={async (orders, action) => run(async () => setView(await submitProgram(session, orders, action)))} />}<section className="board-column"><GameBoard board={view.board} vehicles={boardVehicles} players={view.players} currentPlayerId={view.playerId} combatEvent={combatEvent} /></section><div className="sidebar"><section className="panel match-loadouts"><h2>Loadouts</h2>{view.players.map(player => { const vehicle=view.vehicles.find(candidate=>candidate.playerId===player.id); return <p data-testid="match-loadout" key={player.id}>{player.name}: {vehicle?.primaryWeapon} + {vehicle?.specialAbility.replace('_',' ')}</p> })}</section>{finished && <section className="panel final-result" role="status" data-testid="finished-game"><h2>Match finished</h2><p>{winners.length === 1 ? `Winner: ${winners[0].name}` : `Winners: ${winners.map(player => player.name).join(', ')}`}</p></section>}<ScoreTable players={view.players} scores={round?.phase === 'PLAYBACK' ? scores : undefined} placements={finished ? view.placements : []} />{round && <RoundStatus round={round} roundLimit={view.roundLimit} players={view.players} crashed={crashed} />} {round && ownCrashed && <section className="panel" role="status"><h2>Du har kraschat</h2><p>Ingen spawnplats är ledig. Ett nytt försök görs nästa runda.</p></section>}{round?.phase === 'PLANNING' && respawned && <p role="status">Ditt fordon har respawnat.</p>}{round?.phase === 'PLAYBACK' && <RoundPlayback key={`${view.id}:${round.number}`} board={view.board} round={round} players={view.players} onVehicles={setVehicles} onScores={setScores} onCurrentEvent={setCombatEvent} onFinished={setPlaybackDone} />}</div></div></main>
+    return <main className="game-page" data-testid="game-page" data-game-status={view.status}><header><div><p className="eyebrow">Wreckage control deck</p><h1>WRECKAGE</h1></div><div className="game-identity"><span className="game-code">Spel {view.id.slice(0, 8)}</span><strong data-testid="game-status">{view.status}</strong></div></header>{error && <p className="error" role="alert">{error}</p>}{startingRound !== null && <div className="round-start-overlay" role="dialog" aria-modal="true" aria-labelledby="round-start-title" data-testid="round-start-dialog"><div className="round-start-dialog"><p className="eyebrow">Ny runda</p><h2 id="round-start-title">Runda {startingRound} startar</h2></div></div>}<div className={`game-layout${showProgram ? ' game-layout-with-program' : ''}`}>{showProgram && displayedProgram && <CommandHand hand={displayedProgram.hand} program={displayedProgram.program} scheduledAction={displayedProgram.scheduledAction} programSize={view.configuration.programSize} locked={round?.ready[view.playerId] ?? false} executing={round?.phase === 'PLAYBACK'} activeRegister={activeRegister} rocketAmmo={ownVehicle?.rocketAmmo ?? 0} primaryWeapon={ownVehicle?.primaryWeapon ?? 'LASER'} specialAbility={ownVehicle?.specialAbility ?? 'SHIELD'} onReorder={async (orders, action) => run(async () => setView(await saveProgramDraft(session, orders, action)))} onSubmit={async (orders, action) => run(async () => setView(await submitProgram(session, orders, action)))} />}<section className="board-column"><GameBoard board={view.board} vehicles={boardVehicles} players={view.players} currentPlayerId={view.playerId} combatEvent={combatEvent} /></section><div className="sidebar"><section className="panel match-loadouts"><h2>Loadouts</h2>{view.players.map(player => { const vehicle=view.vehicles.find(candidate=>candidate.playerId===player.id); return <p data-testid="match-loadout" key={player.id}>{player.name}: {vehicle?.primaryWeapon} + {vehicle?.specialAbility.replace('_',' ')}</p> })}</section>{finished && <section className="panel final-result" role="status" data-testid="finished-game"><h2>Match finished</h2><p>{winners.length === 1 ? `Winner: ${winners[0].name}` : `Winners: ${winners.map(player => player.name).join(', ')}`}</p></section>}<ScoreTable players={view.players} scores={round?.phase === 'PLAYBACK' ? scores : undefined} placements={finished ? view.placements : []} />{round && <RoundStatus round={round} roundLimit={view.roundLimit} players={view.players} crashed={crashed} />} {round && ownCrashed && <section className="panel" role="status"><h2>Du har kraschat</h2><p>Ingen spawnplats är ledig. Ett nytt försök görs nästa runda.</p></section>}{round?.phase === 'PLANNING' && respawned && <p role="status">Ditt fordon har respawnat.</p>}{round?.phase === 'PLAYBACK' && <RoundPlayback key={`${view.id}:${round.number}`} board={view.board} round={round} players={view.players} onVehicles={setVehicles} onScores={setScores} onCurrentEvent={setCombatEvent} onFinished={setPlaybackDone} />}</div></div></main>
   }
 
   const gameLink = lobby ? `${window.location.origin}/game/${lobby.id}/lobby` : ''

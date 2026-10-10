@@ -15,12 +15,23 @@ test('players receive and play the same server ordered event sequence', async ({
     await startGame(per)
 
     await expect(per.getByRole('heading', { name: 'Planering', exact: true })).toBeVisible()
+    const localPrograms = new Map()
     for (const page of [per, alice]) {
       await fillProgram(page, ['TURN_LEFT', 'FORWARD_2', 'WAIT'])
+      localPrograms.set(page, await page.getByTestId('program-slot').evaluateAll(slots => slots.map(slot => slot.getAttribute('data-command'))))
     }
 
     for (const page of [per, alice]) {
       await expect(page.getByRole('heading', { name: 'Uppspelning', exact: true }).first()).toBeVisible()
+      await expect(page.getByTestId('player-program')).toBeVisible()
+      await expect(page.getByTestId('program-slot')).toHaveCount(5)
+      await expect.poll(() => page.getByTestId('program-slot').evaluateAll(slots => slots.map(slot => slot.getAttribute('data-command')))).toEqual(localPrograms.get(page))
+      await expect(page.getByTestId('player-program')).toHaveAttribute('data-executing', 'true')
+      await expect.poll(async () => {
+        const register = await page.getByTestId('current-register').textContent()
+        const activeSlot = await page.locator('[data-testid="program-slot"][data-active="true"]').getAttribute('data-slot')
+        return register?.match(/Register (\d) av 5/)?.[1] === activeSlot
+      }).toBe(true)
       await expect(page.getByTestId('event-debug-view')).toBeVisible()
       await page.getByText('Eventsekvens (debug)', { exact: true }).click()
     }
@@ -41,6 +52,80 @@ test('players receive and play the same server ordered event sequence', async ({
     const copiedState = await per.evaluate(() => navigator.clipboard.readText())
     expect(JSON.parse(copiedState)).toEqual(displayedState)
   })
+})
+
+test('local program stays read-only and follows authoritative registers through playback', async ({ page }) => {
+  const gameId = '10000000-0000-0000-0000-000000000021'
+  const playerId = '20000000-0000-0000-0000-000000000021'
+  const vehicle = { id: 'vehicle-program', playerId, x: 0, y: 0, direction: 'EAST', status: 'ACTIVE', damage: 0, rocketAmmo: 0, primaryWeapon: 'LASER', specialAbility: 'SHIELD' }
+  const program = ['FORWARD_1', 'TURN_LEFT', 'LASER', 'FORWARD_2', 'TURN_RIGHT']
+  const hand = [...program, 'REVERSE_1', 'U_TURN', 'FORWARD_3']
+  const event = (sequence, type, registerIndex) => ({
+    sequence, type, registerIndex, playerId, vehicleId: vehicle.id,
+    sourcePlayerId: playerId, sourceVehicleId: vehicle.id,
+    oldPosition: { x: sequence - 1, y: 0 }, newPosition: { x: sequence, y: 0 },
+    oldDirection: 'EAST', newDirection: type === 'TURN' ? 'NORTH' : 'EAST',
+    ...(type === 'WEAPON_FIRED' ? { actionType: 'LASER' } : {}),
+  })
+  const playback = [event(1, 'MOVE', 1), event(2, 'TURN', 2), event(3, 'WEAPON_FIRED', 3), event(4, 'MOVE', 4), event(5, 'TURN', 5)]
+  const base = {
+    id: gameId, playerId, status: 'RUNNING', roundLimit: 2,
+    configuration: { maxPlayers: 2, programSize: 5, planningTimeoutSeconds: 30, joinTimeoutSeconds: 30 },
+    players: [{ id: playerId, name: 'Per', score: 0, visitedCheckpoints: [], crashes: 0 }],
+    board: { width: 10, height: 10, walls: [], pits: [], obstacles: [], checkpoints: [], spawnPoints: [], conveyors: [], rotators: [], controlPoints: [] },
+    vehicles: [{ ...vehicle, x: 5 }], placements: [],
+  }
+  const planning = {
+    ...base,
+    round: { state: { number: 1, phase: 'PLANNING', planningDeadline: '2026-01-01T00:02:00Z', ready: { [playerId]: true }, initiative: [playerId], initialVehicles: [vehicle], initialScores: { [playerId]: 0 }, startEvents: [], playback: [] }, hand, program, scheduledAction: null },
+  }
+  const playing = {
+    ...base,
+    round: { state: { ...planning.round.state, phase: 'PLAYBACK', playback }, hand: [], program: [], scheduledAction: null },
+  }
+  const nextHand = ['U_TURN', 'REVERSE_1', 'FORWARD_3', 'TURN_RIGHT', 'LASER', 'FORWARD_1', 'FORWARD_2', 'TURN_LEFT']
+  const nextRound = {
+    ...base,
+    round: { state: { number: 2, phase: 'PLANNING', planningDeadline: '2026-01-01T00:03:00Z', ready: { [playerId]: false }, initiative: [playerId], initialVehicles: base.vehicles, initialScores: { [playerId]: 0 }, startEvents: [], playback: [] }, hand: nextHand, program: [], scheduledAction: null },
+  }
+  let current = planning
+  await page.clock.install()
+  await page.addInitScript(session => localStorage.setItem(`wreckage-session:${session.gameId}`, JSON.stringify(session)),
+    { gameId, playerId, token: 'test-token' })
+  await page.route(`**/games/${gameId}/players/${playerId}`, route => route.fulfill({ json: current }))
+  await page.route(`**/games/${gameId}/rounds?completedRound=1`, route => {
+    current = nextRound
+    return route.fulfill({ json: nextRound })
+  })
+
+  await page.goto(`/game/${gameId}`)
+  await expect.poll(() => page.getByTestId('program-slot').evaluateAll(slots => slots.map(slot => slot.getAttribute('data-command')))).toEqual(program)
+  current = playing
+  await page.clock.runFor(1500)
+  await expect(page.getByTestId('round-playback')).toBeVisible()
+  await expect(page.getByTestId('player-program')).toHaveAttribute('data-executing', 'true')
+  await expect.poll(() => page.getByTestId('program-slot').evaluateAll(slots => slots.map(slot => slot.getAttribute('data-command')))).toEqual(program)
+  await expect.poll(() => page.getByTestId('program-slot').getByRole('button').evaluateAll(buttons => buttons.every(button => button.disabled))).toBe(true)
+  await expect(page.getByTestId('scheduled-action-controls')).toBeDisabled()
+  await expect(page.getByTestId('lock-program')).toBeDisabled()
+
+  await page.clock.runFor(1)
+  await expect(page.locator('[data-testid="program-slot"][data-active="true"]')).toHaveAttribute('data-slot', '1')
+  await page.getByRole('button', { name: 'Pausa', exact: true }).click()
+  await page.clock.runFor(1000)
+  await expect(page.locator('[data-testid="program-slot"][data-active="true"]')).toHaveAttribute('data-slot', '1')
+  await page.getByRole('button', { name: 'Fortsätt', exact: true }).click()
+  await page.clock.runFor(350)
+  await expect(page.getByTestId('current-playback-event')).toHaveAttribute('data-event-type', 'TURN')
+  await expect(page.locator('[data-testid="program-slot"][data-active="true"]')).toHaveAttribute('data-slot', '2')
+  await page.clock.runFor(350)
+  await expect(page.getByTestId('current-playback-event')).toHaveAttribute('data-event-type', 'WEAPON_FIRED')
+  await expect(page.locator('[data-testid="program-slot"][data-active="true"]')).toHaveAttribute('data-slot', '3')
+  await page.clock.runFor(2000)
+
+  await expect(page.getByTestId('round-number')).toHaveText('Round 2')
+  await expect(page.locator('[data-testid="program-slot"][data-active="true"]')).toHaveCount(0)
+  await expect.poll(() => page.getByTestId('programming-hand').getByTestId('command-card').evaluateAll(cards => cards.map(card => card.getAttribute('data-command')))).toEqual(nextHand)
 })
 
 test('playback stays paused and automatically starts the next round when finished', async ({ page }) => {
@@ -195,13 +280,20 @@ test('finishing the last round does not request another round', async ({ page })
   const gameId = '10000000-0000-0000-0000-000000000009'
   const playerId = '20000000-0000-0000-0000-000000000009'
   const vehicle = { id: 'vehicle-final', playerId, x: 0, y: 0, direction: 'NORTH', status: 'ACTIVE' }
+  const finalEvent = {
+    sequence: 1, type: 'MOVE', registerIndex: 5, playerId, vehicleId: vehicle.id,
+    sourcePlayerId: playerId, sourceVehicleId: vehicle.id,
+    oldPosition: { x: 0, y: 0 }, newPosition: { x: 0, y: 1 },
+    oldDirection: 'NORTH', newDirection: 'NORTH',
+  }
+  const finalProgram = ['FORWARD_1', 'TURN_LEFT', 'LASER', 'TURN_RIGHT', 'FORWARD_2']
   const state = {
     id: gameId, playerId, status: 'FINISHED', roundLimit: 1,
-    configuration: { maxPlayers: 1, programSize: 1, planningTimeoutSeconds: 30, joinTimeoutSeconds: 30 },
+    configuration: { maxPlayers: 1, programSize: 5, planningTimeoutSeconds: 30, joinTimeoutSeconds: 30 },
     players: [{ id: playerId, name: 'Per', score: 0, visitedCheckpoints: [], crashes: 0 }],
     board: { width: 2, height: 2, walls: [], pits: [], checkpoints: [], spawnPoints: [], conveyors: [], rotators: [], controlPoints: [] },
     vehicles: [vehicle], placements: [{ playerId, placement: 1, score: 0, checkpointsVisited: 0, crashes: 0, winner: true }],
-    round: { state: { number: 1, phase: 'PLAYBACK', ready: { [playerId]: true }, initiative: [playerId], initialVehicles: [vehicle], initialScores: { [playerId]: 0 }, startEvents: [], playback: [] }, program: [] },
+    round: { state: { number: 1, phase: 'PLAYBACK', ready: { [playerId]: true }, initiative: [playerId], initialVehicles: [vehicle], initialScores: { [playerId]: 0 }, startEvents: [], playback: [finalEvent] }, hand: [], program: finalProgram, scheduledAction: null },
   }
   let starts = 0
   await page.clock.install()
@@ -211,9 +303,12 @@ test('finishing the last round does not request another round', async ({ page })
   await page.route(`**/games/${gameId}/rounds?*`, route => { starts++; return route.abort() })
 
   await page.goto(`/game/${gameId}`)
-  await page.clock.runFor(100)
+  await page.clock.runFor(500)
 
   await expect(page.getByTestId('finished-game')).toBeVisible()
+  await expect(page.getByTestId('player-program')).toBeVisible()
+  await expect(page.getByTestId('player-program')).toHaveAttribute('data-executing', 'true')
+  await expect(page.locator('[data-testid="program-slot"][data-active="true"]')).toHaveAttribute('data-slot', '5')
   await expect(page.getByTestId('round-start-dialog')).not.toBeVisible()
   expect(starts).toBe(0)
 })
