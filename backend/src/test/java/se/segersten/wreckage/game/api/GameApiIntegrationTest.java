@@ -37,7 +37,8 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 @Import(TestcontainersConfiguration.class)
-@SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
+@SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT,
+        properties = "wreckage.scheduling.enabled=false")
 class GameApiIntegrationTest {
 
     private final HttpClient httpClient = HttpClient.newHttpClient();

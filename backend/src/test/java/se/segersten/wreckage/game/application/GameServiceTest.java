@@ -436,6 +436,14 @@ class GameServiceTest {
         service.saveProgramDraft(game.getId(), per.player().getId(), per.token(),
                 List.of(MovementOrder.TURN_LEFT));
 
+        new GameService(repository, Clock.fixed(now.plusSeconds(4), ZoneOffset.UTC))
+                .completeExpiredPlanning();
+
+        PlayerProgram pending = game.getRound().programs().get(per.player().getId());
+        assertThat(pending.commands()).containsExactly(MovementOrder.TURN_LEFT);
+        assertThat(pending.ready()).isFalse();
+        assertThat(game.getRound().phase()).isEqualTo(RoundPhase.PLANNING);
+
         new GameService(repository, Clock.fixed(now.plusSeconds(5), ZoneOffset.UTC))
                 .completeExpiredPlanning();
 
