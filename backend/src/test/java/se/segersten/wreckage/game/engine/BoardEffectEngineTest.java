@@ -64,14 +64,14 @@ class BoardEffectEngineTest {
     @Test void conveyorCanCrashAtOpenEdge(){var base=new Board(2,2);var board=new Board(2,2,Set.of(),Set.of(),Set.of(),base.spawnPoints(),List.of(new Conveyor(new Position(1,0),Direction.EAST)),List.of());assertThat(engine.resolve(new GameState(board,List.of(vehicleAt(new Position(1,0))))).events()).extracting(e->e.type()).containsExactly(RoundEventType.CONVEYOR_CRASH);}
 
     @Test
-    void anchorBlocksAnEntireConveyorPushChain() {
+    void shieldBlocksAnEntireConveyorPushChain() {
         VehicleState conveyorVehicle = vehicleAt(new Position(0, 1));
         VehicleState anchored = vehicleAt(new Position(1, 1));
         Board base = new Board(4, 3);
         Board board = new Board(4, 3, Set.of(), Set.of(), Set.of(), base.spawnPoints(),
                 List.of(new Conveyor(new Position(0, 1), Direction.EAST)), List.of());
         RegisterEffects effects = new RegisterEffects();
-        effects.anchor(anchored.vehicle().id());
+        effects.shield(anchored.vehicle().id());
 
         BoardEffectResult result = engine.resolve(new GameState(board, List.of(conveyorVehicle, anchored)), effects);
 
@@ -83,13 +83,13 @@ class BoardEffectEngineTest {
     }
 
     @Test
-    void anchorAlsoBlocksTheAnchoredVehicleFromBeingMovedByItsConveyor() {
+    void shieldAlsoBlocksTheProtectedVehicleFromBeingMovedByItsConveyor() {
         VehicleState anchored = vehicleAt(new Position(0, 1));
         Board base = new Board(4, 3);
         Board board = new Board(4, 3, Set.of(), Set.of(), Set.of(), base.spawnPoints(),
                 List.of(new Conveyor(new Position(0, 1), Direction.EAST)), List.of());
         RegisterEffects effects = new RegisterEffects();
-        effects.anchor(anchored.vehicle().id());
+        effects.shield(anchored.vehicle().id());
 
         BoardEffectResult result = engine.resolve(new GameState(board, List.of(anchored)), effects);
 

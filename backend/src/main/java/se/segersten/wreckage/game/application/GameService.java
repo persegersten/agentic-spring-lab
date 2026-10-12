@@ -22,9 +22,6 @@ import se.segersten.wreckage.game.domain.GameConfiguration;
 import se.segersten.wreckage.game.domain.Player;
 import se.segersten.wreckage.game.domain.MovementOrder;
 import se.segersten.wreckage.game.domain.Round;
-import se.segersten.wreckage.game.domain.ScheduledAction;
-import se.segersten.wreckage.game.domain.PrimaryWeapon;
-import se.segersten.wreckage.game.domain.SpecialAbility;
 import se.segersten.wreckage.game.engine.MovementEngine;
 
 @Service
@@ -147,13 +144,6 @@ public class GameService {
         return gameRepository.save(game);
     }
 
-    public Game updateLoadout(UUID gameId, UUID playerId, String token,
-                              PrimaryWeapon weapon, SpecialAbility ability) {
-        Game game = authenticatedGameForUpdate(gameId, playerId, token);
-        game.updateLoadout(playerId, weapon, ability);
-        return gameRepository.save(game);
-    }
-
     public Round startRound(UUID gameId, UUID playerId, String token, int completedRoundNumber) {
         Game game = authenticatedGameForUpdate(gameId, playerId, token);
         if (game.getRound() == null)
@@ -169,7 +159,7 @@ public class GameService {
         return round;
     }
 
-    public void completeExpiredPlanning(){Instant now=clock.instant();for(Game game:gameRepository.findAllByStatusForUpdate(GameStatus.RUNNING)){Round round=game.getRound();if(round!=null&&round.completeTimedOutPrograms(now)){resolveIfReady(game);gameRepository.save(game);}}}
+    public void completeExpiredPlanning(){Instant now=clock.instant();for(Game game:gameRepository.findAllByStatusForUpdate(GameStatus.RUNNING)){Round round=game.getRound();if(round!=null&&round.completeTimedOutPrograms(now)){consumeSelectedShields(game);resolveIfReady(game);gameRepository.save(game);}}}
 
     public Game getPlayerGame(UUID gameId, UUID playerId, String token) {
         return authenticatedGame(gameId, playerId, token);
@@ -177,56 +167,56 @@ public class GameService {
 
     public Round saveProgramDraft(UUID gameId, UUID playerId, String token, List<MovementOrder> orders) {
         Game game = authenticatedGameForUpdate(gameId, playerId, token);
-        ScheduledAction action = game.getRound() == null ? null
-                : game.getRound().programs().get(playerId).scheduledAction();
-        return saveProgramDraft(game, playerId, orders, action);
+        boolean shield = game.getRound() != null && game.getRound().programs().get(playerId).shieldSelected();
+        return saveProgramDraft(game, playerId, orders, shield);
     }
 
     public Round saveProgramDraft(UUID gameId, UUID playerId, String token, List<MovementOrder> orders,
-                                  ScheduledAction action) {
+                                  boolean shieldSelected) {
         Game game = authenticatedGameForUpdate(gameId, playerId, token);
-        return saveProgramDraft(game, playerId, orders, action);
+        return saveProgramDraft(game, playerId, orders, shieldSelected);
     }
 
-    private Round saveProgramDraft(Game game, UUID playerId, List<MovementOrder> orders, ScheduledAction action) {
+    private Round saveProgramDraft(Game game, UUID playerId, List<MovementOrder> orders, boolean shieldSelected) {
         if (game.getRound() == null) throw new IllegalStateException("No round has started");
-        validateAction(game, playerId, action);
-        game.getRound().reorder(playerId, orders, action);
+        validateShield(game, playerId, shieldSelected);
+        game.getRound().reorder(playerId, orders, shieldSelected);
         gameRepository.save(game);
         return game.getRound();
     }
 
     public Round submitProgram(UUID gameId, UUID playerId, String token, List<MovementOrder> orders) {
         Game game = authenticatedGameForUpdate(gameId, playerId, token);
-        ScheduledAction action = game.getRound() == null ? null
-                : game.getRound().programs().get(playerId).scheduledAction();
-        return submitProgram(game, playerId, orders, action);
+        boolean shield = game.getRound() != null && game.getRound().programs().get(playerId).shieldSelected();
+        return submitProgram(game, playerId, orders, shield);
     }
 
     public Round submitProgram(UUID gameId, UUID playerId, String token, List<MovementOrder> orders,
-                               ScheduledAction action) {
+                               boolean shieldSelected) {
         Game game = authenticatedGameForUpdate(gameId, playerId, token);
-        return submitProgram(game, playerId, orders, action);
+        return submitProgram(game, playerId, orders, shieldSelected);
     }
 
-    private Round submitProgram(Game game, UUID playerId, List<MovementOrder> orders, ScheduledAction action) {
+    private Round submitProgram(Game game, UUID playerId, List<MovementOrder> orders, boolean shieldSelected) {
         if (game.getRound() == null) throw new IllegalStateException("No round has started");
-        validateAction(game, playerId, action);
-        game.getRound().lock(playerId, orders, action);
+        validateShield(game, playerId, shieldSelected);
+        game.getRound().lock(playerId, orders, shieldSelected);
+        if (shieldSelected) game.consumeShield(playerId);
         resolveIfReady(game);
         gameRepository.save(game);
         return game.getRound();
     }
 
-    private void validateAction(Game game, UUID playerId, ScheduledAction action) {
-        if (action == null) return;
-        var vehicle = game.getVehicleStates().stream()
-                .filter(state -> state.vehicle().playerId().equals(playerId)).findFirst()
-                .orElseThrow(() -> new IllegalArgumentException("Player has no vehicle"));
-        if (!vehicle.vehicle().permits(action.actionType()))
-            throw new IllegalArgumentException("Scheduled action is not part of the player's loadout");
-        if (action.actionType() != se.segersten.wreckage.game.domain.ActionType.ROCKET) return;
-        if (vehicle.rocketAmmo() == 0) throw new IllegalStateException("Rocket ammunition is depleted");
+    private void validateShield(Game game, UUID playerId, boolean selected) {
+        if (selected && !game.isShieldAvailable(playerId))
+            throw new IllegalStateException("Shield has already been consumed");
+    }
+
+    private void consumeSelectedShields(Game game) {
+        game.getRound().programs().values().stream().filter(program -> program.ready() && program.shieldSelected())
+                .forEach(program -> {
+                    if (game.isShieldAvailable(program.playerId())) game.consumeShield(program.playerId());
+                });
     }
 
     @Transactional(readOnly = true)

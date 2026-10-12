@@ -23,7 +23,6 @@ import se.segersten.wreckage.game.domain.PlayerProgram;
 import se.segersten.wreckage.game.domain.Position;
 import se.segersten.wreckage.game.domain.Round;
 import se.segersten.wreckage.game.domain.RoundEventType;
-import se.segersten.wreckage.game.domain.ScheduledAction;
 import java.util.List;
 import se.segersten.wreckage.game.domain.Vehicle;
 import se.segersten.wreckage.game.domain.VehicleState;
@@ -123,47 +122,6 @@ class InMemoryProfileIntegrationTest {
                 alice.player().getId(), bob.player().getId());
         assertThat(retrieved.getVehicleStates()).hasSize(2);
         assertThat(retrieved.getRound().finalVehicleStates()).hasSize(2);
-    }
-
-    @Test
-    void persistsPrivateScheduledActionUsingInMemoryDatabase() {
-        var hosted = gameService.createHostedGame(new GameConfiguration(2, 300, 5, 120));
-        var alice = gameService.addPlayer(hosted.game().getId(), "Alice");
-        gameService.addPlayer(hosted.game().getId(), "Bob");
-        gameService.startGame(hosted.game().getId(), hosted.hostToken());
-        var action = new se.segersten.wreckage.game.domain.ScheduledAction(
-                se.segersten.wreckage.game.domain.ActionType.SHIELD, 1);
-
-        gameService.saveProgramDraft(hosted.game().getId(), alice.player().getId(), alice.token(),
-                java.util.List.of(), action);
-        Game retrieved = gameService.getPlayerGame(hosted.game().getId(), alice.player().getId(), alice.token());
-
-        assertThat(retrieved.getRound().programs().get(alice.player().getId()).scheduledAction()).isEqualTo(action);
-    }
-
-    @Test
-    void persistsAuthoritativeSpecialAbilityPlaybackUsingInMemoryDatabase() {
-        var hosted = gameService.createHostedGame(new GameConfiguration(2, 300, 5, 120));
-        var alice = gameService.addPlayer(hosted.game().getId(), "Alice");
-        var bob = gameService.addPlayer(hosted.game().getId(), "Bob");
-        gameService.startGame(hosted.game().getId(), hosted.hostToken());
-        var action = new ScheduledAction(ActionType.SHIELD, 1);
-
-        Game aliceView = gameService.getPlayerGame(hosted.game().getId(), alice.player().getId(), alice.token());
-        Game bobView = gameService.getPlayerGame(hosted.game().getId(), bob.player().getId(), bob.token());
-        gameService.submitProgram(hosted.game().getId(), alice.player().getId(), alice.token(),
-                aliceView.getRound().programs().get(alice.player().getId()).hand().subList(0, 5), action);
-        gameService.submitProgram(hosted.game().getId(), bob.player().getId(), bob.token(),
-                bobView.getRound().programs().get(bob.player().getId()).hand().subList(0, 5), null);
-        Game retrieved = gameService.getGame(hosted.game().getId());
-
-        assertThat(retrieved.getRound().playback())
-                .filteredOn(event -> event.type() == RoundEventType.SHIELD_ACTIVATED)
-                .singleElement().satisfies(event -> {
-            assertThat(event.type()).isEqualTo(RoundEventType.SHIELD_ACTIVATED);
-            assertThat(event.actionType()).isEqualTo(ActionType.SHIELD);
-            assertThat(event.playerId()).isEqualTo(alice.player().getId());
-        });
     }
 
     @Test
@@ -274,59 +232,6 @@ class InMemoryProfileIntegrationTest {
 
         assertThat(retrieved.getRound().programs().get(playerId).commands()).containsExactly(
                 MovementOrder.WAIT, MovementOrder.FORWARD_1);
-    }
-
-    @Test
-    void persistsRocketAmmoDamageConfigurationAndPlaybackUsingInMemoryDatabase() {
-        var now = java.time.Instant.parse("2026-01-01T12:00:00Z");
-        var shooter = Player.create(java.util.UUID.randomUUID(), "Shooter", "token-a");
-        var target = Player.create(java.util.UUID.randomUUID(), "Target", "token-b");
-        var shooterState = new VehicleState(new Vehicle(java.util.UUID.randomUUID(), shooter.getId(),
-                new Position(0, 0), Direction.SOUTH,
-                se.segersten.wreckage.game.domain.PrimaryWeapon.ROCKET,
-                se.segersten.wreckage.game.domain.SpecialAbility.SIDE_STEP),
-                new Position(0, 1), Direction.EAST);
-        var targetState = new VehicleState(new Vehicle(java.util.UUID.randomUUID(), target.getId()),
-                new Position(2, 1), Direction.NORTH, se.segersten.wreckage.game.domain.VehicleStatus.ACTIVE, 0);
-        var programs = java.util.Map.of(
-                shooter.getId(), new PlayerProgram(shooter.getId(), 5, five(MovementOrder.WAIT), true,
-                        new se.segersten.wreckage.game.domain.ScheduledAction(
-                                se.segersten.wreckage.game.domain.ActionType.ROCKET, 1)),
-                target.getId(), new PlayerProgram(target.getId(), 5, five(MovementOrder.WAIT), true));
-        var board = new Board(5, 5);
-        var round = new Round(1, programs, java.util.List.of(shooter.getId(), target.getId()),
-                new GameState(board, java.util.List.of(shooterState, targetState)));
-        round.resolve(new se.segersten.wreckage.game.engine.MovementEngine(), java.util.List.of(shooter, target),
-                GameConfiguration.defaults());
-        var game = new Game(java.util.UUID.randomUUID(), java.util.List.of(shooter, target), board,
-                GameStatus.RUNNING, java.util.Map.of(shooter.getId(), shooterState, target.getId(), targetState),
-                round, GameConfiguration.defaults(), now, now.plusSeconds(60));
-        game.completeRound();
-
-        gameRepository.save(game);
-        Game retrieved = gameService.getGame(game.getId());
-
-        assertThat(retrieved.getConfiguration().weaponCrashScore()).isEqualTo(1);
-        assertThat(retrieved.getRound().initialState().vehicleStates()).extracting(VehicleState::damage)
-                .containsExactly(0, 0);
-        assertThat(retrieved.getRound().playback()).extracting(event -> event.type())
-                .containsExactly(se.segersten.wreckage.game.domain.RoundEventType.WEAPON_FIRED,
-                        se.segersten.wreckage.game.domain.RoundEventType.AMMO_CHANGED,
-                        se.segersten.wreckage.game.domain.RoundEventType.WEAPON_HIT,
-                        se.segersten.wreckage.game.domain.RoundEventType.DAMAGE_APPLIED);
-        assertThat(retrieved.getRound().playback().getLast().newDamage()).isEqualTo(2);
-        assertThat(retrieved.getRound().finalVehicleStates()).extracting(VehicleState::damage)
-                .containsExactly(0, 2);
-        assertThat(retrieved.getRound().finalVehicleStates()).extracting(VehicleState::rocketAmmo)
-                .containsExactlyInAnyOrder(0, 1);
-        assertThat(retrieved.getRound().playback().get(1).actionType())
-                .isEqualTo(se.segersten.wreckage.game.domain.ActionType.ROCKET);
-        assertThat(retrieved.getVehicleStates()).extracting(VehicleState::rocketAmmo).containsExactlyInAnyOrder(0, 1);
-        assertThat(retrieved.getVehicleStates()).filteredOn(state -> state.vehicle().playerId().equals(shooter.getId()))
-                .singleElement().satisfies(state -> {
-                    assertThat(state.vehicle().primaryWeapon()).isEqualTo(se.segersten.wreckage.game.domain.PrimaryWeapon.ROCKET);
-                    assertThat(state.vehicle().specialAbility()).isEqualTo(se.segersten.wreckage.game.domain.SpecialAbility.SIDE_STEP);
-                });
     }
 
     private static List<MovementOrder> five(MovementOrder... commands) {

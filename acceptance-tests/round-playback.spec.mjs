@@ -77,16 +77,17 @@ test('local program stays read-only and follows authoritative registers through 
   }
   const planning = {
     ...base,
-    round: { state: { number: 1, phase: 'PLANNING', planningDeadline: '2026-01-01T00:02:00Z', ready: { [playerId]: true }, initiative: [playerId], initialVehicles: [vehicle], initialScores: { [playerId]: 0 }, startEvents: [], playback: [] }, hand, program, scheduledAction: null },
+    shieldAvailable: true,
+    round: { state: { number: 1, phase: 'PLANNING', planningDeadline: '2026-01-01T00:02:00Z', ready: { [playerId]: true }, initiative: [playerId], initialVehicles: [vehicle], initialScores: { [playerId]: 0 }, startEvents: [], playback: [] }, hand, program, shieldSelected: false },
   }
   const playing = {
     ...base,
-    round: { state: { ...planning.round.state, phase: 'PLAYBACK', playback }, hand: [], program: [], scheduledAction: null },
+    round: { state: { ...planning.round.state, phase: 'PLAYBACK', playback }, hand: [], program: [], shieldSelected: false },
   }
   const nextHand = ['U_TURN', 'REVERSE_1', 'FORWARD_3', 'TURN_RIGHT', 'LASER', 'FORWARD_1', 'FORWARD_2', 'TURN_LEFT']
   const nextRound = {
     ...base,
-    round: { state: { number: 2, phase: 'PLANNING', planningDeadline: '2026-01-01T00:03:00Z', ready: { [playerId]: false }, initiative: [playerId], initialVehicles: base.vehicles, initialScores: { [playerId]: 0 }, startEvents: [], playback: [] }, hand: nextHand, program: [], scheduledAction: null },
+    round: { state: { number: 2, phase: 'PLANNING', planningDeadline: '2026-01-01T00:03:00Z', ready: { [playerId]: false }, initiative: [playerId], initialVehicles: base.vehicles, initialScores: { [playerId]: 0 }, startEvents: [], playback: [] }, hand: nextHand, program: [], shieldSelected: false },
   }
   let current = planning
   await page.clock.install()
@@ -146,11 +147,13 @@ test('playback stays paused and automatically starts the next round when finishe
     players: [{ id: playerId, name: 'Per' }],
     board: { width: 20, height: 20, walls: [], pits: [] },
     vehicles: [{ ...vehicle, x: 12 }],
-    round: { state: { number: 1, phase: 'PLAYBACK', ready: { [playerId]: true }, initiative: [playerId], initialVehicles: [vehicle], playback }, program: [] },
+    shieldAvailable: true,
+    round: { state: { number: 1, phase: 'PLAYBACK', ready: { [playerId]: true }, initiative: [playerId], initialVehicles: [vehicle], playback }, hand: [], program: [], shieldSelected: false },
   }
   const nextState = {
     ...state,
-    round: { state: { number: 2, phase: 'PLANNING', planningDeadline: '2026-01-01T00:02:00Z', ready: { [playerId]: false }, initiative: [playerId], initialVehicles: state.vehicles, initialScores: { [playerId]: 0 }, startEvents: [], playback: [] }, program: [] },
+    shieldAvailable: true,
+    round: { state: { number: 2, phase: 'PLANNING', planningDeadline: '2026-01-01T00:02:00Z', ready: { [playerId]: false }, initiative: [playerId], initialVehicles: state.vehicles, initialScores: { [playerId]: 0 }, startEvents: [], playback: [] }, hand: [], program: [], shieldSelected: false },
   }
   let currentState = state
   let starts = 0
@@ -211,7 +214,8 @@ test('playback removes a vehicle exactly when its crash event is reached', async
     players: [{ id: playerId, name: 'Per' }],
     board: { width: 2, height: 2, walls: [], pits: [] },
     vehicles: [{ ...vehicle, x: 2, status: 'CRASHED' }],
-    round: { state: { number: 1, phase: 'PLAYBACK', ready: { [playerId]: true }, initiative: [playerId], initialVehicles: [vehicle], playback }, program: [] },
+    shieldAvailable: true,
+    round: { state: { number: 1, phase: 'PLAYBACK', ready: { [playerId]: true }, initiative: [playerId], initialVehicles: [vehicle], playback }, hand: [], program: [], shieldSelected: false },
   }
   const playbackTime = new Date('2026-01-01T00:00:00Z')
   await page.clock.install({ time: playbackTime })
@@ -257,7 +261,8 @@ test('programming-card Laser renders its beam and both displacement steps', asyn
     ],
     board: { width: 6, height: 3, walls: [], pits: [], obstacles: [], checkpoints: [], spawnPoints: [], conveyors: [], rotators: [], controlPoints: [] },
     vehicles: [shooter, { ...target, x: 4 }],
-    round: { state: { number: 1, phase: 'PLAYBACK', ready: { [shooterId]: true, [targetId]: true }, initiative: [shooterId, targetId], initialVehicles: [shooter, target], initialScores: { [shooterId]: 0, [targetId]: 0 }, startEvents: [], playback }, program: [] },
+    shieldAvailable: true,
+    round: { state: { number: 1, phase: 'PLAYBACK', ready: { [shooterId]: true, [targetId]: true }, initiative: [shooterId, targetId], initialVehicles: [shooter, target], initialScores: { [shooterId]: 0, [targetId]: 0 }, startEvents: [], playback }, hand: [], program: [], shieldSelected: false },
   }
   await page.clock.install()
   await page.addInitScript(session => localStorage.setItem(`wreckage-session:${session.gameId}`, JSON.stringify(session)),
@@ -293,7 +298,8 @@ test('finishing the last round does not request another round', async ({ page })
     players: [{ id: playerId, name: 'Per', score: 0, visitedCheckpoints: [], crashes: 0 }],
     board: { width: 2, height: 2, walls: [], pits: [], checkpoints: [], spawnPoints: [], conveyors: [], rotators: [], controlPoints: [] },
     vehicles: [vehicle], placements: [{ playerId, placement: 1, score: 0, checkpointsVisited: 0, crashes: 0, winner: true }],
-    round: { state: { number: 1, phase: 'PLAYBACK', ready: { [playerId]: true }, initiative: [playerId], initialVehicles: [vehicle], initialScores: { [playerId]: 0 }, startEvents: [], playback: [finalEvent] }, hand: [], program: finalProgram, scheduledAction: null },
+    shieldAvailable: true,
+    round: { state: { number: 1, phase: 'PLAYBACK', ready: { [playerId]: true }, initiative: [playerId], initialVehicles: [vehicle], initialScores: { [playerId]: 0 }, startEvents: [], playback: [finalEvent] }, hand: [], program: finalProgram, shieldSelected: false },
   }
   let starts = 0
   await page.clock.install()

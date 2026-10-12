@@ -58,6 +58,18 @@ public class Game {
     public List<VehicleState> getVehicleStates() { return List.copyOf(vehicles.values()); }
     public Round getRound() { return round; }
 
+    public boolean isShieldAvailable(UUID playerId) {
+        VehicleState state = vehicles.get(playerId);
+        return state != null && state.shieldAvailable();
+    }
+
+    public void consumeShield(UUID playerId) {
+        requirePlayer(playerId);
+        VehicleState state = vehicles.get(playerId);
+        if (state == null) throw new IllegalArgumentException("Player has no vehicle");
+        vehicles.put(playerId, state.consumeShield());
+    }
+
     public Player addPlayer(String name) { return addPlayer(name, "legacy", Instant.now()); }
     public Player addPlayer(String name, String tokenHash) { return addPlayer(name, tokenHash, Instant.now()); }
     public Player addPlayer(String name, String tokenHash, Instant now) {
@@ -81,20 +93,8 @@ public class Game {
         SpawnPoint spawn = board.spawnPoints().get(index);
         Vehicle vehicle = new Vehicle(UUID.randomUUID(), player.getId(), spawn.position(), spawn.orientation());
         vehicles.put(player.getId(), new VehicleState(vehicle, spawn.position(), spawn.orientation(),
-                VehicleStatus.ACTIVE, 0, 0));
+                VehicleStatus.ACTIVE, true));
         return player;
-    }
-
-    public void updateLoadout(UUID playerId, PrimaryWeapon weapon, SpecialAbility ability) {
-        Objects.requireNonNull(weapon, "weapon must not be null");
-        Objects.requireNonNull(ability, "ability must not be null");
-        requirePlayer(playerId);
-        if (status != GameStatus.WAITING_FOR_PLAYERS || round != null)
-            throw new IllegalStateException("The loadout is fixed after the match starts");
-        VehicleState current = vehicles.get(playerId);
-        if (current == null) throw new IllegalArgumentException("Player has no vehicle");
-        vehicles.put(playerId, new VehicleState(current.vehicle().withLoadout(weapon, ability), current.position(),
-                current.orientation(), current.status(), current.damage(), 0));
     }
 
     public void start(Instant now) {
@@ -121,10 +121,9 @@ public class Game {
             UUID playerId = players.get(index).getId(); VehicleState state = vehicles.get(playerId);
             SpawnPoint spawn = selectedSpawns.get(index);
             Vehicle old = state.vehicle();
-            Vehicle vehicle = new Vehicle(old.id(), old.playerId(), spawn.position(), spawn.orientation(),
-                    old.primaryWeapon(), old.specialAbility());
+            Vehicle vehicle = new Vehicle(old.id(), old.playerId(), spawn.position(), spawn.orientation());
             vehicles.put(playerId, new VehicleState(vehicle, spawn.position(), spawn.orientation(),
-                    VehicleStatus.ACTIVE, 0, old.primaryWeapon() == PrimaryWeapon.ROCKET ? 1 : 0));
+                    VehicleStatus.ACTIVE, state.shieldAvailable()));
         }
         startRound(now, hands);
     }
@@ -192,7 +191,7 @@ public class Game {
             }
             if (selected == null) continue;
             VehicleState respawned = new VehicleState(vehicle, selected.position(), vehicle.spawnOrientation(),
-                    VehicleStatus.ACTIVE, 0, crashed.rocketAmmo());
+                    VehicleStatus.ACTIVE, crashed.shieldAvailable());
             vehicles.put(player.getId(), respawned);
             occupied.add(selected.position());
             events.add(RoundEvent.vehicleRespawned(crashed, respawned).withSequence(events.size() + 1));

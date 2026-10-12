@@ -1,5 +1,13 @@
 # Wreckage – Spel- och GUI-specifikation
 
+> **Wreckage 2.0 cleanup:** Selectable loadouts and generic scheduled combat
+> actions have been removed. Each player instead has one private shield use per
+> match, selected with a program and active for that round. `LASER` is only a
+> programming card and displaces vehicles without damage or ammunition. Any
+> later references in this historical specification to rockets, damage,
+> loadouts, or other abilities are obsolete and are retained only as design
+> history pending a full documentation rewrite.
+
 Detta dokument beskriver produktflödet och GUI-förväntningarna för Wreckage
 v2. De detaljerade spelreglerna finns i `docs/game-rules.md`, som är den
 auktoritativa specifikationen vid varje eventuell motsägelse. Detta dokument ska

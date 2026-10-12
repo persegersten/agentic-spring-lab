@@ -59,22 +59,22 @@ public final class Round {
     public Map<UUID, Integer> initialScores() { return initialScores; }
     public List<RoundEvent> startEvents() { return startEvents; }
     public void reorder(UUID playerId, List<MovementOrder> orders) {
-        reorder(playerId, orders, programs.get(playerId) == null ? null : programs.get(playerId).scheduledAction());
+        reorder(playerId, orders, programs.get(playerId) != null && programs.get(playerId).shieldSelected());
     }
-    public void reorder(UUID playerId, List<MovementOrder> orders, ScheduledAction action) {
+    public void reorder(UUID playerId, List<MovementOrder> orders, boolean shieldSelected) {
         if (phase != RoundPhase.PLANNING) throw new IllegalStateException("Round is not accepting programs");
         var current = programs.get(playerId);
         if (current == null) throw new IllegalArgumentException("Player is not part of this round");
-        programs.put(playerId, current.edit(orders, action));
+        programs.put(playerId, current.edit(orders, shieldSelected));
     }
     public void lock(UUID playerId, List<MovementOrder> orders) {
-        lock(playerId, orders, programs.get(playerId) == null ? null : programs.get(playerId).scheduledAction());
+        lock(playerId, orders, programs.get(playerId) != null && programs.get(playerId).shieldSelected());
     }
-    public void lock(UUID playerId, List<MovementOrder> orders, ScheduledAction action) {
+    public void lock(UUID playerId, List<MovementOrder> orders, boolean shieldSelected) {
         if (phase != RoundPhase.PLANNING) throw new IllegalStateException("Round is not accepting programs");
         var current = programs.get(playerId);
         if (current == null) throw new IllegalArgumentException("Player is not part of this round");
-        programs.put(playerId, current.lock(orders, action));
+        programs.put(playerId, current.lock(orders, shieldSelected));
     }
     public boolean allReady() { return !programs.isEmpty() && programs.values().stream().allMatch(PlayerProgram::ready); }
     public boolean completeTimedOutPrograms(Instant now){if(phase!=RoundPhase.PLANNING||now.isBefore(planningDeadline))return false;programs.replaceAll((id,p)->p.completeWithWait());return true;}
@@ -86,12 +86,6 @@ public final class Round {
         resolve(engine,new se.segersten.wreckage.game.engine.BoardEffectEngine(engine),players,configuration);
     }
     public void resolve(se.segersten.wreckage.game.engine.MovementEngine engine,se.segersten.wreckage.game.engine.BoardEffectEngine effects,List<Player> players,GameConfiguration configuration){
-        resolve(engine,effects,new se.segersten.wreckage.game.engine.ActionEngine(engine),players,configuration);
-    }
-    public void resolve(se.segersten.wreckage.game.engine.MovementEngine engine,
-                        se.segersten.wreckage.game.engine.BoardEffectEngine effects,
-                        se.segersten.wreckage.game.engine.ActionEngine actions,
-                        List<Player> players,GameConfiguration configuration){
         if (!allReady()) throw new IllegalStateException("Not all players are ready");
         phase = RoundPhase.RESOLVING;
         GameState state = initialState;
@@ -99,15 +93,19 @@ public final class Round {
         Map<UUID, Player> playersById = players.stream().collect(java.util.stream.Collectors.toMap(Player::getId, p -> p));
         int cardPositions = programs.values().iterator().next().commands().size();
         boolean checkpointVictory = false;
+        var registerEffects = new se.segersten.wreckage.game.engine.RegisterEffects();
+        for (UUID playerId : initiative) {
+            if (!programs.get(playerId).shieldSelected()) continue;
+            VehicleState vehicle = activeVehicle(state, playerId);
+            if (vehicle == null) continue;
+            registerEffects.shield(vehicle.vehicle().id());
+            events.add(new RoundEvent(0, RoundEventType.SHIELD_ACTIVATED, playerId, vehicle.vehicle().id(),
+                    vehicle.position(), vehicle.position(), vehicle.orientation(), vehicle.orientation())
+                    .withSequence(events.size() + 1));
+        }
         resolution:
         for (int index = 0; index < cardPositions; index++) {
             int registerIndex = index + 1;
-            var registerEffects = new se.segersten.wreckage.game.engine.RegisterEffects();
-            var preActions = actions.resolve(ActionTiming.PRE_MOVEMENT, registerIndex, state, programs, initiative,
-                    registerEffects);
-            state = preActions.state();
-            checkpointVictory = addScoredEvents(events, preActions.events(), playersById, configuration, false, true, registerIndex);
-            if (checkpointVictory) break;
             for (UUID playerId : initiative) {
                 VehicleState vehicle = state.vehicleStates().stream()
                         .filter(candidate -> candidate.vehicle().playerId().equals(playerId))
@@ -118,22 +116,22 @@ public final class Round {
                             new Turn(List.of(new VehicleTurn(vehicle, programs.get(playerId).commands().get(index)))),
                             state, registerEffects);
                     state = result.state();
-                    checkpointVictory = addScoredEvents(events,result.events(),playersById,configuration,false, false, registerIndex);
+                    checkpointVictory = addScoredEvents(events,result.events(),playersById,configuration,false,registerIndex);
                     if (checkpointVictory) break resolution;
                 }
             }
-            var postActions = actions.resolve(ActionTiming.POST_MOVEMENT, registerIndex, state, programs, initiative,
-                    registerEffects);
-            state = postActions.state();
-            checkpointVictory = addScoredEvents(events, postActions.events(), playersById, configuration, true, true, registerIndex);
-            if (checkpointVictory) break;
-            var result=effects.resolve(state, registerEffects);state=result.state();addScoredEvents(events,result.events(),playersById,configuration,false, false, registerIndex);
+            var result=effects.resolve(state, registerEffects);state=result.state();addScoredEvents(events,result.events(),playersById,configuration,false,registerIndex);
             checkpointVictory = playersById.values().stream().anyMatch(player -> player.hasCompletedCheckpoints(initialState.board()));
             if (checkpointVictory) break;
         }
         if (!checkpointVictory) awardControlPoints(events, state, playersById, configuration);
         playback = List.copyOf(events);
         phase = RoundPhase.PLAYBACK;
+    }
+
+    private VehicleState activeVehicle(GameState state, UUID playerId) {
+        return state.vehicleStates().stream().filter(VehicleState::isActive)
+                .filter(vehicle -> vehicle.vehicle().playerId().equals(playerId)).findFirst().orElse(null);
     }
 
     private void awardControlPoints(List<RoundEvent> target, GameState state, Map<UUID, Player> players,
@@ -156,13 +154,13 @@ public final class Round {
 
     private boolean addScoredEvents(List<RoundEvent> target, List<RoundEvent> movementEvents,
                                  Map<UUID,Player>players,GameConfiguration configuration,boolean rewardPush,
-                                 boolean rewardWeapon, int registerIndex) {
+                                 int registerIndex) {
         java.util.Set<UUID> rewardedCrashes = new java.util.HashSet<>();
         for (RoundEvent event : movementEvents) {
             event = event.withRegister(registerIndex);
             target.add(event.withSequence(target.size() + 1));
             Player subject = players.get(event.playerId());
-            if(subject!=null&&(event.type()==RoundEventType.MOVE||event.type()==RoundEventType.SIDE_STEP||event.type()==RoundEventType.RAM||event.type()==RoundEventType.PUSH||event.type()==RoundEventType.CONVEYOR_MOVE||event.type()==RoundEventType.CONVEYOR_RAM||event.type()==RoundEventType.CONVEYOR_PUSH)){
+            if(subject!=null&&(event.type()==RoundEventType.MOVE||event.type()==RoundEventType.RAM||event.type()==RoundEventType.PUSH||event.type()==RoundEventType.CONVEYOR_MOVE||event.type()==RoundEventType.CONVEYOR_RAM||event.type()==RoundEventType.CONVEYOR_PUSH)){
                 Checkpoint checkpoint = initialState.board().checkpointAt(event.newPosition());
                 if (checkpoint != null && subject.captureCheckpoint(checkpoint, initialState.board())) {
                     addScoreEvent(target, event, subject, configuration.checkpointScore(),
@@ -170,21 +168,14 @@ public final class Round {
                     if (subject.hasCompletedCheckpoints(initialState.board())) return true;
                 }
             }
-            if(subject!=null&&(event.type()==RoundEventType.CRASH||event.type()==RoundEventType.CONVEYOR_CRASH
-                    || event.type()==RoundEventType.VEHICLE_CRASHED)){
+            if(subject!=null&&(event.type()==RoundEventType.CRASH||event.type()==RoundEventType.CONVEYOR_CRASH)){
                 subject.recordCrash();
                 addScoreEvent(target, event, subject, configuration.crashPenalty(),
                         ScoreChangeReason.CRASH_PENALTY, null);
-                boolean weaponEvent = event.actionType() != null && event.actionType().isWeapon();
-                if(rewardPush&&!weaponEvent&&!event.playerId().equals(event.sourcePlayerId())&&rewardedCrashes.add(event.playerId())){
+                if(rewardPush&&event.actionType()==null&&!event.playerId().equals(event.sourcePlayerId())&&rewardedCrashes.add(event.playerId())){
                     Player source = players.get(event.sourcePlayerId());
                     if (source != null) addScoreEvent(target, event, source, configuration.pushCrashScore(),
                             ScoreChangeReason.PUSH_CRASH, null);
-                }
-                if(rewardWeapon&&weaponEvent&&!event.playerId().equals(event.sourcePlayerId())&&rewardedCrashes.add(event.playerId())){
-                    Player source = players.get(event.sourcePlayerId());
-                    if (source != null) addScoreEvent(target, event, source, configuration.weaponCrashScore(),
-                            ScoreChangeReason.WEAPON_CRASH, null);
                 }
             }
         }
@@ -210,22 +201,17 @@ public final class Round {
             VehicleState current = result.get(event.vehicleId());
             if (current == null) continue;
             if (event.type() == RoundEventType.MOVE || event.type() == RoundEventType.TURN
-                    ||event.type()==RoundEventType.SIDE_STEP||event.type()==RoundEventType.RAM||event.type()==RoundEventType.PUSH||event.type()==RoundEventType.CONVEYOR_MOVE||event.type()==RoundEventType.CONVEYOR_RAM||event.type()==RoundEventType.CONVEYOR_PUSH||event.type()==RoundEventType.ROTATOR_TURN) {
+                    ||event.type()==RoundEventType.RAM||event.type()==RoundEventType.PUSH||event.type()==RoundEventType.CONVEYOR_MOVE||event.type()==RoundEventType.CONVEYOR_RAM||event.type()==RoundEventType.CONVEYOR_PUSH||event.type()==RoundEventType.ROTATOR_TURN) {
                 result.put(event.vehicleId(), new VehicleState(current.vehicle(), event.newPosition(),
-                        event.newDirection(), current.status(), current.damage(), current.rocketAmmo()));
-            }else if(event.type()==RoundEventType.DAMAGE_APPLIED){
-                result.put(event.vehicleId(), new VehicleState(current.vehicle(), current.position(),
-                        current.orientation(), current.status(), event.newDamage(), current.rocketAmmo()));
-            }else if(event.type()==RoundEventType.AMMO_CHANGED){
-                result.put(event.vehicleId(), new VehicleState(current.vehicle(), current.position(),
-                        current.orientation(), current.status(), current.damage(), event.newAmmo()));
-            }else if(event.type()==RoundEventType.CRASH||event.type()==RoundEventType.CONVEYOR_CRASH
-                    || event.type()==RoundEventType.VEHICLE_CRASHED){
+                        event.newDirection(), current.status(), current.shieldAvailable()));
+            }else if(event.type()==RoundEventType.CRASH||event.type()==RoundEventType.CONVEYOR_CRASH){
                 result.put(event.vehicleId(), new VehicleState(current.vehicle(), event.newPosition(),
-                        event.newDirection(), VehicleStatus.CRASHED,
-                        event.newDamage() == null ? current.damage() : event.newDamage(), current.rocketAmmo()));
+                        event.newDirection(), VehicleStatus.CRASHED, current.shieldAvailable()));
             }
         }
-        return List.copyOf(result.values());
+        return result.values().stream().map(state -> programs.get(state.vehicle().playerId()) != null
+                        && programs.get(state.vehicle().playerId()).shieldSelected()
+                ? new VehicleState(state.vehicle(), state.position(), state.orientation(), state.status(), false)
+                : state).toList();
     }
 }

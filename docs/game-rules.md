@@ -1,5 +1,14 @@
 # Wreckage — Game Rules v2
 
+> **Current Wreckage 2.0 rule boundary:** The Combat v1 loadout and scheduled
+> action rules documented later in this file are obsolete. There are no
+> selectable weapons, rockets, ammunition, damage attacks, Repulsor, Anchor,
+> Turbo, Side Step, or weapon-crash scores. `MovementOrder.LASER` remains a
+> programming card that displaces a target by up to two tiles through the shared
+> push rules. Each player may select one round-long immovable shield once per
+> match. Checkpoint, control-point, crash, and push scoring otherwise remains as
+> documented.
+
 This document is the authoritative rules specification for Wreckage v2.
 
 It replaces the previous combat-oriented ruleset with a fast,

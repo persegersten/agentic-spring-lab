@@ -27,7 +27,6 @@ class GameEntity {
     @Column(name = "control_point_score", nullable = false) private Integer controlPointScore;
     @Column(name = "crash_penalty", nullable = false) private Integer crashPenalty;
     @Column(name = "push_crash_score", nullable = false) private Integer pushCrashScore;
-    @Column(name = "weapon_crash_score", nullable = false) private Integer weaponCrashScore;
     @Column(name = "board_width") private Integer boardWidth;
     @Column(name = "board_height") private Integer boardHeight;
     @Column(name = "map_id", nullable = false) private String mapId;
@@ -56,7 +55,6 @@ class GameEntity {
         roundLimit = configuration.roundLimit(); checkpointScore = configuration.checkpointScore();
         controlPointScore = configuration.controlPointScore();
         crashPenalty = configuration.crashPenalty(); pushCrashScore = configuration.pushCrashScore();
-        weaponCrashScore = configuration.weaponCrashScore();
         configuredMapId = configuration.mapId();
         joinDeadline = game.getJoinDeadline(); hostTokenHash = game.getHostTokenHash(); syncPlayers(game.getPlayers()); syncVehicles(game.getVehicleStates());
         if (game.getRound() != null) round = round == null ? RoundEntity.fromDomain(game.getRound(), this) : round.updateFrom(game.getRound());
@@ -146,7 +144,7 @@ class GameEntity {
         Round domainRound = round == null ? null : round.toDomain(board, byVehicleId);
         GameConfiguration configuration = new GameConfiguration(maxPlayers, joinTimeoutSeconds,
                 programSize, planningTimeoutSeconds, roundLimit, checkpointScore, controlPointScore,
-                crashPenalty, pushCrashScore, weaponCrashScore, configuredMapId);
+                crashPenalty, pushCrashScore, configuredMapId);
         return new Game(domainId, domainPlayers, board, status, vehicleMap, domainRound,
                 configuration, createdAt.toInstant(), joinDeadline, hostTokenHash);
     }

@@ -1,39 +1,39 @@
 import { useEffect, useState, type DragEvent, type KeyboardEvent } from 'react'
-import type { MovementOrder, ScheduledAction } from '../types/game'
+import type { MovementOrder } from '../types/game'
 
 const labels: Record<MovementOrder, string> = { FORWARD_1: 'Framåt 1', FORWARD_2: 'Framåt 2', FORWARD_3: 'Framåt 3', REVERSE_1: 'Backa 1', TURN_LEFT: 'Sväng vänster', TURN_RIGHT: 'Sväng höger', U_TURN: 'U-sväng', LASER: 'Laser', WAIT: 'Vänta' }
 const withDefaults = (program: MovementOrder[], size: number): MovementOrder[] => Array.from({ length: size }, (_, index) => program[index] ?? 'WAIT')
-const shieldAction = (action: ScheduledAction | null): ScheduledAction | null => action?.actionType === 'SHIELD' ? action : null
 type DraggedCard = { source: 'hand'; index: number; command: MovementOrder } | { source: 'program'; index: number }
 
-export function CommandHand({ hand, program, scheduledAction, programSize, locked, executing = false, activeRegister = null, onReorder, onSubmit }: {
+export function CommandHand({ hand, program, shieldSelected, shieldAvailable, programSize, locked, executing = false, activeRegister = null, onReorder, onSubmit }: {
   hand: MovementOrder[]
   program: MovementOrder[]
-  scheduledAction: ScheduledAction | null
+  shieldSelected: boolean
+  shieldAvailable: boolean
   programSize: number
   locked: boolean
   executing?: boolean
   activeRegister?: number | null
-  onReorder: (value: MovementOrder[], action: ScheduledAction | null) => Promise<void>
-  onSubmit: (value: MovementOrder[], action: ScheduledAction | null) => Promise<void>
+  onReorder: (value: MovementOrder[], shieldSelected: boolean) => Promise<void>
+  onSubmit: (value: MovementOrder[], shieldSelected: boolean) => Promise<void>
 }) {
   const [draft, setDraft] = useState(() => program.slice(0, programSize))
-  const [action, setAction] = useState<ScheduledAction | null>(() => shieldAction(scheduledAction))
+  const [shield, setShield] = useState(shieldSelected)
   const [saving, setSaving] = useState(false)
   const [dragged, setDragged] = useState<DraggedCard | null>(null)
   const [dropIndex, setDropIndex] = useState<number | null>(null)
   const disabled = locked || executing || saving
 
-  useEffect(() => { if (!saving) { setDraft(program.slice(0, programSize)); setAction(shieldAction(scheduledAction)) } }, [program, scheduledAction, programSize, saving])
+  useEffect(() => { if (!saving) { setDraft(program.slice(0, programSize)); setShield(shieldSelected) } }, [program, shieldSelected, programSize, saving])
 
   async function save(next: MovementOrder[]) {
     setDraft(next)
     setSaving(true)
-    try { await onReorder(next, action) } finally { setSaving(false) }
+    try { await onReorder(next, shield) } finally { setSaving(false) }
   }
 
-  async function saveAction(next: ScheduledAction | null) {
-    setAction(next)
+  async function saveShield(next: boolean) {
+    setShield(next)
     setSaving(true)
     try { await onReorder(draft, next) } finally { setSaving(false) }
   }
@@ -166,25 +166,18 @@ export function CommandHand({ hand, program, scheduledAction, programSize, locke
         >{labels[command]}</button>
       </li>)}
     </ul>
-    <fieldset className="shield-control" disabled={disabled} data-testid="shield-controls">
+    <fieldset className="shield-control" disabled={disabled || !shieldAvailable} data-testid="shield-controls">
       <legend>Shield</legend>
       <label className="shield-toggle">
-        <input type="checkbox" data-testid="use-shield" checked={action?.actionType === 'SHIELD'} onChange={event => {
-          void saveAction(event.target.checked ? { actionType: 'SHIELD', registerIndex: action?.registerIndex ?? 1 } : null)
+        <input type="checkbox" data-testid="use-shield" checked={shield} onChange={event => {
+          void saveShield(event.target.checked)
         }} />
-        Aktivera Shield
+        Aktivera Shield för rundan
       </label>
-      <label>Programsteg
-        <select data-testid="action-register" disabled={disabled || !action} value={action?.registerIndex ?? 1} onChange={event => {
-          if (action) void saveAction({ ...action, registerIndex: Number(event.target.value) })
-        }}>
-          {Array.from({ length: programSize }, (_, index) => <option key={index + 1} value={index + 1}>{index + 1}</option>)}
-        </select>
-      </label>
-      <p data-testid="selected-shield">{action ? `Shield · programsteg ${action.registerIndex}` : 'Shield används inte'}</p>
+      <p data-testid="selected-shield">{shield ? 'Shield vald' : shieldAvailable ? 'Shield används inte' : 'Shield är förbrukad'}</p>
     </fieldset>
     <div className="actions">
-      <button data-testid="lock-program" disabled={disabled || draft.length !== programSize} onClick={() => void onSubmit(draft, action)}>{locked ? 'Program låst' : 'Lås program'}</button>
+      <button data-testid="lock-program" disabled={disabled || draft.length !== programSize} onClick={() => void onSubmit(draft, shield)}>{locked ? 'Program låst' : 'Lås program'}</button>
       <button className="secondary" disabled={disabled || !draft.length} onClick={() => void save([])}>Rensa</button>
     </div>
   </section>
