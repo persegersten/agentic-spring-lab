@@ -54,7 +54,7 @@ class InMemoryProfileIntegrationTest {
         var base = new Board(5, 5);
         var board = new Board(5, 5, java.util.Set.of(), java.util.Set.of(), checkpoints,
                 base.spawnPoints(), java.util.List.of(), java.util.List.of(), java.util.Set.of(new Position(2, 2)));
-        var program = new PlayerProgram(playerId, 1, java.util.List.of(MovementOrder.FORWARD_1), true);
+        var program = new PlayerProgram(playerId, 5, five(MovementOrder.FORWARD_1), true);
         var round = new Round(1, RoundPhase.PLANNING, java.util.Map.of(playerId, program),
                 java.util.List.of(playerId), new GameState(board, java.util.List.of(state)), java.util.List.of(),
                 now.plusSeconds(30), java.util.Map.of(playerId, 0));
@@ -127,7 +127,7 @@ class InMemoryProfileIntegrationTest {
 
     @Test
     void persistsPrivateScheduledActionUsingInMemoryDatabase() {
-        var hosted = gameService.createHostedGame(new GameConfiguration(2, 300, 3, 120));
+        var hosted = gameService.createHostedGame(new GameConfiguration(2, 300, 5, 120));
         var alice = gameService.addPlayer(hosted.game().getId(), "Alice");
         gameService.addPlayer(hosted.game().getId(), "Bob");
         gameService.startGame(hosted.game().getId(), hosted.hostToken());
@@ -135,7 +135,7 @@ class InMemoryProfileIntegrationTest {
                 se.segersten.wreckage.game.domain.ActionType.SHIELD, 1);
 
         gameService.saveProgramDraft(hosted.game().getId(), alice.player().getId(), alice.token(),
-                java.util.List.of(MovementOrder.WAIT), action);
+                java.util.List.of(), action);
         Game retrieved = gameService.getPlayerGame(hosted.game().getId(), alice.player().getId(), alice.token());
 
         assertThat(retrieved.getRound().programs().get(alice.player().getId()).scheduledAction()).isEqualTo(action);
@@ -143,16 +143,18 @@ class InMemoryProfileIntegrationTest {
 
     @Test
     void persistsAuthoritativeSpecialAbilityPlaybackUsingInMemoryDatabase() {
-        var hosted = gameService.createHostedGame(new GameConfiguration(2, 300, 1, 120));
+        var hosted = gameService.createHostedGame(new GameConfiguration(2, 300, 5, 120));
         var alice = gameService.addPlayer(hosted.game().getId(), "Alice");
         var bob = gameService.addPlayer(hosted.game().getId(), "Bob");
         gameService.startGame(hosted.game().getId(), hosted.hostToken());
         var action = new ScheduledAction(ActionType.SHIELD, 1);
 
+        Game aliceView = gameService.getPlayerGame(hosted.game().getId(), alice.player().getId(), alice.token());
+        Game bobView = gameService.getPlayerGame(hosted.game().getId(), bob.player().getId(), bob.token());
         gameService.submitProgram(hosted.game().getId(), alice.player().getId(), alice.token(),
-                List.of(MovementOrder.WAIT), action);
+                aliceView.getRound().programs().get(alice.player().getId()).hand().subList(0, 5), action);
         gameService.submitProgram(hosted.game().getId(), bob.player().getId(), bob.token(),
-                List.of(MovementOrder.WAIT), null);
+                bobView.getRound().programs().get(bob.player().getId()).hand().subList(0, 5), null);
         Game retrieved = gameService.getGame(hosted.game().getId());
 
         assertThat(retrieved.getRound().playback())
@@ -172,8 +174,8 @@ class InMemoryProfileIntegrationTest {
         var state = new VehicleState(vehicle, new Position(2, 2), Direction.NORTH);
         var board = new Board(6, 6, java.util.Set.of(new Wall(new Position(3, 1), Direction.EAST)),
                 java.util.Set.of(new Position(4, 5)));
-        var program = new se.segersten.wreckage.game.domain.PlayerProgram(playerId, 1,
-                java.util.List.of(se.segersten.wreckage.game.domain.MovementOrder.FORWARD_2), true);
+        var program = new se.segersten.wreckage.game.domain.PlayerProgram(playerId, 5,
+                five(se.segersten.wreckage.game.domain.MovementOrder.FORWARD_2), true);
         var round = new se.segersten.wreckage.game.domain.Round(1, java.util.Map.of(playerId, program), java.util.List.of(playerId),
                 new se.segersten.wreckage.game.domain.GameState(board, java.util.List.of(state)));
         round.resolve(new se.segersten.wreckage.game.engine.MovementEngine());
@@ -204,7 +206,7 @@ class InMemoryProfileIntegrationTest {
         var vehicle = new Vehicle(java.util.UUID.randomUUID(), playerId);
         var active = new VehicleState(vehicle, new Position(2, 2), Direction.NORTH);
         var board = new Board(5, 5, java.util.Set.of(), java.util.Set.of(new Position(2, 3)));
-        var program = new PlayerProgram(playerId, 1, java.util.List.of(MovementOrder.FORWARD_1), true);
+        var program = new PlayerProgram(playerId, 5, five(MovementOrder.FORWARD_1), true);
         var round = new Round(1, java.util.Map.of(playerId, program), java.util.List.of(playerId),
                 new GameState(board, java.util.List.of(active)));
         round.resolve(new se.segersten.wreckage.game.engine.MovementEngine());
@@ -236,9 +238,9 @@ class InMemoryProfileIntegrationTest {
         var vehicle = new Vehicle(java.util.UUID.randomUUID(), player.getId(), spawn.position(), spawn.orientation());
         var crashed = new VehicleState(vehicle, new Position(-1, 2), Direction.NORTH, se.segersten.wreckage.game.domain.VehicleStatus.CRASHED);
         var game = new Game(java.util.UUID.randomUUID(), java.util.List.of(player), board, GameStatus.RUNNING,
-                java.util.Map.of(player.getId(), crashed), null, new GameConfiguration(2, 60, 1, 30), now,
+                java.util.Map.of(player.getId(), crashed), null, new GameConfiguration(2, 60, 5, 30), now,
                 now.plusSeconds(60));
-        game.startRound(now);
+        game.startRound(now, handsFor(game));
 
         gameRepository.save(game);
         Game retrieved = gameService.getGame(game.getId());
@@ -258,7 +260,7 @@ class InMemoryProfileIntegrationTest {
         var vehicle = new Vehicle(java.util.UUID.randomUUID(), playerId);
         var state = new VehicleState(vehicle, new Position(2, 2), Direction.NORTH);
         var board = new Board(5, 5);
-        var program = new PlayerProgram(playerId, 2,
+        var program = new PlayerProgram(playerId, 5,
                 java.util.List.of(MovementOrder.WAIT, MovementOrder.FORWARD_1), false);
         var round = new Round(2, java.util.Map.of(playerId, program), java.util.List.of(playerId),
                 new GameState(board, java.util.List.of(state)));
@@ -287,10 +289,10 @@ class InMemoryProfileIntegrationTest {
         var targetState = new VehicleState(new Vehicle(java.util.UUID.randomUUID(), target.getId()),
                 new Position(2, 1), Direction.NORTH, se.segersten.wreckage.game.domain.VehicleStatus.ACTIVE, 0);
         var programs = java.util.Map.of(
-                shooter.getId(), new PlayerProgram(shooter.getId(), 1, java.util.List.of(MovementOrder.WAIT), true,
+                shooter.getId(), new PlayerProgram(shooter.getId(), 5, five(MovementOrder.WAIT), true,
                         new se.segersten.wreckage.game.domain.ScheduledAction(
                                 se.segersten.wreckage.game.domain.ActionType.ROCKET, 1)),
-                target.getId(), new PlayerProgram(target.getId(), 1, java.util.List.of(MovementOrder.WAIT), true));
+                target.getId(), new PlayerProgram(target.getId(), 5, five(MovementOrder.WAIT), true));
         var board = new Board(5, 5);
         var round = new Round(1, programs, java.util.List.of(shooter.getId(), target.getId()),
                 new GameState(board, java.util.List.of(shooterState, targetState)));
@@ -325,5 +327,18 @@ class InMemoryProfileIntegrationTest {
                     assertThat(state.vehicle().primaryWeapon()).isEqualTo(se.segersten.wreckage.game.domain.PrimaryWeapon.ROCKET);
                     assertThat(state.vehicle().specialAbility()).isEqualTo(se.segersten.wreckage.game.domain.SpecialAbility.SIDE_STEP);
                 });
+    }
+
+    private static List<MovementOrder> five(MovementOrder... commands) {
+        var result = new java.util.ArrayList<>(List.of(commands));
+        while (result.size() < 5) result.add(MovementOrder.WAIT);
+        return List.copyOf(result);
+    }
+
+    private static java.util.Map<java.util.UUID, List<MovementOrder>> handsFor(Game game) {
+        return game.getPlayers().stream().collect(java.util.stream.Collectors.toMap(Player::getId,
+                ignored -> List.of(MovementOrder.FORWARD_1, MovementOrder.FORWARD_1,
+                        MovementOrder.FORWARD_2, MovementOrder.FORWARD_3, MovementOrder.REVERSE_1,
+                        MovementOrder.TURN_LEFT, MovementOrder.TURN_RIGHT, MovementOrder.U_TURN)));
     }
 }

@@ -40,7 +40,7 @@ class GameServiceTest {
         for (int count = 2; count <= 10; count++) {
             InMemoryGameRepository repository = new InMemoryGameRepository();
             GameService service = new GameService(repository);
-            var hosted = service.createHostedGame(new GameConfiguration(count, 60, 3, 30));
+            var hosted = service.createHostedGame(new GameConfiguration(count, 60, 5, 30));
             for (int index = 0; index < count; index++) service.addPlayer(hosted.game().getId(), "P" + index);
 
             Game started = service.startGame(hosted.game().getId(), hosted.hostToken());
@@ -112,22 +112,25 @@ class GameServiceTest {
     }
 
     @Test
-    void shouldAcceptProgramSizeBoundaryValues() {
-        assertThat(new GameConfiguration(10, 60, 1, 30).programSize()).isEqualTo(1);
+    void shouldAcceptFiveRegistersAndRejectOtherProgramSizes() {
         assertThat(new GameConfiguration(10, 60, 5, 30).programSize()).isEqualTo(5);
+        assertThatThrownBy(() -> new GameConfiguration(10, 60, 1, 30))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new GameConfiguration(10, 60, 3, 30))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new GameConfiguration(10, 60, 4, 30))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new GameConfiguration(10, 60, 6, 30))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
     void shouldRejectInvalidConfiguration() {
-        assertThatThrownBy(() -> new GameConfiguration(0, 60, 3, 30))
+        assertThatThrownBy(() -> new GameConfiguration(0, 60, 5, 30))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> new GameConfiguration(10, 0, 3, 30))
+        assertThatThrownBy(() -> new GameConfiguration(10, 0, 5, 30))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> new GameConfiguration(10, 60, 0, 30))
-                .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> new GameConfiguration(10, 60, 6, 30))
-                .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> new GameConfiguration(10, 60, 3, 0))
+        assertThatThrownBy(() -> new GameConfiguration(10, 60, 5, 0))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
@@ -147,7 +150,7 @@ class GameServiceTest {
     void shouldRejectPlayerWhenLobbyIsFull() {
         InMemoryGameRepository repository = new InMemoryGameRepository();
         GameService service = new GameService(repository);
-        Game game = service.createGame(new GameConfiguration(2, 60, 3, 30));
+        Game game = service.createGame(new GameConfiguration(2, 60, 5, 30));
         service.addPlayer(game.getId(), "Alice");
         service.addPlayer(game.getId(), "Bob");
 
@@ -161,7 +164,7 @@ class GameServiceTest {
         InMemoryGameRepository repository = new InMemoryGameRepository();
         Instant created = Instant.parse("2026-01-01T12:00:00Z");
         GameService creator = new GameService(repository, Clock.fixed(created, ZoneOffset.UTC));
-        Game game = creator.createGame(new GameConfiguration(10, 60, 3, 30));
+        Game game = creator.createGame(new GameConfiguration(10, 60, 5, 30));
         GameService expired = new GameService(repository,
                 Clock.fixed(created.plusSeconds(60), ZoneOffset.UTC));
 
@@ -172,7 +175,7 @@ class GameServiceTest {
     void shouldNotStartPlanningWhenLobbyFills() {
         InMemoryGameRepository repository = new InMemoryGameRepository();
         GameService service = new GameService(repository);
-        Game game = service.createGame(new GameConfiguration(4, 60, 3, 30));
+        Game game = service.createGame(new GameConfiguration(4, 60, 5, 30));
         service.addPlayer(game.getId(), "Alice");
         service.addPlayer(game.getId(), "Bob");
         service.addPlayer(game.getId(), "Charlie");
@@ -187,7 +190,7 @@ class GameServiceTest {
     void updatesAuthenticatedLobbyLoadoutAndRejectsForgedActionAfterStart() {
         InMemoryGameRepository repository = new InMemoryGameRepository();
         GameService service = new GameService(repository);
-        var hosted = service.createHostedGame(new GameConfiguration(2, 60, 3, 30));
+        var hosted = service.createHostedGame(new GameConfiguration(2, 60, 5, 30));
         var alice = service.addPlayer(hosted.game().getId(), "Alice");
         service.addPlayer(hosted.game().getId(), "Bob");
 
@@ -210,7 +213,7 @@ class GameServiceTest {
         InMemoryGameRepository repository = new InMemoryGameRepository();
         Instant created = Instant.parse("2026-01-01T12:00:00Z");
         GameService creator = new GameService(repository, Clock.fixed(created, ZoneOffset.UTC));
-        var hosted = creator.createHostedGame(new GameConfiguration(4, 60, 3, 30));
+        var hosted = creator.createHostedGame(new GameConfiguration(4, 60, 5, 30));
         Game game = hosted.game();
         creator.addPlayer(game.getId(), "Alice");
         creator.addPlayer(game.getId(), "Bob");
@@ -229,7 +232,7 @@ class GameServiceTest {
         InMemoryGameRepository repository = new InMemoryGameRepository();
         Instant created = Instant.parse("2026-01-01T12:00:00Z");
         GameService creator = new GameService(repository, Clock.fixed(created, ZoneOffset.UTC));
-        var hosted = creator.createHostedGame(new GameConfiguration(4, 60, 3, 30));
+        var hosted = creator.createHostedGame(new GameConfiguration(4, 60, 5, 30));
         Game game = hosted.game();
         creator.addPlayer(game.getId(), "Alice");
 
@@ -264,7 +267,7 @@ class GameServiceTest {
         Game game = service.createGame(new GameConfiguration(2, 60, 5, 30));
         var alice = service.addPlayer(game.getId(), "Alice");
         var bob = service.addPlayer(game.getId(), "Bob");
-        game.start(now);
+        game.start(now, null, handsFor(game));
         List<MovementOrder> fiveCards = List.of(MovementOrder.FORWARD_1, MovementOrder.FORWARD_1,
                 MovementOrder.FORWARD_1, MovementOrder.FORWARD_1, MovementOrder.FORWARD_1);
 
@@ -302,7 +305,7 @@ class GameServiceTest {
     void shouldAddUniquelyNamedBotsAndLockTheirProgramsInDealtOrder() {
         InMemoryGameRepository repository = new InMemoryGameRepository();
         GameService service = new GameService(repository, Clock.systemUTC(), new BotPlayerAutomation());
-        var hosted = service.createHostedGame(new GameConfiguration(4, 60, 3, 30));
+        var hosted = service.createHostedGame(new GameConfiguration(4, 60, 5, 30));
         Game game = hosted.game();
         var human = service.addPlayer(game.getId(), "Bot 1");
         service.addBot(game.getId(), human.player().getId(), human.token());
@@ -325,7 +328,7 @@ class GameServiceTest {
     void shouldAuthenticateBotCreationAndEnforceLobbyCapacityAndStatus() {
         InMemoryGameRepository repository = new InMemoryGameRepository();
         GameService service = new GameService(repository);
-        var hosted = service.createHostedGame(new GameConfiguration(2, 60, 3, 30));
+        var hosted = service.createHostedGame(new GameConfiguration(2, 60, 5, 30));
         var human = service.addPlayer(hosted.game().getId(), "Alice");
 
         assertThatThrownBy(() -> service.addBot(hosted.game().getId(), human.player().getId(), "wrong"))
@@ -348,7 +351,7 @@ class GameServiceTest {
     void shouldResolveAndPrepareBotsForTheNextRound() {
         InMemoryGameRepository repository = new InMemoryGameRepository();
         GameService service = new GameService(repository, Clock.systemUTC(), new BotPlayerAutomation());
-        var hosted = service.createHostedGame(new GameConfiguration(3, 60, 3, 30));
+        var hosted = service.createHostedGame(new GameConfiguration(3, 60, 5, 30));
         Game game = hosted.game();
         var human = service.addPlayer(game.getId(), "Alice");
         service.addBot(game.getId(), human.player().getId(), human.token());
@@ -356,7 +359,7 @@ class GameServiceTest {
         service.startGame(game.getId(), hosted.hostToken());
 
         service.submitProgram(game.getId(), human.player().getId(), human.token(),
-                java.util.Collections.nCopies(game.getConfiguration().programSize(), MovementOrder.WAIT));
+                game.getRound().programs().get(human.player().getId()).hand().subList(0, 5));
 
         assertThat(game.getRound().phase()).isEqualTo(RoundPhase.PLAYBACK);
 
@@ -391,15 +394,16 @@ class GameServiceTest {
                         se.segersten.wreckage.game.domain.Direction.SOUTH));
         Instant now = Instant.parse("2026-01-01T12:00:00Z");
         Game game = new Game(UUID.randomUUID(), List.of(human, bot), board,
-                GameStatus.RUNNING, vehicles, null, new GameConfiguration(2, 60, 3, 30),
+                GameStatus.RUNNING, vehicles, null, new GameConfiguration(2, 60, 5, 30),
                 now, now.plusSeconds(60));
-        game.startRound(java.time.Instant.now());
+        game.startRound(java.time.Instant.now(), handsFor(game));
 
         new BotPlayerAutomation().lockBotPrograms(game);
 
         var program = game.getRound().programs().get(botId);
-        assertThat(program.commands()).containsExactly(MovementOrder.WAIT,
-                MovementOrder.WAIT, MovementOrder.WAIT);
+        assertThat(program.commands()).containsExactly(
+                MovementOrder.FORWARD_1, MovementOrder.FORWARD_1, MovementOrder.FORWARD_1,
+                MovementOrder.FORWARD_1, MovementOrder.FORWARD_1);
         assertThat(program.commands()).containsExactlyElementsOf(program.commands());
     }
 
@@ -407,10 +411,10 @@ class GameServiceTest {
     void shouldPersistAnAuthenticatedProgramDraftForRecovery() {
         InMemoryGameRepository repository = new InMemoryGameRepository();
         GameService service = new GameService(repository, Clock.systemUTC());
-        Game game = service.createGame(new GameConfiguration(2, 60, 3, 30));
+        Game game = service.createGame(new GameConfiguration(2, 60, 5, 30));
         var per = service.addPlayer(game.getId(), "Per");
         service.addPlayer(game.getId(), "Alice");
-        game.start(Instant.now());
+        game.start(Instant.now(), null, handsFor(game));
         List<MovementOrder> draft = List.of(MovementOrder.FORWARD_1,
                 MovementOrder.FORWARD_1, MovementOrder.FORWARD_1);
 
@@ -429,10 +433,10 @@ class GameServiceTest {
         InMemoryGameRepository repository = new InMemoryGameRepository();
         Instant now = Instant.parse("2026-01-01T12:00:00Z");
         GameService service = new GameService(repository, Clock.fixed(now, ZoneOffset.UTC));
-        Game game = service.createGame(new GameConfiguration(2, 60, 3, 5));
+        Game game = service.createGame(new GameConfiguration(2, 60, 5, 5));
         var per = service.addPlayer(game.getId(), "Per");
         service.addPlayer(game.getId(), "Alice");
-        game.start(now);
+        game.start(now, null, handsFor(game));
         service.saveProgramDraft(game.getId(), per.player().getId(), per.token(),
                 List.of(MovementOrder.TURN_LEFT));
 
@@ -449,7 +453,8 @@ class GameServiceTest {
 
         PlayerProgram completed = game.getRound().programs().get(per.player().getId());
         assertThat(completed.commands()).containsExactly(
-                MovementOrder.TURN_LEFT, MovementOrder.WAIT, MovementOrder.WAIT);
+                MovementOrder.TURN_LEFT, MovementOrder.FORWARD_1, MovementOrder.FORWARD_1,
+                MovementOrder.FORWARD_1, MovementOrder.FORWARD_1);
         assertThat(completed.ready()).isTrue();
         assertThat(game.getRound().phase()).isEqualTo(RoundPhase.PLAYBACK);
     }
@@ -516,6 +521,13 @@ class GameServiceTest {
 
         assertThat(service.getRunningGames()).isEmpty();
         assertThat(service.getFinishedGames()).isEmpty();
+    }
+
+    private static Map<UUID, List<MovementOrder>> handsFor(Game game) {
+        return game.getPlayers().stream().collect(java.util.stream.Collectors.toMap(Player::getId,
+                ignored -> List.of(MovementOrder.FORWARD_1, MovementOrder.FORWARD_1,
+                        MovementOrder.FORWARD_1, MovementOrder.FORWARD_1, MovementOrder.FORWARD_1,
+                        MovementOrder.TURN_LEFT, MovementOrder.TURN_RIGHT, MovementOrder.U_TURN)));
     }
 
     private static final class InMemoryGameRepository implements GameRepository {

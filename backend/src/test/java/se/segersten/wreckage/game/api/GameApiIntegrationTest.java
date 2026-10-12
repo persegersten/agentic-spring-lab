@@ -113,13 +113,15 @@ class GameApiIntegrationTest {
     }
 
     @Test
-    void rejectInvalidGameConfiguration() throws Exception {
-        HttpResponse<String> response = post("/games", """
-                {"maxPlayers":4,"joinTimeoutSeconds":90,"programSize":11,"planningTimeoutSeconds":45}
-                """);
+    void rejectNonFiveRegisterGameConfigurations() throws Exception {
+        for (int programSize : List.of(1, 3, 4, 6)) {
+            HttpResponse<String> response = post("/games", """
+                    {"maxPlayers":4,"joinTimeoutSeconds":90,"programSize":%d,"planningTimeoutSeconds":45}
+                    """.formatted(programSize));
 
-        assertThat(response.statusCode()).isEqualTo(HttpStatus.BAD_REQUEST.value());
-        assertThat(json(response).path("message").asText()).contains("programSize");
+            assertThat(response.statusCode()).isEqualTo(HttpStatus.BAD_REQUEST.value());
+            assertThat(json(response).path("message").asText()).contains("programSize", "exactly 5");
+        }
     }
 
     @Test
@@ -137,7 +139,7 @@ class GameApiIntegrationTest {
     @Test
     void rejectPlayerWhenLobbyIsFull() throws Exception {
         HttpResponse<String> created = post("/games", """
-                {"maxPlayers":2,"joinTimeoutSeconds":90,"programSize":3,"planningTimeoutSeconds":45}
+                {"maxPlayers":2,"joinTimeoutSeconds":90,"programSize":5,"planningTimeoutSeconds":45}
                 """);
         String gameId = json(created).path("id").asText();
         post("/games/%s/players".formatted(gameId), "{\"name\":\"Alice\"}");
@@ -153,7 +155,7 @@ class GameApiIntegrationTest {
     @Test
     void authenticatedPlayerAddsBotsToTheCurrentLobby() throws Exception {
         HttpResponse<String> created = post("/games", """
-                {"maxPlayers":3,"joinTimeoutSeconds":90,"programSize":3,"planningTimeoutSeconds":45}
+                {"maxPlayers":3,"joinTimeoutSeconds":90,"programSize":5,"planningTimeoutSeconds":45}
                 """);
         String gameId = json(created).path("id").asText();
         JsonNode alice = json(post("/games/%s/players".formatted(gameId), "{\"name\":\"Alice\"}"));
@@ -194,7 +196,7 @@ class GameApiIntegrationTest {
     @Test
     void cannotAddBotAfterTheGameStarts() throws Exception {
         HttpResponse<String> created = post("/games", """
-                {"maxPlayers":3,"joinTimeoutSeconds":90,"programSize":3,"planningTimeoutSeconds":45}
+                {"maxPlayers":3,"joinTimeoutSeconds":90,"programSize":5,"planningTimeoutSeconds":45}
                 """);
         String gameId = json(created).path("id").asText();
         JsonNode alice = json(post("/games/%s/players".formatted(gameId), "{\"name\":\"Alice\"}"));
@@ -210,7 +212,7 @@ class GameApiIntegrationTest {
     @Test
     void onlyHostStartsPlanningAndPersistsThePhase() throws Exception {
         HttpResponse<String> created = post("/games", """
-                {"maxPlayers":2,"joinTimeoutSeconds":90,"programSize":3,"planningTimeoutSeconds":45}
+                {"maxPlayers":2,"joinTimeoutSeconds":90,"programSize":5,"planningTimeoutSeconds":45}
                 """);
         String gameId = json(created).path("id").asText();
         post("/games/%s/players".formatted(gameId), "{\"name\":\"Alice\"}");
@@ -235,7 +237,7 @@ class GameApiIntegrationTest {
     @Test
     void returnsTheSameServerOwnedBoardAndVehiclePositionsToEveryPlayer() throws Exception {
         HttpResponse<String> created = post("/games", """
-                {"maxPlayers":2,"joinTimeoutSeconds":90,"programSize":3,"planningTimeoutSeconds":45}
+                {"maxPlayers":2,"joinTimeoutSeconds":90,"programSize":5,"planningTimeoutSeconds":45}
                 """);
         String gameId = json(created).path("id").asText();
         JsonNode alice = json(post("/games/%s/players".formatted(gameId), "{\"name\":\"Alice\"}"));
@@ -386,7 +388,7 @@ class GameApiIntegrationTest {
     @Test
     void persistsAPlayersPrivatePlanningDraftForReconnect() throws Exception {
         HttpResponse<String> created = post("/games", """
-                {"maxPlayers":2,"joinTimeoutSeconds":90,"programSize":3,"planningTimeoutSeconds":45}
+                {"maxPlayers":2,"joinTimeoutSeconds":90,"programSize":5,"planningTimeoutSeconds":45}
                 """);
         String gameId = json(created).path("id").asText();
         JsonNode per = json(post("/games/%s/players".formatted(gameId), "{\"name\":\"Per\"}"));
@@ -394,7 +396,8 @@ class GameApiIntegrationTest {
         postHost(gameId, json(created).path("hostToken").asText());
         JsonNode original = json(getPlayerGame(gameId, per));
         var draft = objectMapper.createArrayNode();
-        draft.add("TURN_LEFT"); draft.add("TURN_LEFT");
+        draft.add(original.path("round").path("hand").get(0));
+        draft.add(original.path("round").path("hand").get(1));
 
         HttpResponse<String> saved = putPlayer(
                 "/games/%s/rounds/current/program".formatted(gameId), per,
@@ -413,7 +416,7 @@ class GameApiIntegrationTest {
     @Test
     void editsPersistsLocksAndKeepsScheduledActionPrivate() throws Exception {
         HttpResponse<String> created = post("/games", """
-                {"maxPlayers":2,"joinTimeoutSeconds":90,"programSize":3,"planningTimeoutSeconds":45}
+                {"maxPlayers":2,"joinTimeoutSeconds":90,"programSize":5,"planningTimeoutSeconds":45}
                 """);
         String gameId = json(created).path("id").asText();
         JsonNode alice = json(post("/games/%s/players".formatted(gameId), "{\"name\":\"Alice\"}"));
@@ -421,6 +424,7 @@ class GameApiIntegrationTest {
         putPlayer("/games/%s/players/%s/loadout".formatted(gameId, alice.path("id").asText()), alice,
                 "{\"weapon\":\"REPULSOR\",\"ability\":\"SHIELD\"}");
         postHost(gameId, json(created).path("hostToken").asText());
+        JsonNode aliceHand = json(getPlayerGame(gameId, alice));
         String shield = """
                 {"orders":[],"scheduledAction":{"actionType":"SHIELD","registerIndex":2}}
                 """;
@@ -455,9 +459,7 @@ class GameApiIntegrationTest {
                 """);
         assertThat(invalid.statusCode()).isEqualTo(HttpStatus.BAD_REQUEST.value());
 
-        String lockedPlan = """
-                {"orders":["WAIT","WAIT","WAIT"],"scheduledAction":{"actionType":"REPULSOR","registerIndex":3}}
-                """;
+        String lockedPlan = programRequest(aliceHand, "REPULSOR", 3);
         assertThat(postPlayer("/games/%s/rounds/current/program".formatted(gameId), alice, lockedPlan).statusCode())
                 .isEqualTo(HttpStatus.OK.value());
         assertThat(putPlayer("/games/%s/rounds/current/program".formatted(gameId), alice, """
@@ -468,12 +470,13 @@ class GameApiIntegrationTest {
     @Test
     void exposesAuthoritativeLaserDamageAndOrderedPlaybackToEveryPlayer() throws Exception {
         HttpResponse<String> created = post("/games", """
-                {"maxPlayers":2,"joinTimeoutSeconds":90,"programSize":1,"planningTimeoutSeconds":45}
+                {"maxPlayers":2,"joinTimeoutSeconds":90,"programSize":5,"planningTimeoutSeconds":45}
                 """);
         String gameId = json(created).path("id").asText();
         JsonNode alice = json(post("/games/%s/players".formatted(gameId), "{\"name\":\"Alice\"}"));
         JsonNode bob = json(post("/games/%s/players".formatted(gameId), "{\"name\":\"Bob\"}"));
         postHost(gameId, json(created).path("hostToken").asText());
+        replaceRoundHands(UUID.fromString(gameId), alice, bob);
         JsonNode started = json(getPlayerGame(gameId, alice));
         assertThat(started.path("board").path("mapId").asText()).isEqualTo("default-small");
         JsonNode aliceStart = started.path("vehicles").valueStream()
@@ -488,11 +491,10 @@ class GameApiIntegrationTest {
         assertThat(bobStart.path("x").asInt()).isEqualTo(5);
         assertThat(bobStart.path("y").asInt()).isZero();
 
-        postPlayer("/games/%s/rounds/current/program".formatted(gameId), alice, """
-                {"orders":["TURN_RIGHT"],"scheduledAction":{"actionType":"LASER","registerIndex":1}}
-                """);
+        postPlayer("/games/%s/rounds/current/program".formatted(gameId), alice,
+                programRequest(started, "LASER", 1));
         postPlayer("/games/%s/rounds/current/program".formatted(gameId), bob,
-                "{\"orders\":[\"WAIT\"],\"scheduledAction\":null}");
+                programRequest(json(getPlayerGame(gameId, bob)), null, 0));
 
         JsonNode aliceView = json(getPlayerGame(gameId, alice));
         JsonNode bobView = json(getPlayerGame(gameId, bob));
@@ -515,7 +517,7 @@ class GameApiIntegrationTest {
     @Test
     void persistsRocketConsumptionAndRejectsSchedulingItAgain() throws Exception {
         HttpResponse<String> created = post("/games", """
-                {"maxPlayers":2,"joinTimeoutSeconds":90,"programSize":1,"planningTimeoutSeconds":45}
+                {"maxPlayers":2,"joinTimeoutSeconds":90,"programSize":5,"planningTimeoutSeconds":45}
                 """);
         String gameId = json(created).path("id").asText();
         JsonNode alice = json(post("/games/%s/players".formatted(gameId), "{\"name\":\"Alice\"}"));
@@ -523,17 +525,17 @@ class GameApiIntegrationTest {
         putPlayer("/games/%s/players/%s/loadout".formatted(gameId, alice.path("id").asText()), alice,
                 "{\"weapon\":\"ROCKET\",\"ability\":\"SHIELD\"}");
         postHost(gameId, json(created).path("hostToken").asText());
+        replaceRoundHands(UUID.fromString(gameId), alice, bob);
 
-        postPlayer("/games/%s/rounds/current/program".formatted(gameId), alice, """
-                {"orders":["WAIT"],"scheduledAction":{"actionType":"ROCKET","registerIndex":1}}
-                """);
+        postPlayer("/games/%s/rounds/current/program".formatted(gameId), alice,
+                programRequest(json(getPlayerGame(gameId, alice)), "ROCKET", 1));
         postPlayer("/games/%s/rounds/current/program".formatted(gameId), bob,
-                "{\"orders\":[\"WAIT\"],\"scheduledAction\":null}");
+                programRequest(json(getPlayerGame(gameId, bob)), null, 0));
 
         JsonNode resolved = json(getPlayerGame(gameId, alice));
         assertThat(resolved.path("round").path("state").path("playback"))
                 .extracting(event -> event.path("type").asText())
-                .startsWith("WEAPON_FIRED", "AMMO_CHANGED");
+                .containsSequence("WEAPON_FIRED", "AMMO_CHANGED");
         JsonNode aliceVehicle = java.util.stream.StreamSupport.stream(resolved.path("vehicles").spliterator(), false)
                 .filter(vehicle -> vehicle.path("playerId").asText().equals(alice.path("id").asText()))
                 .findFirst().orElseThrow();
@@ -616,7 +618,7 @@ class GameApiIntegrationTest {
     @Test
     void exposesPersistedCrashedVehicleStatusWithoutRemovingPlayerAggregate() throws Exception {
         HttpResponse<String> created = post("/games", """
-                {"maxPlayers":2,"joinTimeoutSeconds":90,"programSize":3,"planningTimeoutSeconds":45}
+                {"maxPlayers":2,"joinTimeoutSeconds":90,"programSize":5,"planningTimeoutSeconds":45}
                 """);
         String gameId = json(created).path("id").asText();
         JsonNode per = json(post("/games/%s/players".formatted(gameId), "{\"name\":\"Per\"}"));
@@ -649,7 +651,7 @@ class GameApiIntegrationTest {
     @Test
     void exposesAuthoritativeFinishedPlacementsAndWinners() throws Exception {
         HttpResponse<String> created = post("/games", """
-                {"maxPlayers":2,"joinTimeoutSeconds":90,"programSize":1,"planningTimeoutSeconds":45,"roundLimit":1}
+                {"maxPlayers":2,"joinTimeoutSeconds":90,"programSize":5,"planningTimeoutSeconds":45,"roundLimit":1}
                 """);
         UUID gameId = UUID.fromString(json(created).path("id").asText());
         UUID firstId = UUID.fromString(json(post("/games/%s/players".formatted(gameId),
@@ -758,6 +760,46 @@ class GameApiIntegrationTest {
         HttpResponse<String> response = post("/games", null);
         assertThat(response.statusCode()).isEqualTo(HttpStatus.CREATED.value());
         return json(response).path("id").asText();
+    }
+
+    private String programRequest(JsonNode playerGame, String actionType, int registerIndex) {
+        var orders = objectMapper.createArrayNode();
+        for (int index = 0; index < 5; index++) orders.add(playerGame.path("round").path("hand").get(index));
+        var request = objectMapper.createObjectNode();
+        request.set("orders", orders);
+        if (actionType == null) {
+            request.putNull("scheduledAction");
+        } else {
+            var action = objectMapper.createObjectNode();
+            action.put("actionType", actionType);
+            action.put("registerIndex", registerIndex);
+            request.set("scheduledAction", action);
+        }
+        return request.toString();
+    }
+
+    private void replaceRoundHands(UUID gameId, JsonNode first, JsonNode second) {
+        UUID firstId = UUID.fromString(first.path("id").asText());
+        UUID secondId = UUID.fromString(second.path("id").asText());
+        List<MovementOrder> hand = List.of(MovementOrder.TURN_RIGHT, MovementOrder.TURN_LEFT,
+                MovementOrder.TURN_RIGHT, MovementOrder.TURN_LEFT, MovementOrder.U_TURN,
+                MovementOrder.FORWARD_1, MovementOrder.REVERSE_1, MovementOrder.LASER);
+        new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+            Game current = gameRepository.findById(gameId).orElseThrow();
+            Round existing = current.getRound();
+            Map<UUID, PlayerProgram> programs = new LinkedHashMap<>();
+            programs.put(firstId, PlayerProgram.dealt(firstId, 5, hand));
+            programs.put(secondId, PlayerProgram.dealt(secondId, 5, hand));
+            Round round = new Round(existing.number(), existing.phase(), programs, existing.initiative(),
+                    existing.initialState(), existing.playback(), existing.planningDeadline(),
+                    existing.initialScores(), existing.startEvents());
+            Map<UUID, VehicleState> vehicles = current.getVehicleStates().stream().collect(
+                    java.util.stream.Collectors.toMap(state -> state.vehicle().playerId(), state -> state,
+                            (left, right) -> left, LinkedHashMap::new));
+            gameRepository.save(new Game(current.getId(), current.getPlayers(), current.getBoard(),
+                    current.getStatus(), vehicles, round, current.getConfiguration(), current.getCreatedAt(),
+                    current.getJoinDeadline(), current.getHostTokenHash()));
+        });
     }
 
     private HttpResponse<String> post(String path, String body)

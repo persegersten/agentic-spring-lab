@@ -267,8 +267,9 @@ class ActionEngineTest {
 
     private ActionResult resolve(ActionType actionType, ActionTiming timing, VehicleState actor, GameState state,
                                  RegisterEffects effects) {
-        PlayerProgram program = new PlayerProgram(actor.vehicle().playerId(), 1,
-                List.of(MovementOrder.WAIT), true, new ScheduledAction(actionType, 1));
+        PlayerProgram program = new PlayerProgram(actor.vehicle().playerId(), 5,
+                List.of(MovementOrder.WAIT, MovementOrder.WAIT, MovementOrder.WAIT,
+                        MovementOrder.WAIT, MovementOrder.WAIT), true, new ScheduledAction(actionType, 1));
         return engine.resolve(timing, 1, state, Map.of(actor.vehicle().playerId(), program),
                 List.of(actor.vehicle().playerId()), effects);
     }
@@ -280,8 +281,9 @@ class ActionEngineTest {
     private ActionResult fire(ActionType actionType, Board board, VehicleState shooter, VehicleState... others) {
         var states = new java.util.ArrayList<VehicleState>();
         states.add(shooter); states.addAll(List.of(others));
-        PlayerProgram program = new PlayerProgram(shooter.vehicle().playerId(), 1,
-                List.of(MovementOrder.WAIT), true, new ScheduledAction(actionType, 1));
+        PlayerProgram program = new PlayerProgram(shooter.vehicle().playerId(), 5,
+                List.of(MovementOrder.WAIT, MovementOrder.WAIT, MovementOrder.WAIT,
+                        MovementOrder.WAIT, MovementOrder.WAIT), true, new ScheduledAction(actionType, 1));
         return engine.resolve(ActionTiming.POST_MOVEMENT, 1, new GameState(board, states),
                 Map.of(shooter.vehicle().playerId(), program), List.of(shooter.vehicle().playerId()));
     }

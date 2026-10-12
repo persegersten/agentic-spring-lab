@@ -13,17 +13,29 @@ import se.segersten.wreckage.game.engine.MovementEngine;
 
 class GameRoundTest {
     @Test
+    void rejectsStartingRoundWithoutADealtHand() {
+        Instant now = Instant.parse("2099-01-01T00:00:00Z");
+        Game game = game(now);
+        game.addPlayer("Alice", "a");
+
+        assertThatThrownBy(() -> game.startRound(now))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("A dealt hand must contain exactly 8 programming cards");
+    }
+
+    @Test
     void startsEmptyProgramsAndResolvesCompleteOnes() {
         Instant now = Instant.parse("2099-01-01T00:00:00Z");
-        Game game = game(3, now);
+        Game game = game(now);
         Player player = game.addPlayer("Alice", "a");
 
-        Round round = game.startRound(now);
+        Round round = game.startRound(now, handsFor(game));
         assertThat(round.programs().get(player.getId()).commands()).isEmpty();
         assertThat(round.initiative()).containsExactly(player.getId());
 
         round.lock(player.getId(), List.of(
-                MovementOrder.FORWARD_1, MovementOrder.TURN_RIGHT, MovementOrder.WAIT));
+                MovementOrder.FORWARD_1, MovementOrder.TURN_RIGHT, MovementOrder.FORWARD_2,
+                MovementOrder.TURN_LEFT, MovementOrder.REVERSE_1));
         round.resolve(new MovementEngine());
 
         assertThat(round.phase()).isEqualTo(RoundPhase.PLAYBACK);
@@ -32,26 +44,26 @@ class GameRoundTest {
     @Test
     void rotatesInitiativeLeftExactlyOnceWhenEachNewRoundStarts() {
         Instant now = Instant.parse("2099-01-01T00:00:00Z");
-        Game game = game(1, now);
+        Game game = game(now);
         List<UUID> joined = List.of(
                 game.addPlayer("A", "a").getId(),
                 game.addPlayer("B", "b").getId(),
                 game.addPlayer("C", "c").getId(),
                 game.addPlayer("D", "d").getId());
 
-        Round first = game.startRound(now);
+        Round first = game.startRound(now, handsFor(game));
         assertThat(first.initiative()).containsExactlyElementsOf(joined);
         resolveWithWait(first);
 
-        Round second = game.startRound(now);
+        Round second = game.startRound(now, handsFor(game));
         assertThat(second.initiative()).containsExactly(joined.get(1), joined.get(2), joined.get(3), joined.get(0));
         resolveWithWait(second);
 
-        Round third = game.startRound(now);
+        Round third = game.startRound(now, handsFor(game));
         assertThat(third.initiative()).containsExactly(joined.get(2), joined.get(3), joined.get(0), joined.get(1));
         resolveWithWait(third);
 
-        Round fourth = game.startRound(now);
+        Round fourth = game.startRound(now, handsFor(game));
         assertThat(fourth.initiative()).containsExactly(joined.get(3), joined.get(0), joined.get(1), joined.get(2));
     }
 
@@ -136,7 +148,7 @@ class GameRoundTest {
         assertThat(joined.vehicle().specialAbility()).isEqualTo(SpecialAbility.SHIELD);
 
         game.updateLoadout(alice.getId(), PrimaryWeapon.ROCKET, SpecialAbility.ANCHOR);
-        game.start(now);
+        game.start(now, null, handsFor(game));
         VehicleState started = game.getVehicleStates().stream()
                 .filter(state -> state.vehicle().playerId().equals(alice.getId())).findFirst().orElseThrow();
         assertThat(started.vehicle().primaryWeapon()).isEqualTo(PrimaryWeapon.ROCKET);
@@ -196,7 +208,7 @@ class GameRoundTest {
                 base.spawnPoints(), List.of(), List.of(), java.util.Set.of(new Position(2, 2)));
         Round round = new Round(1, Map.of(playerId, locked(playerId, MovementOrder.WAIT, MovementOrder.WAIT)),
                 List.of(playerId), new GameState(board, List.of(state(playerId, 2, 2))));
-        GameConfiguration configuration = new GameConfiguration(2, 60, 2, 30, 6, 2, 3, -1, 1);
+        GameConfiguration configuration = new GameConfiguration(2, 60, 5, 30, 6, 2, 3, -1, 1);
 
         round.resolve(new MovementEngine(), List.of(player), configuration);
 
@@ -372,12 +384,12 @@ class GameRoundTest {
     @Test
     void gameFinishesAtRoundLimit() {
         Instant now = Instant.parse("2099-01-01T00:00:00Z");
-        GameConfiguration configuration = new GameConfiguration(2, 60, 1, 30, 1, 2, -1, 1);
+        GameConfiguration configuration = new GameConfiguration(2, 60, 5, 30, 1, 2, -1, 1);
         Game game = new Game(UUID.randomUUID(), List.of(), new Board(5, 5), GameStatus.RUNNING,
                 Map.of(), null, configuration, now, now.plusSeconds(60));
         Player player = game.addPlayer("Alice", "a", now);
-        Round round = game.startRound(now);
-        round.lock(player.getId(), List.of(MovementOrder.WAIT));
+        Round round = game.startRound(now, handsFor(game));
+        lockFirstFive(round);
         round.resolve(new MovementEngine(), game.getPlayers(), configuration);
 
         game.completeRound();
@@ -397,9 +409,9 @@ class GameRoundTest {
         Player player = Player.create(UUID.randomUUID(), "Alice", "a");
         Vehicle vehicle = new Vehicle(UUID.randomUUID(), player.getId(), assigned.position(), assigned.orientation());
         Game game = new Game(UUID.randomUUID(), List.of(player), board, GameStatus.RUNNING,
-                Map.of(player.getId(), new VehicleState(vehicle, new Position(-1, 1), Direction.SOUTH, VehicleStatus.CRASHED)), null, new GameConfiguration(2, 60, 1, 30), now, now.plusSeconds(60));
+                Map.of(player.getId(), new VehicleState(vehicle, new Position(-1, 1), Direction.SOUTH, VehicleStatus.CRASHED)), null, new GameConfiguration(2, 60, 5, 30), now, now.plusSeconds(60));
 
-        Round round = game.startRound(now);
+        Round round = game.startRound(now, handsFor(game));
 
         assertThat(round.initialState().vehicleStates()).singleElement().satisfies(state -> {
             assertThat(state.position()).isEqualTo(assigned.position());
@@ -427,9 +439,9 @@ class GameRoundTest {
         states.put(crashedPlayer.getId(), new VehicleState(crashedVehicle, new Position(-1, 0), Direction.SOUTH, VehicleStatus.CRASHED));
         states.put(occupant.getId(), new VehicleState(activeVehicle, spawns.getFirst().position(), Direction.NORTH));
         Game game = new Game(UUID.randomUUID(), List.of(crashedPlayer, occupant), board, GameStatus.RUNNING,
-                states, null, new GameConfiguration(2, 60, 1, 30), now, now.plusSeconds(60));
+                states, null, new GameConfiguration(2, 60, 5, 30), now, now.plusSeconds(60));
 
-        Round round = game.startRound(now);
+        Round round = game.startRound(now, handsFor(game));
 
         assertThat(round.initialState().vehicleStates()).filteredOn(s -> s.vehicle().playerId().equals(crashedPlayer.getId()))
                 .singleElement().extracting(VehicleState::position).isEqualTo(spawns.get(1).position());
@@ -449,11 +461,10 @@ class GameRoundTest {
         states.put(first.getId(), new VehicleState(new Vehicle(UUID.randomUUID(), first.getId(), spawns.getFirst().position(), Direction.NORTH), spawns.getFirst().position(), Direction.NORTH));
         states.put(second.getId(), new VehicleState(new Vehicle(UUID.randomUUID(), second.getId(), spawns.get(1).position(), Direction.EAST), spawns.get(1).position(), Direction.EAST));
         Game game = new Game(UUID.randomUUID(), List.of(waiting, first, second), board, GameStatus.RUNNING,
-                states, null, new GameConfiguration(3, 60, 1, 30), now, now.plusSeconds(60));
+                states, null, new GameConfiguration(3, 60, 5, 30), now, now.plusSeconds(60));
 
-        Round round = game.startRound(now);
-        round.lock(first.getId(), List.of(MovementOrder.WAIT));
-        round.lock(second.getId(), List.of(MovementOrder.WAIT));
+        Round round = game.startRound(now, handsFor(game));
+        lockFirstFive(round);
 
         assertThat(round.programs()).doesNotContainKey(waiting.getId());
         assertThat(round.startEvents()).isEmpty();
@@ -465,7 +476,7 @@ class GameRoundTest {
     @Test
     void finishedPlacementsUseCheckpointProgressThenDistanceAndAllowDraws() {
         Instant now = Instant.parse("2099-01-01T00:00:00Z");
-        GameConfiguration configuration = new GameConfiguration(4, 60, 1, 30, 1, 2, -1, 1);
+        GameConfiguration configuration = new GameConfiguration(4, 60, 5, 30, 1, 2, -1, 1);
         Board board = new Board(5, 5, java.util.Set.of(), java.util.Set.of(),
                 checkpoints(new Position(1, 1), new Position(3, 3), new Position(4, 3), new Position(4, 4)));
         Player first = Player.create(UUID.randomUUID(), "First", "1");
@@ -512,11 +523,11 @@ class GameRoundTest {
         Board board = new Board(10, 10, java.util.Set.of(), java.util.Set.of(), java.util.Set.of(),
                 List.of(new SpawnPoint(new Position(0, 0), Direction.SOUTH)));
         Game game = new Game(UUID.randomUUID(), List.of(active, crashed), board, GameStatus.RUNNING,
-                states, null, new GameConfiguration(2, 60, 1, 30, 7, 2, -1, 1), now,
+                states, null, new GameConfiguration(2, 60, 5, 30, 7, 2, -1, 1), now,
                 now.plusSeconds(60));
 
-        Round round = game.startRound(now);
-        round.lock(active.getId(), List.of(MovementOrder.WAIT));
+        Round round = game.startRound(now, handsFor(game));
+        lockFirstFive(round);
         round.resolve(new MovementEngine(), game.getPlayers(), game.getConfiguration());
         game.completeRound();
 
@@ -536,8 +547,8 @@ class GameRoundTest {
         Player player = Player.create(playerId, "Alice", "token");
         VehicleState vehicle = state(playerId, 1, 1);
         Board board = new Board(6, 6);
-        PlayerProgram program = new PlayerProgram(playerId, 2,
-                List.of(MovementOrder.FORWARD_1, MovementOrder.FORWARD_1), true,
+        PlayerProgram program = new PlayerProgram(playerId, 5,
+                five(MovementOrder.FORWARD_1, MovementOrder.FORWARD_1), true,
                 new ScheduledAction(ActionType.LASER, 2));
         Round round = new Round(1, Map.of(playerId, program), List.of(playerId),
                 new GameState(board, List.of(vehicle)));
@@ -569,11 +580,11 @@ class GameRoundTest {
                 new Position(0, 0), Direction.NORTH);
         VehicleState targetState = new VehicleState(new Vehicle(UUID.randomUUID(), targetId),
                 new Position(2, 0), Direction.NORTH, VehicleStatus.ACTIVE, 2);
-        PlayerProgram shooterProgram = new PlayerProgram(shooterId, 2,
-                List.of(MovementOrder.TURN_RIGHT, MovementOrder.WAIT), true,
+        PlayerProgram shooterProgram = new PlayerProgram(shooterId, 5,
+                five(MovementOrder.TURN_RIGHT, MovementOrder.WAIT), true,
                 new ScheduledAction(ActionType.LASER, 1));
-        PlayerProgram targetProgram = new PlayerProgram(targetId, 2,
-                List.of(MovementOrder.WAIT, MovementOrder.FORWARD_1), true);
+        PlayerProgram targetProgram = new PlayerProgram(targetId, 5,
+                five(MovementOrder.WAIT, MovementOrder.FORWARD_1), true);
         Round round = new Round(1, Map.of(shooterId, shooterProgram, targetId, targetProgram),
                 List.of(shooterId, targetId), new GameState(new Board(6, 6), List.of(shooterState, targetState)));
 
@@ -611,9 +622,9 @@ class GameRoundTest {
         Board base = new Board(5, 4);
         Board pitBoard = new Board(5, 4, java.util.Set.of(), java.util.Set.of(new Position(2, 1)),
                 java.util.Set.of(), base.spawnPoints());
-        PlayerProgram shooterProgram = new PlayerProgram(shooterId, 1, List.of(MovementOrder.WAIT), true,
+        PlayerProgram shooterProgram = new PlayerProgram(shooterId, 5, five(MovementOrder.WAIT), true,
                 new ScheduledAction(ActionType.REPULSOR, 1));
-        PlayerProgram targetProgram = new PlayerProgram(targetId, 1, List.of(MovementOrder.WAIT), true);
+        PlayerProgram targetProgram = new PlayerProgram(targetId, 5, five(MovementOrder.WAIT), true);
         Round direct = new Round(1, Map.of(shooterId, shooterProgram, targetId, targetProgram),
                 List.of(shooterId, targetId), new GameState(pitBoard, List.of(shooterState, targetState)));
 
@@ -635,9 +646,9 @@ class GameRoundTest {
                 java.util.Set.of(), base.spawnPoints(), List.of(new Conveyor(new Position(2, 2), Direction.EAST)),
                 List.of(), java.util.Set.of());
         Round indirect = new Round(1, Map.of(
-                indirectShooter.getId(), new PlayerProgram(indirectShooter.getId(), 1, List.of(MovementOrder.WAIT), true,
+                indirectShooter.getId(), new PlayerProgram(indirectShooter.getId(), 5, five(MovementOrder.WAIT), true,
                         new ScheduledAction(ActionType.REPULSOR, 1)),
-                indirectTarget.getId(), new PlayerProgram(indirectTarget.getId(), 1, List.of(MovementOrder.WAIT), true)),
+                indirectTarget.getId(), new PlayerProgram(indirectTarget.getId(), 5, five(MovementOrder.WAIT), true)),
                 List.of(indirectShooter.getId(), indirectTarget.getId()),
                 new GameState(conveyorBoard, List.of(indirectShooterState, indirectTargetState)));
 
@@ -660,9 +671,9 @@ class GameRoundTest {
         VehicleState targetState = new VehicleState(new Vehicle(UUID.randomUUID(), targetId),
                 new Position(2, 0), Direction.NORTH, VehicleStatus.ACTIVE, 1);
         Round round = new Round(1, Map.of(
-                shooterId, new PlayerProgram(shooterId, 1, List.of(MovementOrder.WAIT), true,
+                shooterId, new PlayerProgram(shooterId, 5, five(MovementOrder.WAIT), true,
                         new ScheduledAction(ActionType.ROCKET, 1)),
-                targetId, new PlayerProgram(targetId, 1, List.of(MovementOrder.WAIT), true)),
+                targetId, new PlayerProgram(targetId, 5, five(MovementOrder.WAIT), true)),
                 List.of(shooterId, targetId), new GameState(new Board(6, 6), List.of(shooterState, targetState)));
 
         round.resolve(new MovementEngine(), List.of(shooter, target), GameConfiguration.defaults());
@@ -683,10 +694,10 @@ class GameRoundTest {
         VehicleState crashed = new VehicleState(vehicle, new Position(2, 2), Direction.NORTH,
                 VehicleStatus.CRASHED, 3);
         Game game = new Game(UUID.randomUUID(), List.of(player), board, GameStatus.RUNNING,
-                Map.of(player.getId(), crashed), null, new GameConfiguration(2, 60, 1, 30), now,
+                Map.of(player.getId(), crashed), null, new GameConfiguration(2, 60, 5, 30), now,
                 now.plusSeconds(60));
 
-        game.startRound(now);
+        game.startRound(now, handsFor(game));
 
         assertThat(game.getVehicleStates().getFirst().status()).isEqualTo(VehicleStatus.ACTIVE);
         assertThat(game.getVehicleStates().getFirst().damage()).isZero();
@@ -701,8 +712,8 @@ class GameRoundTest {
         VehicleState pusher = state(pusherId, 1, 2);
         Map<UUID, PlayerProgram> programs = new LinkedHashMap<>();
         programs.put(pusherId, locked(pusherId, MovementOrder.WAIT, MovementOrder.FORWARD_1));
-        programs.put(anchoredId, new PlayerProgram(anchoredId, 2,
-                List.of(MovementOrder.WAIT, MovementOrder.WAIT), true,
+        programs.put(anchoredId, new PlayerProgram(anchoredId, 5,
+                five(MovementOrder.WAIT, MovementOrder.WAIT), true,
                 new ScheduledAction(ActionType.ANCHOR, 1)));
         Round round = new Round(1, programs, List.of(pusherId, anchoredId),
                 new GameState(new Board(7, 5), List.of(pusher, anchored)));
@@ -719,8 +730,8 @@ class GameRoundTest {
     void shieldActivationIsRecordedBeforeMovementInItsScheduledRegister() {
         UUID playerId = UUID.randomUUID();
         VehicleState vehicle = state(playerId, 1, 1);
-        PlayerProgram program = new PlayerProgram(playerId, 2,
-                List.of(MovementOrder.WAIT, MovementOrder.FORWARD_1), true,
+        PlayerProgram program = new PlayerProgram(playerId, 5,
+                five(MovementOrder.WAIT, MovementOrder.FORWARD_1), true,
                 new ScheduledAction(ActionType.SHIELD, 2));
         Round round = new Round(1, Map.of(playerId, program), List.of(playerId),
                 new GameState(new Board(6, 5), List.of(vehicle)));
@@ -735,7 +746,7 @@ class GameRoundTest {
     void turboUsesOrientationAfterTheNormalMovementCommand() {
         UUID playerId = UUID.randomUUID();
         VehicleState vehicle = state(playerId, 2, 2);
-        PlayerProgram program = new PlayerProgram(playerId, 1, List.of(MovementOrder.TURN_LEFT), true,
+        PlayerProgram program = new PlayerProgram(playerId, 5, five(MovementOrder.TURN_LEFT), true,
                 new ScheduledAction(ActionType.TURBO, 1));
         Round round = new Round(1, Map.of(playerId, program), List.of(playerId),
                 new GameState(new Board(6, 6), List.of(vehicle)));
@@ -809,10 +820,12 @@ class GameRoundTest {
         states.put(winner.getId(), state(winner.getId(), 0, 1));
         states.put(opponent.getId(), state(opponent.getId(), 0, 2));
         Game game = new Game(UUID.randomUUID(), List.of(winner, opponent), board, GameStatus.RUNNING,
-                states, null, new GameConfiguration(2, 60, 2, 30, 7, 2, -1, 1), now, now.plusSeconds(60));
-        Round round = game.startRound(now);
-        round.lock(winner.getId(), List.of(MovementOrder.FORWARD_2, MovementOrder.FORWARD_2));
-        round.lock(opponent.getId(), List.of(MovementOrder.FORWARD_1, MovementOrder.FORWARD_1));
+                states, null, new GameConfiguration(2, 60, 5, 30, 7, 2, -1, 1), now, now.plusSeconds(60));
+        Round round = game.startRound(now, handsFor(game));
+        round.lock(winner.getId(), List.of(MovementOrder.FORWARD_2, MovementOrder.FORWARD_2,
+                MovementOrder.FORWARD_1, MovementOrder.TURN_LEFT, MovementOrder.TURN_RIGHT));
+        round.lock(opponent.getId(), List.of(MovementOrder.FORWARD_1, MovementOrder.FORWARD_1,
+                MovementOrder.FORWARD_2, MovementOrder.TURN_LEFT, MovementOrder.TURN_RIGHT));
 
         round.resolve(new MovementEngine(), game.getPlayers(), game.getConfiguration());
         game.completeRound();
@@ -825,19 +838,37 @@ class GameRoundTest {
                 && event.type() == RoundEventType.MOVE).hasSize(1);
     }
 
-    private Game game(int programSize, Instant now) {
+    private Game game(Instant now) {
         return new Game(UUID.randomUUID(), List.of(), new Board(8, 8), GameStatus.RUNNING,
-                Map.of(), null, new GameConfiguration(6, 60, programSize, 30),
+                Map.of(), null, new GameConfiguration(6, 60, 5, 30),
                 now, now.plusSeconds(60));
     }
 
     private void resolveWithWait(Round round) {
-        round.initiative().forEach(playerId -> round.lock(playerId, List.of(MovementOrder.WAIT)));
+        lockFirstFive(round);
         round.resolve(new MovementEngine());
     }
 
     private PlayerProgram locked(UUID playerId, MovementOrder... commands) {
-        return new PlayerProgram(playerId, commands.length, List.of(commands), true);
+        return new PlayerProgram(playerId, 5, five(commands), true);
+    }
+
+    private List<MovementOrder> five(MovementOrder... commands) {
+        var result = new java.util.ArrayList<>(List.of(commands));
+        while (result.size() < 5) result.add(MovementOrder.WAIT);
+        return List.copyOf(result);
+    }
+
+    private Map<UUID, List<MovementOrder>> handsFor(Game game) {
+        return game.getPlayers().stream().collect(java.util.stream.Collectors.toMap(Player::getId,
+                ignored -> List.of(MovementOrder.FORWARD_1, MovementOrder.FORWARD_1,
+                        MovementOrder.FORWARD_2, MovementOrder.FORWARD_2, MovementOrder.REVERSE_1,
+                        MovementOrder.TURN_LEFT, MovementOrder.TURN_RIGHT, MovementOrder.U_TURN)));
+    }
+
+    private void lockFirstFive(Round round) {
+        round.initiative().forEach(playerId -> round.lock(playerId,
+                round.programs().get(playerId).hand().subList(0, 5)));
     }
 
     private VehicleState state(UUID playerId, int x, int y) {
