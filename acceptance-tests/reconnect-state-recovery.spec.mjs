@@ -40,8 +40,6 @@ test('reload during planning restores map, round and private planning state', as
     await expect(per.getByRole('status')).toHaveCount(0)
     await per.getByTestId('use-shield').check()
     await expect(per.getByRole('status')).toHaveCount(0)
-    await per.getByTestId('action-register').selectOption('1')
-    await expect(per.getByRole('status')).toHaveCount(0)
 
     await per.reload()
 
@@ -53,7 +51,7 @@ test('reload during planning restores map, round and private planning state', as
       .toHaveAttribute('data-player-id', playerId)
     await expect(per.getByTestId('program-slot').nth(0)).toHaveAttribute('data-command', 'TURN_LEFT')
     await expect(per.getByTestId('program-slot').nth(0)).toHaveAttribute('data-filled', 'true')
-    await expect(per.getByTestId('selected-shield')).toHaveText('Shield · programsteg 1')
+    await expect(per.getByTestId('selected-shield')).toHaveText('Shield vald')
   })
 })
 

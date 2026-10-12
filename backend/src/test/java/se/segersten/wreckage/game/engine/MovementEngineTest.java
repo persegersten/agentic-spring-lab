@@ -13,6 +13,7 @@ import se.segersten.wreckage.game.domain.Direction;
 import se.segersten.wreckage.game.domain.GameState;
 import se.segersten.wreckage.game.domain.MovementOrder;
 import se.segersten.wreckage.game.domain.Position;
+import se.segersten.wreckage.game.domain.RoundEvent;
 import se.segersten.wreckage.game.domain.RoundEventType;
 import se.segersten.wreckage.game.domain.Turn;
 import se.segersten.wreckage.game.domain.Vehicle;
@@ -549,12 +550,12 @@ class MovementEngineTest {
     }
 
     @Test
-    void anchorBlocksAnyRequiredPushAtomicallyButNotItsOwnMovement() {
+    void shieldBlocksAnyRequiredPushAtomicallyButNotItsOwnMovement() {
         VehicleState moving = state(1, 2, Direction.EAST);
         VehicleState pushed = state(2, 2, Direction.EAST);
         VehicleState anchored = state(3, 2, Direction.EAST);
         RegisterEffects effects = new RegisterEffects();
-        effects.anchor(anchored.vehicle().id());
+        effects.shield(anchored.vehicle().id());
         GameState original = new GameState(board, List.of(moving, pushed, anchored));
 
         var blocked = engine.resolveTurnWithEvents(new Turn(List.of(order(moving, MovementOrder.FORWARD_1))),
@@ -564,7 +565,7 @@ class MovementEngineTest {
         assertThat(blocked.events()).singleElement().satisfies(event -> {
             assertThat(event.type()).isEqualTo(RoundEventType.PUSH_BLOCKED);
             assertThat(event.vehicleId()).isEqualTo(anchored.vehicle().id());
-            assertThat(event.actionType()).isEqualTo(ActionType.ANCHOR);
+            assertThat(event.actionType()).isNull();
         });
 
         var selfMove = engine.resolveTurnWithEvents(new Turn(List.of(order(anchored, MovementOrder.FORWARD_1))),
@@ -573,7 +574,7 @@ class MovementEngineTest {
     }
 
     @Test
-    void shieldDoesNotPreventAPushCrash() {
+    void shieldPreventsBeingPushedIntoAPit() {
         VehicleState pusher = state(1, 2, Direction.EAST);
         VehicleState shielded = state(2, 2, Direction.NORTH);
         Board pitBoard = new Board(7, 7, Set.of(), Set.of(new Position(3, 2)));
@@ -584,7 +585,8 @@ class MovementEngineTest {
                 new GameState(pitBoard, List.of(pusher, shielded)), effects);
 
         assertThat(result.state().vehicleStates()).filteredOn(v -> v.vehicle().id().equals(shielded.vehicle().id()))
-                .singleElement().extracting(VehicleState::status).isEqualTo(VehicleStatus.CRASHED);
+                .singleElement().extracting(VehicleState::status).isEqualTo(VehicleStatus.ACTIVE);
+        assertThat(result.state().vehicleStates()).containsExactly(pusher, shielded);
     }
 
     @Test void obstacleBlocksMovementAndPushChains() {
@@ -598,6 +600,20 @@ class MovementEngineTest {
 
         assertThat(result.state().vehicleStates()).containsExactly(moving, pushed);
         assertThat(result.events()).extracting(event -> event.type()).containsExactly(RoundEventType.MOVE_BLOCKED);
+    }
+
+    @Test void shieldBlocksBothLaserDisplacementAttempts() {
+        VehicleState shooter = state(1, 2, Direction.EAST);
+        VehicleState shielded = state(3, 2, Direction.NORTH);
+        RegisterEffects effects = new RegisterEffects();
+        effects.shield(shielded.vehicle().id());
+
+        var result = engine.resolveTurnWithEvents(new Turn(List.of(order(shooter, MovementOrder.LASER))),
+                new GameState(board, List.of(shooter, shielded)), effects);
+
+        assertThat(result.state().vehicleStates()).containsExactly(shooter, shielded);
+        assertThat(result.events()).extracting(RoundEvent::type).containsExactly(
+                RoundEventType.WEAPON_FIRED, RoundEventType.WEAPON_HIT, RoundEventType.PUSH_BLOCKED);
     }
 
     private GameState resolve(List<VehicleState> states, VehicleTurn... turns) {

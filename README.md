@@ -1,6 +1,6 @@
 Wreckage
 
-Web-based turn-based multiplayer vehicle combat game.
+Web-based turn-based multiplayer programming and checkpoint game.
 
 Current scope:
 - Create game
@@ -8,6 +8,11 @@ Current scope:
 - Read game state
 - Build a private ordered program from the complete v2 command set
 - Resolve simultaneous movement and replay each round in the browser
+- Use the LASER programming card to displace vehicles and a shield once per match
+
+The current game has no selectable loadouts, rockets, ammunition, weapon damage,
+or scheduled combat actions. Legacy database columns remain until a separate
+physical-schema cleanup.
 
 There is no account system; private player views use the secret token returned
 when that player joins a game.

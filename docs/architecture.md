@@ -46,12 +46,11 @@ The dealable set is `FORWARD_1`, `FORWARD_2`, `FORWARD_3`, `REVERSE_1`,
 `TURN_LEFT`, `TURN_RIGHT`, `U_TURN`, and `LASER`; `WAIT` remains an internal legacy value.
 Only the authenticated owner receives a hand through the player-specific API.
 
-Each program may additionally contain one scheduled action and register. The
-application validates that action against the authoritative vehicle loadout and
-remaining ammunition before the aggregate accepts a draft or locked program.
-`SIDE_STEP` expands to its left and right action variants; no other unequipped
-action is eligible. React derives its selector from the same public vehicle
-state, but hiding controls is not a security boundary.
+Each program may privately select the player's shield while it is still
+available. The server consumes that shield when the program locks (including a
+timeout lock), persists its once-per-match availability, and applies it for the
+whole resolved round. There are no selectable loadouts or generic scheduled
+combat actions.
 
 ## Resolution and board effects
 
@@ -64,10 +63,22 @@ board boundary.
 The same one-cell chain resolver powers ramming and programming-card Laser.
 Laser traces to the first vehicle in its current direction and makes at most two
 successive displacement attempts, emitting authoritative fire, hit, and push
-events. This register-card path is separate from the temporarily retained
-loadout action path and therefore does not invoke legacy damage or combat-score
-effects. Every successful forced-movement event participates in checkpoint
-capture before resolution continues.
+events. It does not invoke damage, ammunition, or combat-score effects. Every
+successful forced-movement event participates in checkpoint capture before
+resolution continues.
+
+`RegisterEffects` now carries only the active round shield set into the shared
+movement/displacement path. Ramming, chain pushes, Laser, and conveyors consult
+that same context, while shielded vehicles can still execute their own program.
+
+Historical Flyway migrations V1–V22 remain immutable. The physical columns
+`vehicle.damage`, `vehicle.rocket_ammo`, `vehicle.primary_weapon`,
+`vehicle.special_ability`, and `game.weapon_crash_score` are intentionally not
+dropped in this cleanup. `vehicle.primary_weapon` temporarily backs persisted
+shield availability (`LASER` available, `REPULSOR` consumed) until a separate
+schema migration can give the state a correctly named column. Round payloads
+retain their delimiter shape; removed combat event fields are written blank and
+obsolete combat playback rows are ignored when historical games are read.
 
 After every register, `BoardEffectEngine` resolves conveyors in board order and
 then rotators. Conveyors reuse the movement and pushing rules and have explicit

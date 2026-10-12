@@ -71,7 +71,7 @@ class GameApiIntegrationTest {
         assertThat(game.path("configuration").path("controlPointScore").asInt()).isEqualTo(1);
         assertThat(game.path("configuration").path("crashPenalty").asInt()).isEqualTo(-1);
         assertThat(game.path("configuration").path("pushCrashScore").asInt()).isEqualTo(1);
-        assertThat(game.path("configuration").path("weaponCrashScore").asInt()).isEqualTo(1);
+        assertThat(game.path("configuration").has("weaponCrashScore")).isFalse();
         assertThat(game.path("hostToken").asText()).isNotBlank();
         assertThat(game.path("board").path("width").asInt()).isEqualTo(16);
         assertThat(game.path("board").path("height").asInt()).isEqualTo(16);
@@ -281,7 +281,7 @@ class GameApiIntegrationTest {
         assertThat(aliceGame.path("round").path("hand")).hasSize(8);
         assertThat(perGame.path("round").path("program")).isEmpty();
         assertThat(perGame.path("round").has("state")).isTrue();
-        assertThat(perGame.path("round").path("scheduledAction").isNull()).isTrue();
+        assertThat(perGame.path("round").path("shieldSelected").asBoolean()).isFalse();
         assertThat(perGame.path("round").size()).isEqualTo(4);
 
         HttpResponse<String> invented = postPlayer(
@@ -414,142 +414,6 @@ class GameApiIntegrationTest {
     }
 
     @Test
-    void editsPersistsLocksAndKeepsScheduledActionPrivate() throws Exception {
-        HttpResponse<String> created = post("/games", """
-                {"maxPlayers":2,"joinTimeoutSeconds":90,"programSize":5,"planningTimeoutSeconds":45}
-                """);
-        String gameId = json(created).path("id").asText();
-        JsonNode alice = json(post("/games/%s/players".formatted(gameId), "{\"name\":\"Alice\"}"));
-        JsonNode bob = json(post("/games/%s/players".formatted(gameId), "{\"name\":\"Bob\"}"));
-        putPlayer("/games/%s/players/%s/loadout".formatted(gameId, alice.path("id").asText()), alice,
-                "{\"weapon\":\"REPULSOR\",\"ability\":\"SHIELD\"}");
-        postHost(gameId, json(created).path("hostToken").asText());
-        JsonNode aliceHand = json(getPlayerGame(gameId, alice));
-        String shield = """
-                {"orders":[],"scheduledAction":{"actionType":"SHIELD","registerIndex":2}}
-                """;
-
-        assertThat(putPlayer("/games/%s/rounds/current/program".formatted(gameId), alice, shield).statusCode())
-                .isEqualTo(HttpStatus.OK.value());
-        JsonNode aliceDraft = json(getPlayerGame(gameId, alice));
-        assertThat(aliceDraft.path("round").path("scheduledAction").path("actionType").asText()).isEqualTo("SHIELD");
-        assertThat(aliceDraft.path("round").path("scheduledAction").path("registerIndex").asInt()).isEqualTo(2);
-
-        String repulsor = """
-                {"orders":[],"scheduledAction":{"actionType":"REPULSOR","registerIndex":3}}
-                """;
-        putPlayer("/games/%s/rounds/current/program".formatted(gameId), alice, repulsor);
-        JsonNode changed = json(getPlayerGame(gameId, alice));
-        assertThat(changed.path("round").path("scheduledAction").path("actionType").asText()).isEqualTo("REPULSOR");
-        assertThat(changed.path("round").path("scheduledAction").path("registerIndex").asInt()).isEqualTo(3);
-
-        putPlayer("/games/%s/rounds/current/program".formatted(gameId), alice,
-                "{\"orders\":[],\"scheduledAction\":null}");
-        assertThat(json(getPlayerGame(gameId, alice)).path("round").path("scheduledAction").isNull()).isTrue();
-        putPlayer("/games/%s/rounds/current/program".formatted(gameId), alice, repulsor);
-
-        JsonNode bobView = json(getPlayerGame(gameId, bob));
-        JsonNode publicView = json(get("/games/" + gameId));
-        assertThat(bobView.path("round").path("scheduledAction").isNull()).isTrue();
-        assertThat(bobView.path("round").toString()).doesNotContain("registerIndex");
-        assertThat(publicView.path("round").toString()).doesNotContain("scheduledAction", "registerIndex");
-
-        HttpResponse<String> invalid = putPlayer("/games/%s/rounds/current/program".formatted(gameId), alice, """
-                {"orders":[],"scheduledAction":{"actionType":"ROCKET","registerIndex":4}}
-                """);
-        assertThat(invalid.statusCode()).isEqualTo(HttpStatus.BAD_REQUEST.value());
-
-        String lockedPlan = programRequest(aliceHand, "REPULSOR", 3);
-        assertThat(postPlayer("/games/%s/rounds/current/program".formatted(gameId), alice, lockedPlan).statusCode())
-                .isEqualTo(HttpStatus.OK.value());
-        assertThat(putPlayer("/games/%s/rounds/current/program".formatted(gameId), alice, """
-                {"orders":[],"scheduledAction":null}
-                """).statusCode()).isEqualTo(HttpStatus.CONFLICT.value());
-    }
-
-    @Test
-    void exposesAuthoritativeLaserDamageAndOrderedPlaybackToEveryPlayer() throws Exception {
-        HttpResponse<String> created = post("/games", """
-                {"maxPlayers":2,"joinTimeoutSeconds":90,"programSize":5,"planningTimeoutSeconds":45}
-                """);
-        String gameId = json(created).path("id").asText();
-        JsonNode alice = json(post("/games/%s/players".formatted(gameId), "{\"name\":\"Alice\"}"));
-        JsonNode bob = json(post("/games/%s/players".formatted(gameId), "{\"name\":\"Bob\"}"));
-        postHost(gameId, json(created).path("hostToken").asText());
-        replaceRoundHands(UUID.fromString(gameId), alice, bob);
-        JsonNode started = json(getPlayerGame(gameId, alice));
-        assertThat(started.path("board").path("mapId").asText()).isEqualTo("default-small");
-        JsonNode aliceStart = started.path("vehicles").valueStream()
-                .filter(vehicle -> vehicle.path("playerId").asText().equals(alice.path("id").asText()))
-                .findFirst().orElseThrow();
-        JsonNode bobStart = started.path("vehicles").valueStream()
-                .filter(vehicle -> vehicle.path("playerId").asText().equals(bob.path("id").asText()))
-                .findFirst().orElseThrow();
-        assertThat(aliceStart.path("x").asInt()).isEqualTo(2);
-        assertThat(aliceStart.path("y").asInt()).isZero();
-        assertThat(aliceStart.path("direction").asText()).isEqualTo("NORTH");
-        assertThat(bobStart.path("x").asInt()).isEqualTo(5);
-        assertThat(bobStart.path("y").asInt()).isZero();
-
-        postPlayer("/games/%s/rounds/current/program".formatted(gameId), alice,
-                programRequest(started, "LASER", 1));
-        postPlayer("/games/%s/rounds/current/program".formatted(gameId), bob,
-                programRequest(json(getPlayerGame(gameId, bob)), null, 0));
-
-        JsonNode aliceView = json(getPlayerGame(gameId, alice));
-        JsonNode bobView = json(getPlayerGame(gameId, bob));
-        JsonNode alicePlayback = aliceView.path("round").path("state").path("playback");
-        JsonNode bobPlayback = bobView.path("round").path("state").path("playback");
-        assertThat(alicePlayback).isEqualTo(bobPlayback);
-        assertThat(alicePlayback).extracting(event -> event.path("type").asText())
-                .containsSequence("WEAPON_FIRED", "WEAPON_HIT", "DAMAGE_APPLIED");
-        JsonNode damage = java.util.stream.StreamSupport.stream(alicePlayback.spliterator(), false)
-                .filter(event -> event.path("type").asText().equals("DAMAGE_APPLIED")).findFirst().orElseThrow();
-        assertThat(damage.path("playerId").asText()).isEqualTo(bob.path("id").asText());
-        assertThat(damage.path("sourcePlayerId").asText()).isEqualTo(alice.path("id").asText());
-        assertThat(damage.path("oldDamage").asInt()).isZero();
-        assertThat(damage.path("newDamage").asInt()).isEqualTo(1);
-        assertThat(java.util.stream.StreamSupport.stream(aliceView.path("vehicles").spliterator(), false)
-                .filter(vehicle -> vehicle.path("playerId").asText().equals(bob.path("id").asText()))
-                .map(vehicle -> vehicle.path("damage").asInt()).toList()).containsExactly(1);
-    }
-
-    @Test
-    void persistsRocketConsumptionAndRejectsSchedulingItAgain() throws Exception {
-        HttpResponse<String> created = post("/games", """
-                {"maxPlayers":2,"joinTimeoutSeconds":90,"programSize":5,"planningTimeoutSeconds":45}
-                """);
-        String gameId = json(created).path("id").asText();
-        JsonNode alice = json(post("/games/%s/players".formatted(gameId), "{\"name\":\"Alice\"}"));
-        JsonNode bob = json(post("/games/%s/players".formatted(gameId), "{\"name\":\"Bob\"}"));
-        putPlayer("/games/%s/players/%s/loadout".formatted(gameId, alice.path("id").asText()), alice,
-                "{\"weapon\":\"ROCKET\",\"ability\":\"SHIELD\"}");
-        postHost(gameId, json(created).path("hostToken").asText());
-        replaceRoundHands(UUID.fromString(gameId), alice, bob);
-
-        postPlayer("/games/%s/rounds/current/program".formatted(gameId), alice,
-                programRequest(json(getPlayerGame(gameId, alice)), "ROCKET", 1));
-        postPlayer("/games/%s/rounds/current/program".formatted(gameId), bob,
-                programRequest(json(getPlayerGame(gameId, bob)), null, 0));
-
-        JsonNode resolved = json(getPlayerGame(gameId, alice));
-        assertThat(resolved.path("round").path("state").path("playback"))
-                .extracting(event -> event.path("type").asText())
-                .containsSequence("WEAPON_FIRED", "AMMO_CHANGED");
-        JsonNode aliceVehicle = java.util.stream.StreamSupport.stream(resolved.path("vehicles").spliterator(), false)
-                .filter(vehicle -> vehicle.path("playerId").asText().equals(alice.path("id").asText()))
-                .findFirst().orElseThrow();
-        assertThat(aliceVehicle.path("rocketAmmo").asInt()).isZero();
-
-        assertThat(postPlayer("/games/%s/rounds?completedRound=1".formatted(gameId), alice, "").statusCode())
-                .isEqualTo(HttpStatus.CREATED.value());
-        HttpResponse<String> stale = putPlayer("/games/%s/rounds/current/program".formatted(gameId), alice, """
-                {"orders":[],"scheduledAction":{"actionType":"ROCKET","registerIndex":1}}
-                """);
-        assertThat(stale.statusCode()).isEqualTo(HttpStatus.CONFLICT.value());
-    }
-
-    @Test
     void addPlayer() throws Exception {
         String gameId = createGameId();
 
@@ -562,36 +426,6 @@ class GameApiIntegrationTest {
         assertThat(player.path("id").asText()).isNotBlank();
         assertThat(player.path("name").asText()).isEqualTo("Per");
         assertThat(player.path("token").asText()).isNotBlank();
-    }
-
-    @Test
-    void defaultsEditsPublishesAndLocksLoadoutAndRejectsUnequippedActions() throws Exception {
-        HttpResponse<String> created = post("/games", null);
-        String gameId = json(created).path("id").asText();
-        JsonNode alice = json(post("/games/%s/players".formatted(gameId), "{\"name\":\"Alice\"}"));
-        JsonNode bob = json(post("/games/%s/players".formatted(gameId), "{\"name\":\"Bob\"}"));
-
-        JsonNode defaults = json(get("/games/" + gameId)).path("vehicles").path(0);
-        assertThat(defaults.path("primaryWeapon").asText()).isEqualTo("LASER");
-        assertThat(defaults.path("specialAbility").asText()).isEqualTo("SHIELD");
-
-        HttpResponse<String> changedResponse = putPlayer(
-                "/games/%s/players/%s/loadout".formatted(gameId, alice.path("id").asText()), alice,
-                "{\"weapon\":\"REPULSOR\",\"ability\":\"TURBO\"}");
-        assertThat(changedResponse.statusCode()).isEqualTo(HttpStatus.OK.value());
-        JsonNode changed = json(getPlayerGame(gameId, bob)).path("vehicles").valueStream()
-                .filter(vehicle -> vehicle.path("playerId").asText().equals(alice.path("id").asText()))
-                .findFirst().orElseThrow();
-        assertThat(changed.path("primaryWeapon").asText()).isEqualTo("REPULSOR");
-        assertThat(changed.path("specialAbility").asText()).isEqualTo("TURBO");
-
-        postHost(gameId, json(created).path("hostToken").asText());
-        assertThat(putPlayer("/games/%s/rounds/current/program".formatted(gameId), alice,
-                "{\"orders\":[],\"scheduledAction\":{\"actionType\":\"LASER\",\"registerIndex\":1}}").statusCode())
-                .isEqualTo(HttpStatus.BAD_REQUEST.value());
-        assertThat(putPlayer("/games/%s/players/%s/loadout".formatted(gameId, alice.path("id").asText()), alice,
-                "{\"weapon\":\"ROCKET\",\"ability\":\"ANCHOR\"}").statusCode())
-                .isEqualTo(HttpStatus.CONFLICT.value());
     }
 
     @Test
@@ -739,7 +573,7 @@ class GameApiIntegrationTest {
         assertThat(paths.path("/games/{gameId}/start").has("post")).isTrue();
         assertThat(paths.path("/games/{gameId}").has("get")).isTrue();
         assertThat(paths.path("/games/{gameId}/players/{playerId}").has("get")).isTrue();
-        assertThat(paths.path("/games/{gameId}/players/{playerId}/loadout").has("put")).isTrue();
+        assertThat(paths.has("/games/{gameId}/players/{playerId}/loadout")).isFalse();
         assertThat(paths.path("/games/{gameId}/rounds").has("post")).isTrue();
         assertThat(paths.path("/games/{gameId}/rounds/current/program").has("post")).isTrue();
         assertThat(paths.path("/games/{gameId}/rounds/current/program").has("put")).isTrue();

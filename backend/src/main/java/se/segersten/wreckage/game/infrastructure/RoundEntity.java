@@ -27,48 +27,40 @@ class RoundEntity {
                 ? List.copyOf(programs.keySet())
                 : Arrays.stream(initiativePayload.split(",")).map(UUID::fromString).toList();
         return new Round(number, phase, programs, initiative, initial,
-                decodePlayback(playbackPayload, vehicles),planningDeadline,decodeScores(initialScoresPayload),
-                decodePlayback(startEventsPayload, vehicles));
+                decodePlayback(playbackPayload),planningDeadline,decodeScores(initialScoresPayload),
+                decodePlayback(startEventsPayload));
     }
-    private static String encodePrograms(Map<UUID,PlayerProgram> programs) { return programs.values().stream().map(p -> p.playerId()+":"+p.programSize()+":"+p.locked()+":"+csv(p.commands())+":"+(p.scheduledAction()==null?"":p.scheduledAction().actionType().name())+":"+(p.scheduledAction()==null?"":p.scheduledAction().registerIndex())+":"+csv(p.hand())).collect(java.util.stream.Collectors.joining(";")); }
-    private static Map<UUID,PlayerProgram> decodePrograms(String value) { var result=new LinkedHashMap<UUID,PlayerProgram>(); if(value.isBlank()) return result; for(String row:value.split(";")){String[] p=row.split(":",-1); UUID id=UUID.fromString(p[0]); ScheduledAction action=p.length>5&&!p[4].isBlank()?new ScheduledAction(ActionType.valueOf(p[4]),Integer.parseInt(p[5])):null;List<MovementOrder> commands=orders(p[3]);result.put(id,p.length>6&&!p[6].isBlank()?new PlayerProgram(id,Integer.parseInt(p[1]),orders(p[6]),commands,Boolean.parseBoolean(p[2]),action):new PlayerProgram(id,Integer.parseInt(p[1]),commands,Boolean.parseBoolean(p[2]),action));} return result; }
+    // Keep seven legacy segments so existing delimiter payloads remain readable. Segment 5 now stores shield selection.
+    private static String encodePrograms(Map<UUID,PlayerProgram> programs) { return programs.values().stream().map(p -> p.playerId()+":"+p.programSize()+":"+p.locked()+":"+csv(p.commands())+"::"+p.shieldSelected()+":"+csv(p.hand())).collect(java.util.stream.Collectors.joining(";")); }
+    private static Map<UUID,PlayerProgram> decodePrograms(String value) { var result=new LinkedHashMap<UUID,PlayerProgram>(); if(value==null||value.isBlank()) return result; for(String row:value.split(";")){String[] p=row.split(":",-1); UUID id=UUID.fromString(p[0]);List<MovementOrder> commands=orders(p[3]);boolean shield=p.length>5&&("true".equalsIgnoreCase(p[5])||"SHIELD".equals(p[4]));result.put(id,p.length>6&&!p[6].isBlank()?new PlayerProgram(id,Integer.parseInt(p[1]),orders(p[6]),commands,Boolean.parseBoolean(p[2]),shield):new PlayerProgram(id,Integer.parseInt(p[1]),List.of(),commands,Boolean.parseBoolean(p[2]),shield));} return result; }
+    // Preserve the old 25-column shape, leaving removed damage/ammunition slots blank.
     private static String encodePlayback(List<RoundEvent> events) { return events.stream().map(e -> String.join(",",
             Integer.toString(e.sequence()),e.type().name(),e.playerId().toString(),e.vehicleId().toString(),
             Integer.toString(e.oldPosition().x()),Integer.toString(e.oldPosition().y()),
             Integer.toString(e.newPosition().x()),Integer.toString(e.newPosition().y()),
             e.oldDirection().name(),e.newDirection().name(),e.sourcePlayerId().toString(),
-            e.sourceVehicleId().toString(),nullable(e.oldDamage()),nullable(e.newDamage()),nullable(e.damageDelta()),
-            nullable(e.oldScore()),nullable(e.newScore()),nullable(e.scoreDelta()),
+            e.sourceVehicleId().toString(),"","","",nullable(e.oldScore()),nullable(e.newScore()),nullable(e.scoreDelta()),
             e.scoreReason()==null?"":e.scoreReason().name(),e.checkpointId()==null?"":e.checkpointId(),
-            e.actionType()==null?"":e.actionType().name(),nullable(e.oldAmmo()),nullable(e.newAmmo()),nullable(e.ammoDelta()),
-            nullable(e.registerIndex())))
+            e.actionType()==null?"":e.actionType().name(),"","","",nullable(e.registerIndex())))
             .collect(java.util.stream.Collectors.joining("#")); }
-    private static List<RoundEvent> decodePlayback(String value, Map<UUID,Vehicle> vehicles) {
-        if(value.isBlank()) return List.of(); var result=new ArrayList<RoundEvent>();
-        for(String row:value.split("#")){String[] p=row.split(",",-1); UUID playerId=UUID.fromString(p[2]); UUID vehicleId=UUID.fromString(p[3]);
-            UUID sourcePlayerId=p.length>10?UUID.fromString(p[10]):playerId; UUID sourceVehicleId=p.length>11?UUID.fromString(p[11]):vehicleId;
-            if ("FIRE".equals(p[1]) || "HIT".equals(p[1]) || "DAMAGE".equals(p[1])) continue;
-            int damageOffset = p.length >= 19 ? 12 : -1;
-            int scoreOffset=p.length>=20?15:p.length>=19?14:12;
-            boolean hasScoreFields=p.length>=17;
-            RoundEventType type = "PIT".equals(p[1]) ? RoundEventType.CRASH : RoundEventType.valueOf(p[1]);
+    private static List<RoundEvent> decodePlayback(String value) {
+        if(value==null||value.isBlank()) return List.of(); var result=new ArrayList<RoundEvent>();
+        for(String row:value.split("#")){String[] p=row.split(",",-1); if(isRemovedCombatType(p[1])) continue;
+            RoundEventType type; try { type="PIT".equals(p[1])?RoundEventType.CRASH:RoundEventType.valueOf(p[1]); } catch(IllegalArgumentException ignored){continue;}
+            UUID playerId=UUID.fromString(p[2]); UUID vehicleId=UUID.fromString(p[3]);
+            UUID sourcePlayerId=p.length>10&&!p[10].isBlank()?UUID.fromString(p[10]):playerId; UUID sourceVehicleId=p.length>11&&!p[11].isBlank()?UUID.fromString(p[11]):vehicleId;
+            int scoreOffset=p.length>=20?15:p.length>=19?14:12; boolean hasScoreFields=p.length>=17;
+            ScoreChangeReason reason=null; if(hasScoreFields&&p.length>scoreOffset+3&&!p[scoreOffset+3].isBlank()){try{reason=ScoreChangeReason.valueOf(p[scoreOffset+3]);}catch(IllegalArgumentException ignored){continue;}}
+            ActionType action=null; if(p.length>20&&"LASER".equals(p[20])) action=ActionType.LASER;
             result.add(new RoundEvent(Integer.parseInt(p[0]),type,playerId,vehicleId,sourcePlayerId,sourceVehicleId,
                     new Position(Integer.parseInt(p[4]),Integer.parseInt(p[5])),new Position(Integer.parseInt(p[6]),Integer.parseInt(p[7])),
-                    Direction.valueOf(p[8]),Direction.valueOf(p[9]),
-                    damageOffset < 0 ? null : integer(p, damageOffset),
-                    damageOffset < 0 ? null : integer(p, damageOffset + 1),
-                    p.length >= 20 ? integer(p, damageOffset + 2)
-                            : damageOffset < 0 || integer(p, damageOffset) == null || integer(p, damageOffset + 1) == null
-                            ? null : integer(p, damageOffset + 1) - integer(p, damageOffset),
-                    hasScoreFields?integer(p,scoreOffset):null,
-                    hasScoreFields?integer(p,scoreOffset+1):null,
-                    hasScoreFields?integer(p,scoreOffset+2):null,
-                    hasScoreFields&&p.length>scoreOffset+3&&!p[scoreOffset+3].isBlank()?ScoreChangeReason.valueOf(p[scoreOffset+3]):null,
+                    Direction.valueOf(p[8]),Direction.valueOf(p[9]),hasScoreFields?integer(p,scoreOffset):null,
+                    hasScoreFields?integer(p,scoreOffset+1):null,hasScoreFields?integer(p,scoreOffset+2):null,reason,
                     hasScoreFields&&p.length>scoreOffset+4&&!p[scoreOffset+4].isBlank()?p[scoreOffset+4]:null,
-                    p.length>20&&!p[20].isBlank()?ActionType.valueOf(p[20]):null,
-                    integer(p,21),integer(p,22),integer(p,23),integer(p,24)));} return result; }
-    private static String encodeStates(List<VehicleState> states) { return states.stream().map(s->s.vehicle().id()+","+s.vehicle().playerId()+","+s.position().x()+","+s.position().y()+","+s.orientation()+","+s.damage()+","+s.status()+","+s.rocketAmmo()+","+s.vehicle().primaryWeapon()+","+s.vehicle().specialAbility()).collect(java.util.stream.Collectors.joining("|")); }
-    private static List<VehicleState> decodeStates(String value, Map<UUID,Vehicle> vehicles) { if(value.isBlank()) return List.of(); var result=new ArrayList<VehicleState>(); for(String row:value.split("\\|")){String[] p=row.split(","); UUID vehicleId=UUID.fromString(p[0]); Vehicle persisted=vehicles.get(vehicleId); Vehicle vehicle=p.length>=10?(persisted==null?new Vehicle(vehicleId,UUID.fromString(p[1]),new Position(0,0),Direction.SOUTH,PrimaryWeapon.valueOf(p[8]),SpecialAbility.valueOf(p[9])):persisted.withLoadout(PrimaryWeapon.valueOf(p[8]),SpecialAbility.valueOf(p[9]))):(persisted==null?new Vehicle(vehicleId,UUID.fromString(p[1])):persisted); int statusIndex=p.length>=7?6:5; int damage=p.length>=7?Integer.parseInt(p[5]):0; int rocketAmmo=p.length>=8?Integer.parseInt(p[7]):1; result.add(new VehicleState(vehicle,new Position(Integer.parseInt(p[2]),Integer.parseInt(p[3])),Direction.valueOf(p[4]),p.length>statusIndex?VehicleStatus.valueOf(p[statusIndex]):VehicleStatus.ACTIVE,damage,rocketAmmo));} return result; }
+                    action,integer(p,24)));} return List.copyOf(result); }
+    private static boolean isRemovedCombatType(String type) { return Set.of("FIRE","HIT","DAMAGE","DAMAGE_APPLIED","DAMAGE_PREVENTED","AMMO_CHANGED","VEHICLE_CRASHED","ANCHOR_ACTIVATED","TURBO_ACTIVATED","SIDE_STEP").contains(type); }
+    private static String encodeStates(List<VehicleState> states) { return states.stream().map(s->s.vehicle().id()+","+s.vehicle().playerId()+","+s.position().x()+","+s.position().y()+","+s.orientation()+",0,"+s.status()+",0,"+(s.shieldAvailable()?"LASER":"REPULSOR")+",SHIELD").collect(java.util.stream.Collectors.joining("|")); }
+    private static List<VehicleState> decodeStates(String value, Map<UUID,Vehicle> vehicles) { if(value==null||value.isBlank()) return List.of(); var result=new ArrayList<VehicleState>(); for(String row:value.split("\\|")){String[] p=row.split(","); UUID vehicleId=UUID.fromString(p[0]); Vehicle persisted=vehicles.get(vehicleId); Vehicle vehicle=persisted==null?new Vehicle(vehicleId,UUID.fromString(p[1])):persisted; int statusIndex=p.length>=7?6:5; boolean shieldAvailable=p.length<9||!"REPULSOR".equals(p[8]); result.add(new VehicleState(vehicle,new Position(Integer.parseInt(p[2]),Integer.parseInt(p[3])),Direction.valueOf(p[4]),p.length>statusIndex?VehicleStatus.valueOf(p[statusIndex]):VehicleStatus.ACTIVE,shieldAvailable));} return result; }
     private static String csv(List<MovementOrder> value) { return value.stream().map(Enum::name).collect(java.util.stream.Collectors.joining(",")); }
     private static List<MovementOrder> orders(String value) { return value.isBlank()?List.of():Arrays.stream(value.split(",")).map(MovementOrder::valueOf).toList(); }
     private static String encodeScores(Map<UUID,Integer> scores) { return scores.entrySet().stream().sorted(Map.Entry.comparingByKey()).map(e->e.getKey()+":"+e.getValue()).collect(java.util.stream.Collectors.joining(",")); }
