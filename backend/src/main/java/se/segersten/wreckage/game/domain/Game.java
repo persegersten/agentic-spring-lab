@@ -157,9 +157,7 @@ public class Game {
             VehicleState vehicle = vehicles.get(player.getId());
             if (vehicle == null || !vehicle.isActive()) continue;
             List<MovementOrder> hand = hands.get(player.getId());
-            programs.put(player.getId(), hand == null || configuration.programSize() != 5
-                    ? PlayerProgram.empty(player.getId(), configuration.programSize())
-                    : PlayerProgram.dealt(player.getId(), configuration.programSize(), hand));
+            programs.put(player.getId(), PlayerProgram.dealt(player.getId(), configuration.programSize(), hand));
         }
         List<UUID> initiative = nextInitiative(programs);
         round = new Round(round == null ? 1 : round.number() + 1,RoundPhase.PLANNING, programs, initiative,

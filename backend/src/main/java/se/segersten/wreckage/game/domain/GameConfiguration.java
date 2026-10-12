@@ -54,8 +54,8 @@ public record GameConfiguration(
         if (maxPlayers < 2 || maxPlayers > 10)
             throw new IllegalArgumentException("maxPlayers must be between 2 and 10");
         if (joinTimeoutSeconds < 1) throw new IllegalArgumentException("joinTimeoutSeconds must be positive");
-        if (programSize < 1 || programSize > 5)
-            throw new IllegalArgumentException("programSize must be between 1 and 5");
+        if (programSize != DEFAULT_PROGRAM_SIZE)
+            throw new IllegalArgumentException("programSize must be exactly " + DEFAULT_PROGRAM_SIZE);
         if (planningTimeoutSeconds < 1)
             throw new IllegalArgumentException("planningTimeoutSeconds must be positive");
         if (roundLimit < 1) throw new IllegalArgumentException("roundLimit must be positive");
