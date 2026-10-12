@@ -1,8 +1,5 @@
 export type MovementOrder = 'FORWARD_1'|'FORWARD_2'|'FORWARD_3'|'REVERSE_1'|'TURN_LEFT'|'TURN_RIGHT'|'U_TURN'|'LASER'|'WAIT'
-export type ActionType = 'LASER'|'REPULSOR'|'ROCKET'|'TURBO'|'SHIELD'|'ANCHOR'|'SIDE_STEP_LEFT'|'SIDE_STEP_RIGHT'
-export type PrimaryWeapon = 'LASER'|'REPULSOR'|'ROCKET'
-export type SpecialAbility = 'TURBO'|'SHIELD'|'SIDE_STEP'|'ANCHOR'
-export type ScheduledAction = { actionType: ActionType; registerIndex: number }
+export type ScheduledAction = { actionType: 'SHIELD'; registerIndex: number }
 export type Direction = 'NORTH' | 'EAST' | 'SOUTH' | 'WEST'
 export type RoundPhase = 'PLANNING' | 'RESOLVING' | 'PLAYBACK'
 export type Player = { id: string; name: string; score: number; visitedCheckpoints: string[]; capturedCheckpoints?: number; nextCheckpoint?: string | null; crashes: number; automated: boolean }
@@ -16,10 +13,10 @@ export type SpawnPoint = { position: Position; orientation: Direction }
 export type Conveyor={position:Position;direction:Direction};export type Rotator={position:Position;rotation:'CLOCKWISE'|'COUNTER_CLOCKWISE'}
 export type Board={mapId:string;mapName:string;width:number;height:number;walls:Wall[];pits:Position[];checkpoints:Checkpoint[];spawnPoints:SpawnPoint[];conveyors:Conveyor[];rotators:Rotator[];controlPoints:Position[];obstacles:Position[]}
 export type VehicleStatus = 'ACTIVE' | 'CRASHED'
-export type Vehicle = { id: string; playerId: string; x: number; y: number; direction: Direction; status: VehicleStatus; spawnPoint: Position; spawnOrientation: Direction; damage: number; rocketAmmo: number; primaryWeapon: PrimaryWeapon; specialAbility: SpecialAbility }
-export type RoundEventType='VEHICLE_RESPAWNED'|'MOVE'|'TURN'|'RAM'|'PUSH'|'PUSH_BLOCKED'|'MOVE_BLOCKED'|'CONVEYOR_MOVE'|'CONVEYOR_RAM'|'CONVEYOR_PUSH'|'CONVEYOR_CRASH'|'ROTATOR_TURN'|'CRASH'|'WEAPON_FIRED'|'WEAPON_HIT'|'DAMAGE_APPLIED'|'DAMAGE_PREVENTED'|'AMMO_CHANGED'|'VEHICLE_CRASHED'|'SHIELD_ACTIVATED'|'ANCHOR_ACTIVATED'|'TURBO_ACTIVATED'|'SIDE_STEP'|'SCORE_CHANGED'
-export type ScoreChangeReason = 'CHECKPOINT' | 'CONTROL_POINT' | 'CRASH_PENALTY' | 'PUSH_CRASH' | 'WEAPON_CRASH'
-export type RoundEvent = { sequence: number; type: RoundEventType; playerId: string; vehicleId: string; sourcePlayerId: string; sourceVehicleId: string; oldPosition: Position; newPosition: Position; oldDirection: Direction; newDirection: Direction; oldDamage?: number; newDamage?: number; damageDelta?: number; oldScore?: number; newScore?: number; scoreDelta?: number; scoreReason?: ScoreChangeReason; checkpointId?: string; actionType?: ActionType; oldAmmo?: number; newAmmo?: number; ammoDelta?: number; registerIndex?: number }
+export type Vehicle = { id: string; playerId: string; x: number; y: number; direction: Direction; status: VehicleStatus; spawnPoint: Position; spawnOrientation: Direction }
+export type RoundEventType='VEHICLE_RESPAWNED'|'MOVE'|'TURN'|'RAM'|'PUSH'|'PUSH_BLOCKED'|'MOVE_BLOCKED'|'CONVEYOR_MOVE'|'CONVEYOR_RAM'|'CONVEYOR_PUSH'|'CONVEYOR_CRASH'|'ROTATOR_TURN'|'CRASH'|'WEAPON_FIRED'|'WEAPON_HIT'|'SHIELD_ACTIVATED'|'SCORE_CHANGED'
+export type ScoreChangeReason = 'CHECKPOINT' | 'CONTROL_POINT' | 'CRASH_PENALTY' | 'PUSH_CRASH'
+export type RoundEvent = { sequence: number; type: RoundEventType; playerId: string; vehicleId: string; sourcePlayerId: string; sourceVehicleId: string; oldPosition: Position; newPosition: Position; oldDirection: Direction; newDirection: Direction; oldScore?: number; newScore?: number; scoreDelta?: number; scoreReason?: ScoreChangeReason; checkpointId?: string; actionType?: 'LASER'|'SHIELD'; registerIndex?: number }
 export type PublicRound = { number: number; phase: RoundPhase; planningDeadline:string; ready: Record<string, boolean>; initiative: string[]; initialVehicles: Vehicle[]; initialScores: Record<string, number>; startEvents: RoundEvent[]; playback: RoundEvent[] }
 export type Placement = { playerId: string; placement: number; score: number; checkpointsVisited: number; distanceToNextCheckpoint?: number | null; crashes: number; winner: boolean }
 export type Game = { id: string; status: GameStatus; roundLimit: number; configuration: GameConfiguration; createdAt: string; players: Player[]; board: Board; vehicles: Vehicle[]; round: PublicRound | null; placements: Placement[] }

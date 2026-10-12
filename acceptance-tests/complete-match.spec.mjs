@@ -18,7 +18,7 @@ test('two players complete a deterministic authoritative match', async ({ browse
       await expect(page.getByTestId('round-number')).toHaveText('Round 1')
       await expect(page.getByTestId('round-limit')).toHaveText('7')
       await expect(page.getByTestId('planning-countdown')).toBeVisible()
-      await expect(page.getByTestId('program-slot')).toHaveCount(3)
+      await expect(page.getByTestId('program-slot')).toHaveCount(5)
       await expect(page.getByTestId('initiative-player')).toHaveCount(2)
       await expect(page.getByTestId('player-ready-state')).toHaveCount(2)
       await expect(page.getByTestId('game-board')).toHaveAttribute('data-width', '10')

@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test'
 const gameId = '10000000-0000-0000-0000-000000000001'
 const playerId = '20000000-0000-0000-0000-000000000001'
 const otherId = '20000000-0000-0000-0000-000000000002'
-const configuration = { maxPlayers: 2, programSize: 3, planningTimeoutSeconds: 30,
+const configuration = { maxPlayers: 2, programSize: 5, planningTimeoutSeconds: 30,
   joinTimeoutSeconds: 60, roundLimit: 6, checkpointScore: 2, crashPenalty: -1, pushCrashScore: 1 }
 const board = { width: 5, height: 5, walls: [], pits: [], checkpoints: [], spawnPoints: [
   { position: { x: 0, y: 0 }, orientation: 'EAST' },
