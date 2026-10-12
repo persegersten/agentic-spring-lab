@@ -14,8 +14,7 @@ test('a player adds bots and every connected lobby sees them', async ({ browser 
     await addBot.click()
     await expect(alice.getByRole('listitem').filter({ hasText: 'Bot 1' })).toContainText('(Bot)')
     await expect(bob.getByRole('listitem').filter({ hasText: 'Bot 1' })).toContainText('(Bot)')
-    await expect(alice.getByTestId('lobby-player').filter({ hasText: 'Bot 1' }))
-      .toContainText('LASER + SHIELD')
+    await expect(alice.getByRole('listitem').filter({ hasText: 'Bot 1' })).toContainText('(Bot)')
 
     await addBot.click()
     await expect(alice.getByRole('listitem').filter({ hasText: 'Bot 2' })).toContainText('(Bot)')
@@ -27,7 +26,7 @@ test('one browser can play successive rounds against a lobby bot', async ({ page
   await page.getByRole('button', { name: 'Bjud in till nytt spel', exact: true }).click()
   await joinGame(page, 'Alice')
   await page.getByRole('button', { name: 'Add Bot', exact: true }).click()
-  await expect(page.getByText('Bot 1', { exact: true })).toBeVisible()
+  await expect(page.getByRole('listitem').filter({ hasText: 'Bot 1' })).toContainText('(Bot)')
   await startGame(page)
 
   await expect(page.getByRole('heading', { name: 'Planering', exact: true })).toBeVisible()

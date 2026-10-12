@@ -49,7 +49,7 @@ test('vehicle arrow tips point in the server forward direction', async ({ page }
   const playerId = '20000000-0000-0000-0000-000000000001'
   const state = {
     id: gameId, playerId, status: 'RUNNING', roundLimit: 7, createdAt: '2026-01-01T00:00:00Z', joinDeadline: '2026-01-01T00:05:00Z',
-    configuration: { maxPlayers: 2, programSize: 3, planningTimeoutSeconds: 120, joinTimeoutSeconds: 300 },
+    configuration: { maxPlayers: 2, programSize: 5, planningTimeoutSeconds: 120, joinTimeoutSeconds: 300 },
     players: [
       { id: playerId, name: 'North' },
       { id: 'player-east', name: 'East' },
