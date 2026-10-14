@@ -12,6 +12,7 @@ import java.time.Instant;
 
 import org.springframework.stereotype.Service;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.transaction.annotation.Transactional;
 
 import se.segersten.wreckage.game.domain.Board;
@@ -28,50 +29,73 @@ import se.segersten.wreckage.game.engine.MovementEngine;
 @Transactional
 public class GameService {
 
+    static final int DEFAULT_MAX_CONCURRENT_GAMES = 10;
+
     private final GameRepository gameRepository;
     private final Clock clock;
     private final PlayerAutomation playerAutomation;
     private final GameBoardFactory gameBoardFactory;
     private final MapRepository mapRepository;
     private final ProgrammingCardDealer cardDealer;
+    private final int maxConcurrentGames;
 
     @Autowired
     public GameService(GameRepository gameRepository, PlayerAutomation playerAutomation,
                        GameBoardFactory gameBoardFactory, MapRepository mapRepository,
-                       ProgrammingCardDealer cardDealer) {
-        this(gameRepository, Clock.systemUTC(), playerAutomation, gameBoardFactory, mapRepository, cardDealer);
+                       ProgrammingCardDealer cardDealer,
+                       @Value("${wreckage.games.max-concurrent:10}") int maxConcurrentGames) {
+        this(gameRepository, Clock.systemUTC(), playerAutomation, gameBoardFactory, mapRepository, cardDealer,
+                maxConcurrentGames);
     }
 
     public GameService(GameRepository gameRepository) {
-        this(gameRepository, Clock.systemUTC(), new BotPlayerAutomation(), null, localMaps(), defaultDealer());
+        this(gameRepository, DEFAULT_MAX_CONCURRENT_GAMES);
+    }
+
+    GameService(GameRepository gameRepository, int maxConcurrentGames) {
+        this(gameRepository, Clock.systemUTC(), new BotPlayerAutomation(), null, localMaps(), defaultDealer(),
+                maxConcurrentGames);
     }
 
     GameService(GameRepository gameRepository, Clock clock) {
-        this(gameRepository, clock, new BotPlayerAutomation(), null, localMaps(), defaultDealer());
+        this(gameRepository, clock, new BotPlayerAutomation(), null, localMaps(), defaultDealer(),
+                DEFAULT_MAX_CONCURRENT_GAMES);
     }
 
     GameService(GameRepository gameRepository, Clock clock, PlayerAutomation playerAutomation) {
-        this(gameRepository, clock, playerAutomation, null, localMaps(), defaultDealer());
+        this(gameRepository, clock, playerAutomation, null, localMaps(), defaultDealer(),
+                DEFAULT_MAX_CONCURRENT_GAMES);
     }
 
     GameService(GameRepository gameRepository, Clock clock, PlayerAutomation playerAutomation,
                 GameBoardFactory gameBoardFactory) {
-        this(gameRepository, clock, playerAutomation, gameBoardFactory, localMaps(), defaultDealer());
+        this(gameRepository, clock, playerAutomation, gameBoardFactory, localMaps(), defaultDealer(),
+                DEFAULT_MAX_CONCURRENT_GAMES);
     }
 
     GameService(GameRepository gameRepository, Clock clock, PlayerAutomation playerAutomation,
                 GameBoardFactory gameBoardFactory, MapRepository mapRepository) {
-        this(gameRepository, clock, playerAutomation, gameBoardFactory, mapRepository, defaultDealer());
+        this(gameRepository, clock, playerAutomation, gameBoardFactory, mapRepository, defaultDealer(),
+                DEFAULT_MAX_CONCURRENT_GAMES);
     }
 
     GameService(GameRepository gameRepository, Clock clock, PlayerAutomation playerAutomation,
                 GameBoardFactory gameBoardFactory, MapRepository mapRepository, ProgrammingCardDealer cardDealer) {
+        this(gameRepository, clock, playerAutomation, gameBoardFactory, mapRepository, cardDealer,
+                DEFAULT_MAX_CONCURRENT_GAMES);
+    }
+
+    GameService(GameRepository gameRepository, Clock clock, PlayerAutomation playerAutomation,
+                GameBoardFactory gameBoardFactory, MapRepository mapRepository, ProgrammingCardDealer cardDealer,
+                int maxConcurrentGames) {
+        if (maxConcurrentGames < 1) throw new IllegalArgumentException("maxConcurrentGames must be positive");
         this.gameRepository = gameRepository;
         this.clock = clock;
         this.playerAutomation = java.util.Objects.requireNonNull(playerAutomation);
         this.mapRepository = java.util.Objects.requireNonNull(mapRepository);
         this.gameBoardFactory = gameBoardFactory;
         this.cardDealer = java.util.Objects.requireNonNull(cardDealer);
+        this.maxConcurrentGames = maxConcurrentGames;
     }
 
     public Game createGame() {
@@ -86,7 +110,11 @@ public class GameService {
         return createHostedGame(GameConfiguration.defaults());
     }
 
-    public HostedGame createHostedGame(GameConfiguration configuration) {
+    public synchronized HostedGame createHostedGame(GameConfiguration configuration) {
+        int activeGames = gameRepository.findAllByStatus(GameStatus.WAITING_FOR_PLAYERS).size()
+                + gameRepository.findAllByStatus(GameStatus.RUNNING).size();
+        if (activeGames >= maxConcurrentGames)
+            throw new IllegalStateException("The game server has reached its concurrent game limit");
         se.segersten.wreckage.game.domain.MapDefinition selected = configuration.mapId() == null
                 ? mapRepository.defaultFor(configuration.maxPlayers()) : mapRepository.get(configuration.mapId());
         if (!selected.players().supports(configuration.maxPlayers()))

@@ -132,6 +132,12 @@ use the `in-memory` profile:
 ./start-server.sh in-memory
 ```
 
+Each backend process accepts at most 10 waiting or running games by default.
+Override the runtime limit with the Spring property
+`wreckage.games.max-concurrent` (for example,
+`--wreckage.games.max-concurrent=20`). Finished games do not count toward the
+limit.
+
 The `in-memory` profile uses an H2 database that is discarded when the backend
 process exits. Calling the script without either `postgres` or `in-memory`
 results in an error.

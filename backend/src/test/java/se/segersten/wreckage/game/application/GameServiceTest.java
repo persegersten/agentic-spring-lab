@@ -11,6 +11,9 @@ import java.util.UUID;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.Test;
 
@@ -31,6 +34,61 @@ import se.segersten.wreckage.game.domain.Wall;
 import se.segersten.wreckage.game.domain.Checkpoint;
 
 class GameServiceTest {
+
+    @Test
+    void rejectsCreationWhenWaitingAndRunningGamesReachTheConfiguredLimit() {
+        InMemoryGameRepository repository = new InMemoryGameRepository();
+        repository.save(new Game(UUID.randomUUID(), new Board(20, 20)));
+        repository.save(new Game(UUID.randomUUID(), List.of(), new Board(20, 20), GameStatus.RUNNING));
+        GameService service = new GameService(repository, 2);
+
+        assertThatThrownBy(service::createGame)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("The game server has reached its concurrent game limit");
+    }
+
+    @Test
+    void finishedGamesReleaseCapacityForANewGame() {
+        InMemoryGameRepository repository = new InMemoryGameRepository();
+        repository.save(new Game(UUID.randomUUID(), new Board(20, 20)));
+        repository.save(new Game(UUID.randomUUID(), List.of(), new Board(20, 20), GameStatus.FINISHED));
+        GameService service = new GameService(repository, 2);
+
+        Game created = service.createGame();
+
+        assertThat(created.getStatus()).isEqualTo(GameStatus.WAITING_FOR_PLAYERS);
+        assertThat(repository.findById(created.getId())).contains(created);
+    }
+
+    @Test
+    void concurrentCreationCannotExceedTheConfiguredLimit() throws Exception {
+        InMemoryGameRepository repository = new InMemoryGameRepository();
+        GameService service = new GameService(repository, 3);
+        var executor = Executors.newFixedThreadPool(8);
+        var start = new CountDownLatch(1);
+        try {
+            var attempts = java.util.stream.IntStream.range(0, 8)
+                    .mapToObj(ignored -> executor.submit(() -> {
+                        start.await();
+                        try {
+                            service.createGame();
+                            return true;
+                        } catch (IllegalStateException exception) {
+                            return false;
+                        }
+                    }))
+                    .toList();
+
+            start.countDown();
+
+            var outcomes = new java.util.ArrayList<Boolean>();
+            for (var attempt : attempts) outcomes.add(attempt.get(10, TimeUnit.SECONDS));
+            assertThat(outcomes).containsExactlyInAnyOrder(true, true, true, false, false, false, false, false);
+            assertThat(repository.findAllByStatus(GameStatus.WAITING_FOR_PLAYERS)).hasSize(3);
+        } finally {
+            executor.shutdownNow();
+        }
+    }
 
     @Test void everySupportedPlayerCountStartsOnItsDefaultMap() {
         for (int count = 2; count <= 10; count++) {
