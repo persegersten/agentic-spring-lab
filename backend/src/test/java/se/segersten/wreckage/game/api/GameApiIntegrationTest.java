@@ -18,6 +18,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.annotation.Import;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.http.HttpStatus;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -38,7 +39,7 @@ import tools.jackson.databind.ObjectMapper;
 
 @Import(TestcontainersConfiguration.class)
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT,
-        properties = "wreckage.scheduling.enabled=false")
+        properties = {"wreckage.scheduling.enabled=false", "wreckage.games.max-concurrent=50"})
 class GameApiIntegrationTest {
 
     private final HttpClient httpClient = HttpClient.newHttpClient();
@@ -92,6 +93,22 @@ class GameApiIntegrationTest {
         JsonNode retrieved = json(get("/games/" + game.path("id").asText()));
         assertThat(retrieved.has("hostToken")).isFalse();
         assertThat(retrieved.path("board").path("walls")).isEqualTo(game.path("board").path("walls"));
+    }
+
+    @Test
+    @DirtiesContext(methodMode = DirtiesContext.MethodMode.AFTER_METHOD)
+    void rejectsGameCreationWhenTheServerCapacityIsExhausted() throws Exception {
+        int activeGames = json(get("/games/running")).size();
+        for (int index = activeGames; index < 50; index++) {
+            HttpResponse<String> created = post("/games", null);
+            assertThat(created.statusCode()).isEqualTo(HttpStatus.CREATED.value());
+        }
+
+        HttpResponse<String> response = post("/games", null);
+
+        assertThat(response.statusCode()).isEqualTo(HttpStatus.CONFLICT.value());
+        assertThat(json(response).path("message").asText())
+                .isEqualTo("The game server has reached its concurrent game limit");
     }
 
     @Test
