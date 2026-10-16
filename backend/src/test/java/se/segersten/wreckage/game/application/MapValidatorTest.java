@@ -16,6 +16,8 @@ class MapValidatorTest {
         assertInvalid(map(starts(), checkpoints(), List.of(new Position(0, 0))), "overlaps start");
         assertInvalid(map(starts(), checkpoints(), List.of(new Position(2, 1))), "overlaps checkpoint");
         assertInvalid(map(starts(), checkpoints(), List.of(new Position(4, 4), new Position(4, 4))), "duplicate obstacle");
+        assertInvalid(map(starts(new Position(2, 1), new Position(4, 0)), checkpoints(), List.of()),
+                "checkpoint overlaps start");
     }
 
     @Test void rejectsMissingDuplicateAndUnreachableCheckpoints() {
