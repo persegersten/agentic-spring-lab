@@ -42,6 +42,10 @@ public class MapValidator {
             fail(prefix, "obstacle overlaps checkpoint " + cp.id());
         for (Checkpoint cp : map.checkpoints()) if (pits.contains(cp.position()))
             fail(prefix, "pit overlaps checkpoint " + cp.id());
+        Set<Position> checkpointPositions = map.checkpoints().stream().map(Checkpoint::position)
+                .collect(java.util.stream.Collectors.toSet());
+        for (SpawnPoint start : map.starts()) if (checkpointPositions.contains(start.position()))
+            fail(prefix, "checkpoint overlaps start at " + start.position());
         for (SpawnPoint start : map.starts()) requirePath(prefix, map, start.position(), checkpoint(map, 1).position(), "start to CP1");
         for (int order = 1; order < 4; order++)
             requirePath(prefix, map, checkpoint(map, order).position(), checkpoint(map, order + 1).position(),

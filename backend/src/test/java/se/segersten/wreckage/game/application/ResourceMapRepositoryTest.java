@@ -18,6 +18,8 @@ class ResourceMapRepositoryTest {
         assertThat(maps.defaultFor(4).id()).isEqualTo("default-medium");
         assertThat(maps.defaultFor(10).id()).isEqualTo("default-large");
         assertThat(maps.findAll()).hasSize(3).allSatisfy(validator::validate);
+        assertThat(maps.findAll()).extracting(map -> map.id())
+                .containsExactlyInAnyOrder("default-small", "default-medium", "default-large");
     }
 
     @Test void malformedMapFailsWithResourceName() {
