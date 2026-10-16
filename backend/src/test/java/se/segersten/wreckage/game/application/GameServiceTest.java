@@ -107,6 +107,56 @@ class GameServiceTest {
         }
     }
 
+    @Test void randomCorridorsUsePersistedSeedAndActualPlayerCountSettings() {
+        for (int count : List.of(2, 4, 7)) {
+            InMemoryGameRepository repository = new InMemoryGameRepository();
+            GameService service = new GameService(repository);
+            GameConfiguration configuration = new GameConfiguration(count, 60, 5, 30,
+                    6, 2, 1, -1, 1, GameConfiguration.RANDOM_CORRIDORS_MAP_ID, 731L);
+            var hosted = service.createHostedGame(configuration);
+            for (int index = 0; index < count; index++) service.addPlayer(hosted.game().getId(), "P" + index);
+
+            Game started = service.startGame(hosted.game().getId(), hosted.hostToken());
+
+            int expectedSize = count <= 3 ? 10 : count <= 6 ? 12 : 16;
+            assertThat(started.getConfiguration().mapSeed()).isEqualTo(731L);
+            assertThat(started.getBoard().mapId()).startsWith("generated-" + count + "-");
+            assertThat(started.getBoard().width()).isEqualTo(expectedSize);
+            assertThat(started.getBoard().height()).isEqualTo(expectedSize);
+            assertThat(started.getBoard().orderedCheckpoints()).extracting(Checkpoint::id)
+                    .containsExactly("CP1", "CP2", "CP3", "CP4");
+            assertThat(started.getBoard().spawnPoints()).hasSize(count);
+            assertThat(started.getBoard().obstacles()).isNotEmpty();
+            assertThat(repository.findById(started.getId()).orElseThrow().getBoard()).isEqualTo(started.getBoard());
+        }
+    }
+
+    @Test void randomCorridorsReceiveASeedOnceWhenTheLobbyIsCreated() {
+        InMemoryGameRepository repository = new InMemoryGameRepository();
+        GameService service = new GameService(repository);
+        GameConfiguration configuration = new GameConfiguration(2, 60, 5, 30,
+                6, 2, 1, -1, 1, GameConfiguration.RANDOM_CORRIDORS_MAP_ID, null);
+
+        var hosted = service.createHostedGame(configuration);
+        Long assignedSeed = hosted.game().getConfiguration().mapSeed();
+        service.addPlayer(hosted.game().getId(), "one");
+        service.addPlayer(hosted.game().getId(), "two");
+        Game started = service.startGame(hosted.game().getId(), hosted.hostToken());
+
+        assertThat(assignedSeed).isNotNull();
+        assertThat(started.getConfiguration().mapSeed()).isEqualTo(assignedSeed);
+    }
+
+    @Test void rejectsASeedForAHandDesignedMap() {
+        GameService service = new GameService(new InMemoryGameRepository());
+        GameConfiguration configuration = new GameConfiguration(2, 60, 5, 30,
+                6, 2, 1, -1, 1, "default-small", 17L);
+
+        assertThatThrownBy(() -> service.createHostedGame(configuration))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("A map seed can only be used with Random Corridors");
+    }
+
     @Test
     void createsGamesWithTheInjectedBoardFixture() {
         InMemoryGameRepository repository = new InMemoryGameRepository();

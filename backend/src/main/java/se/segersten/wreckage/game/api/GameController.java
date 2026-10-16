@@ -56,7 +56,7 @@ public class GameController {
                         request.controlPointScore() == null ? GameConfiguration.DEFAULT_CONTROL_POINT_SCORE : request.controlPointScore(),
                         request.crashPenalty() == null ? GameConfiguration.DEFAULT_CRASH_PENALTY : request.crashPenalty(),
                         request.pushCrashScore() == null ? GameConfiguration.DEFAULT_PUSH_CRASH_SCORE : request.pushCrashScore(),
-                        request.mapId());
+                        request.mapId(), request.mapSeed());
         var created = gameService.createHostedGame(configuration);
         return new CreateGameResponse(GameResponse.from(created.game()), created.hostToken());
     }
@@ -191,7 +191,7 @@ public class GameController {
                                     int programSize, int planningTimeoutSeconds,
                                     Integer checkpointScore, Integer controlPointScore,
                                     Integer crashPenalty, Integer pushCrashScore,
-                                    String mapId) {}
+                                    String mapId, Long mapSeed) {}
     public record ProgramRequest(List<MovementOrder> orders, Boolean shieldSelected) {}
     public record PlayerJoinResponse(UUID id, String name, String token) {}
     public record CreateGameResponse(@com.fasterxml.jackson.annotation.JsonUnwrapped GameResponse game,

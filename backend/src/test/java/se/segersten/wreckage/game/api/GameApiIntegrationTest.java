@@ -130,6 +130,63 @@ class GameApiIntegrationTest {
     }
 
     @Test
+    void createsPersistsAndReloadsASeededRandomCorridorMap() throws Exception {
+        HttpResponse<String> created = post("/games", """
+                {"maxPlayers":2,"joinTimeoutSeconds":90,"programSize":5,"planningTimeoutSeconds":45,
+                 "mapId":"random-corridors","mapSeed":731}
+                """);
+        assertThat(created.statusCode()).isEqualTo(HttpStatus.CREATED.value());
+        JsonNode lobby = json(created);
+        String gameId = lobby.path("id").asText();
+        assertThat(lobby.path("configuration").path("mapId").asText()).isEqualTo("random-corridors");
+        assertThat(lobby.path("configuration").path("mapSeed").asLong()).isEqualTo(731L);
+        post("/games/%s/players".formatted(gameId), "{\"name\":\"Alice\"}");
+        post("/games/%s/players".formatted(gameId), "{\"name\":\"Bob\"}");
+
+        HttpResponse<String> startedResponse = postHost(gameId, lobby.path("hostToken").asText());
+        assertThat(startedResponse.statusCode()).isEqualTo(HttpStatus.OK.value());
+        JsonNode started = json(startedResponse);
+        JsonNode board = started.path("board");
+        assertThat(board.path("mapId").asText()).startsWith("generated-2-");
+        assertThat(board.path("width").asInt()).isEqualTo(10);
+        assertThat(board.path("height").asInt()).isEqualTo(10);
+        assertThat(board.path("obstacles")).isNotEmpty();
+        assertThat(board.path("spawnPoints")).hasSize(2);
+        assertThat(board.path("checkpoints")).extracting(checkpoint -> checkpoint.path("id").asText())
+                .containsExactly("CP1", "CP2", "CP3", "CP4");
+
+        JsonNode reloaded = json(get("/games/" + gameId));
+        assertThat(reloaded.path("configuration").path("mapSeed").asLong()).isEqualTo(731L);
+        JsonNode reloadedBoard = reloaded.path("board");
+        assertThat(reloadedBoard.path("mapId")).isEqualTo(board.path("mapId"));
+        assertThat(reloadedBoard.path("width")).isEqualTo(board.path("width"));
+        assertThat(reloadedBoard.path("height")).isEqualTo(board.path("height"));
+        assertThat(reloadedBoard.path("checkpoints")).isEqualTo(board.path("checkpoints"));
+        assertThat(reloadedBoard.path("spawnPoints")).isEqualTo(board.path("spawnPoints"));
+        assertThat(reloadedBoard.path("obstacles")).extracting(obstacle -> List.of(
+                        obstacle.path("x").asInt(), obstacle.path("y").asInt()))
+                .containsExactlyInAnyOrderElementsOf(board.path("obstacles").valueStream().map(obstacle -> List.of(
+                        obstacle.path("x").asInt(), obstacle.path("y").asInt())).toList());
+    }
+
+    @Test
+    void autoGeneratesRandomCorridorSeedAndRejectsSeedForResourceMap() throws Exception {
+        HttpResponse<String> generated = post("/games", """
+                {"maxPlayers":2,"joinTimeoutSeconds":90,"programSize":5,"planningTimeoutSeconds":45,
+                 "mapId":"random-corridors"}
+                """);
+        assertThat(generated.statusCode()).isEqualTo(HttpStatus.CREATED.value());
+        assertThat(json(generated).path("configuration").path("mapSeed").isIntegralNumber()).isTrue();
+
+        HttpResponse<String> invalid = post("/games", """
+                {"maxPlayers":2,"joinTimeoutSeconds":90,"programSize":5,"planningTimeoutSeconds":45,
+                 "mapId":"default-small","mapSeed":731}
+                """);
+        assertThat(invalid.statusCode()).isEqualTo(HttpStatus.BAD_REQUEST.value());
+        assertThat(json(invalid).path("message").asText()).contains("only be used with Random Corridors");
+    }
+
+    @Test
     void rejectNonFiveRegisterGameConfigurations() throws Exception {
         for (int programSize : List.of(1, 3, 4, 6)) {
             HttpResponse<String> response = post("/games", """

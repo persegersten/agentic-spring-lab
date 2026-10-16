@@ -39,6 +39,17 @@ test('Alice creates a game and Bob joins from a separate session', async ({ brow
   })
 })
 
+test('Random Corridors is available without changing the default map selection', async ({ page }) => {
+  await page.goto('/')
+  await expect(page.getByLabel('Karta')).toHaveValue('')
+  await expect(page.getByLabel('Karta').getByRole('option')).toHaveText(['Hand-designed maps', 'Random Corridors'])
+  await page.getByLabel('Karta').selectOption({ label: 'Random Corridors' })
+  const createRequest = page.waitForRequest(request => request.url().endsWith('/games') && request.method() === 'POST')
+  await page.getByRole('button', { name: 'Bjud in till nytt spel', exact: true }).click()
+  expect((await createRequest).postDataJSON().mapId).toBe('random-corridors')
+  await expect(page.getByRole('heading', { name: 'Spel-lobby' })).toBeVisible()
+})
+
 test('the lobby stays at the root while two games remain active in one browser', async ({ browser }) => {
   const context = await browser.newContext()
   const firstGame = await context.newPage()

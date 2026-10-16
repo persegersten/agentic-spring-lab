@@ -8,6 +8,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
 import se.segersten.wreckage.game.domain.Checkpoint;
 import se.segersten.wreckage.game.domain.CorridorGenerationParameters;
 import se.segersten.wreckage.game.domain.CorridorNetwork;
@@ -19,6 +21,7 @@ import se.segersten.wreckage.game.domain.Position;
 import se.segersten.wreckage.game.domain.SpawnPoint;
 
 /** Converts the reusable corridor geometry into complete maps understood by the game engine. */
+@Component
 public class PlayableMapGenerator {
     static final int MAX_PLACEMENT_ATTEMPTS = 32;
     private static final int CHECKPOINT_COUNT = 4;
@@ -28,6 +31,11 @@ public class PlayableMapGenerator {
 
     public PlayableMapGenerator() {
         this(new OrthogonalCorridorGenerator(), new CorridorGeometryValidator(), new MapValidator());
+    }
+
+    @Autowired
+    public PlayableMapGenerator(MapValidator mapValidator) {
+        this(new OrthogonalCorridorGenerator(), new CorridorGeometryValidator(), mapValidator);
     }
 
     PlayableMapGenerator(OrthogonalCorridorGenerator corridors, CorridorGeometryValidator geometryValidator,
