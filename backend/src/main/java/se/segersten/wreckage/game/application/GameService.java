@@ -14,12 +14,15 @@ import org.springframework.stereotype.Service;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.transaction.annotation.Transactional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import se.segersten.wreckage.game.domain.Board;
 import se.segersten.wreckage.game.domain.Game;
 import se.segersten.wreckage.game.domain.GameRepository;
 import se.segersten.wreckage.game.domain.GameStatus;
 import se.segersten.wreckage.game.domain.GameConfiguration;
+import se.segersten.wreckage.game.domain.CorridorGenerationParameters;
 import se.segersten.wreckage.game.domain.Player;
 import se.segersten.wreckage.game.domain.MovementOrder;
 import se.segersten.wreckage.game.domain.Round;
@@ -29,6 +32,8 @@ import se.segersten.wreckage.game.engine.MovementEngine;
 @Transactional
 public class GameService {
 
+    private static final Logger LOGGER = LoggerFactory.getLogger(GameService.class);
+
     static final int DEFAULT_MAX_CONCURRENT_GAMES = 10;
 
     private final GameRepository gameRepository;
@@ -37,15 +42,17 @@ public class GameService {
     private final GameBoardFactory gameBoardFactory;
     private final MapRepository mapRepository;
     private final ProgrammingCardDealer cardDealer;
+    private final PlayableMapGenerator playableMapGenerator;
+    private final CorridorAsciiFormatter corridorAsciiFormatter;
     private final int maxConcurrentGames;
 
     @Autowired
     public GameService(GameRepository gameRepository, PlayerAutomation playerAutomation,
                        GameBoardFactory gameBoardFactory, MapRepository mapRepository,
-                       ProgrammingCardDealer cardDealer,
+                       ProgrammingCardDealer cardDealer, PlayableMapGenerator playableMapGenerator,
                        @Value("${wreckage.games.max-concurrent:10}") int maxConcurrentGames) {
         this(gameRepository, Clock.systemUTC(), playerAutomation, gameBoardFactory, mapRepository, cardDealer,
-                maxConcurrentGames);
+                playableMapGenerator, new CorridorAsciiFormatter(), maxConcurrentGames);
     }
 
     public GameService(GameRepository gameRepository) {
@@ -54,39 +61,47 @@ public class GameService {
 
     GameService(GameRepository gameRepository, int maxConcurrentGames) {
         this(gameRepository, Clock.systemUTC(), new BotPlayerAutomation(), null, localMaps(), defaultDealer(),
-                maxConcurrentGames);
+                new PlayableMapGenerator(), new CorridorAsciiFormatter(), maxConcurrentGames);
     }
 
     GameService(GameRepository gameRepository, Clock clock) {
         this(gameRepository, clock, new BotPlayerAutomation(), null, localMaps(), defaultDealer(),
-                DEFAULT_MAX_CONCURRENT_GAMES);
+                new PlayableMapGenerator(), new CorridorAsciiFormatter(), DEFAULT_MAX_CONCURRENT_GAMES);
     }
 
     GameService(GameRepository gameRepository, Clock clock, PlayerAutomation playerAutomation) {
         this(gameRepository, clock, playerAutomation, null, localMaps(), defaultDealer(),
-                DEFAULT_MAX_CONCURRENT_GAMES);
+                new PlayableMapGenerator(), new CorridorAsciiFormatter(), DEFAULT_MAX_CONCURRENT_GAMES);
     }
 
     GameService(GameRepository gameRepository, Clock clock, PlayerAutomation playerAutomation,
                 GameBoardFactory gameBoardFactory) {
         this(gameRepository, clock, playerAutomation, gameBoardFactory, localMaps(), defaultDealer(),
-                DEFAULT_MAX_CONCURRENT_GAMES);
+                new PlayableMapGenerator(), new CorridorAsciiFormatter(), DEFAULT_MAX_CONCURRENT_GAMES);
     }
 
     GameService(GameRepository gameRepository, Clock clock, PlayerAutomation playerAutomation,
                 GameBoardFactory gameBoardFactory, MapRepository mapRepository) {
         this(gameRepository, clock, playerAutomation, gameBoardFactory, mapRepository, defaultDealer(),
-                DEFAULT_MAX_CONCURRENT_GAMES);
+                new PlayableMapGenerator(), new CorridorAsciiFormatter(), DEFAULT_MAX_CONCURRENT_GAMES);
     }
 
     GameService(GameRepository gameRepository, Clock clock, PlayerAutomation playerAutomation,
                 GameBoardFactory gameBoardFactory, MapRepository mapRepository, ProgrammingCardDealer cardDealer) {
         this(gameRepository, clock, playerAutomation, gameBoardFactory, mapRepository, cardDealer,
-                DEFAULT_MAX_CONCURRENT_GAMES);
+                new PlayableMapGenerator(), new CorridorAsciiFormatter(), DEFAULT_MAX_CONCURRENT_GAMES);
     }
 
     GameService(GameRepository gameRepository, Clock clock, PlayerAutomation playerAutomation,
                 GameBoardFactory gameBoardFactory, MapRepository mapRepository, ProgrammingCardDealer cardDealer,
+                int maxConcurrentGames) {
+        this(gameRepository, clock, playerAutomation, gameBoardFactory, mapRepository, cardDealer,
+                new PlayableMapGenerator(), new CorridorAsciiFormatter(), maxConcurrentGames);
+    }
+
+    GameService(GameRepository gameRepository, Clock clock, PlayerAutomation playerAutomation,
+                GameBoardFactory gameBoardFactory, MapRepository mapRepository, ProgrammingCardDealer cardDealer,
+                PlayableMapGenerator playableMapGenerator, CorridorAsciiFormatter corridorAsciiFormatter,
                 int maxConcurrentGames) {
         if (maxConcurrentGames < 1) throw new IllegalArgumentException("maxConcurrentGames must be positive");
         this.gameRepository = gameRepository;
@@ -95,6 +110,8 @@ public class GameService {
         this.mapRepository = java.util.Objects.requireNonNull(mapRepository);
         this.gameBoardFactory = gameBoardFactory;
         this.cardDealer = java.util.Objects.requireNonNull(cardDealer);
+        this.playableMapGenerator = java.util.Objects.requireNonNull(playableMapGenerator);
+        this.corridorAsciiFormatter = java.util.Objects.requireNonNull(corridorAsciiFormatter);
         this.maxConcurrentGames = maxConcurrentGames;
     }
 
@@ -115,9 +132,14 @@ public class GameService {
                 + gameRepository.findAllByStatus(GameStatus.RUNNING).size();
         if (activeGames >= maxConcurrentGames)
             throw new IllegalStateException("The game server has reached its concurrent game limit");
-        se.segersten.wreckage.game.domain.MapDefinition selected = configuration.mapId() == null
+        boolean randomCorridors = GameConfiguration.RANDOM_CORRIDORS_MAP_ID.equals(configuration.mapId());
+        if (configuration.mapSeed() != null && !randomCorridors)
+            throw new IllegalArgumentException("A map seed can only be used with Random Corridors");
+        if (randomCorridors && configuration.mapSeed() == null)
+            configuration = configuration.withMapSeed(java.util.concurrent.ThreadLocalRandom.current().nextLong());
+        se.segersten.wreckage.game.domain.MapDefinition selected = configuration.mapId() == null || randomCorridors
                 ? mapRepository.defaultFor(configuration.maxPlayers()) : mapRepository.get(configuration.mapId());
-        if (!selected.players().supports(configuration.maxPlayers()))
+        if (!randomCorridors && !selected.players().supports(configuration.maxPlayers()))
             throw new IllegalArgumentException("Map '" + selected.id() + "' does not support the configured capacity");
         Board board = gameBoardFactory == null ? selected.toBoard() : gameBoardFactory.createBoard(selected);
         Instant createdAt = clock.instant();
@@ -155,10 +177,16 @@ public class GameService {
         Game game = findGameForUpdate(gameId);
         authenticateHost(game, hostToken);
         if (game.getPlayers().size() < 2) throw new IllegalStateException("At least two players are required");
-        var selected = game.getConfiguration().mapId() == null
-                ? mapRepository.defaultFor(game.getPlayers().size())
-                : mapRepository.get(game.getConfiguration().mapId());
-        Board selectedBoard = gameBoardFactory == null ? selected.toBoard()
+        boolean randomCorridors = GameConfiguration.RANDOM_CORRIDORS_MAP_ID.equals(game.getConfiguration().mapId());
+        var selected = randomCorridors
+                ? playableMapGenerator.generate(game.getConfiguration().mapSeed(), game.getPlayers().size(),
+                        CorridorGenerationParameters.defaults())
+                : game.getConfiguration().mapId() == null
+                        ? mapRepository.defaultFor(game.getPlayers().size())
+                        : mapRepository.get(game.getConfiguration().mapId());
+        if (randomCorridors) LOGGER.info("Generated Random Corridors map:{}{}",
+                System.lineSeparator(), corridorAsciiFormatter.format(selected, game.getConfiguration().mapSeed()));
+        Board selectedBoard = randomCorridors || gameBoardFactory == null ? selected.toBoard()
                 : gameBoardFactory.createBoard(selected, game.getPlayers().size());
         var effective = new se.segersten.wreckage.game.domain.MapDefinition(selectedBoard.mapId(), selectedBoard.mapName(),
                 selectedBoard.width(), selectedBoard.height(),

@@ -61,11 +61,12 @@ class FlywayBaselineIntegrationTest {
                 .extracting(info -> info.getScript())
                 .containsExactly("V1__create_initial_schema.sql");
 
-        Flyway historical = flyway(HISTORICAL_DATABASE, null);
+        MigrationVersion baselineVersion = MigrationVersion.fromVersion("22");
+        Flyway historical = flyway(HISTORICAL_DATABASE, baselineVersion);
         assertThat(historical.migrate().migrationsExecuted).isEqualTo(21);
         assertHistoricalPath(historical);
 
-        Flyway baseline = flyway(BASELINE_DATABASE, null);
+        Flyway baseline = flyway(BASELINE_DATABASE, baselineVersion);
         assertThat(baseline.migrate().migrationsExecuted).isEqualTo(1);
         assertBaselinePath(baseline);
 
@@ -75,6 +76,26 @@ class FlywayBaselineIntegrationTest {
 
         assertThat(historical.migrate().migrationsExecuted).isZero();
         assertHistoricalPath(historical);
+
+        Flyway historicalToLatest = flyway(HISTORICAL_DATABASE, null);
+        Flyway baselineToLatest = flyway(BASELINE_DATABASE, null);
+        var pendingScripts = List.of(historicalToLatest.info().pending()).stream()
+                .map(info -> info.getScript())
+                .toList();
+        assertThat(List.of(baselineToLatest.info().pending()))
+                .extracting(info -> info.getScript())
+                .containsExactlyElementsOf(pendingScripts);
+        assertThat(historicalToLatest.migrate().migrationsExecuted).isEqualTo(pendingScripts.size());
+        assertThat(baselineToLatest.migrate().migrationsExecuted).isEqualTo(pendingScripts.size());
+        assertThat(historicalToLatest.info().pending()).isEmpty();
+        assertThat(baselineToLatest.info().pending()).isEmpty();
+        assertThat(baselineToLatest.info().current().getVersion())
+                .isEqualTo(historicalToLatest.info().current().getVersion());
+        assertThat(schemaSnapshot(BASELINE_DATABASE)).isEqualTo(schemaSnapshot(HISTORICAL_DATABASE));
+        assertNoReferenceData(HISTORICAL_DATABASE);
+        assertNoReferenceData(BASELINE_DATABASE);
+        assertThat(historicalToLatest.migrate().migrationsExecuted).isZero();
+        assertThat(baselineToLatest.migrate().migrationsExecuted).isZero();
 
         validateHibernateSchema(HISTORICAL_DATABASE);
         validateHibernateSchema(BASELINE_DATABASE);

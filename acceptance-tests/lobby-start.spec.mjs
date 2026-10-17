@@ -34,6 +34,36 @@ test('the host starts planning for every connected player', async ({ browser }) 
   })
 })
 
+test('the lobby starts and renders a stable Random Corridors board', async ({ browser }) => {
+  await withPlayerPages(browser, ['alice', 'bob'], async ({ alice, bob }) => {
+    await alice.goto('/')
+    await alice.getByLabel('Karta').selectOption({ label: 'Random Corridors' })
+    await alice.getByRole('button', { name: 'Bjud in till nytt spel', exact: true }).click()
+    const gameLink = await alice.getByLabel('Spellänk').inputValue()
+    await joinGame(alice, 'Alice')
+    await bob.goto(gameLink)
+    await joinGame(bob, 'Bob')
+    await startGame(alice)
+
+    for (const page of [alice, bob]) {
+      await expect(page.getByRole('heading', { name: 'Planering', exact: true })).toBeVisible()
+      await expect(page.getByTestId('game-board')).toHaveAttribute('data-width', '10')
+      await expect(page.getByTestId('game-board')).toHaveAttribute('data-height', '10')
+      await expect(page.getByTestId('board-checkpoint')).toHaveCount(4)
+      await expect.poll(() => page.getByTestId('board-checkpoint').evaluateAll(checkpoints =>
+        checkpoints.map(checkpoint => checkpoint.dataset.checkpointId))).toEqual(['CP1', 'CP2', 'CP3', 'CP4'])
+      await expect(page.getByTestId('board-obstacle').first()).toBeVisible()
+      await expect(page.getByTestId('player-vehicle')).toHaveCount(2)
+      await expect(page.getByTestId('checkpoint-progress')).toContainText('0 / 4')
+    }
+
+    const beforeReload = await alice.getByTestId('game-board').evaluate(board => board.innerHTML)
+    await alice.reload()
+    await expect(alice.getByRole('heading', { name: 'Planering', exact: true })).toBeVisible()
+    await expect.poll(() => alice.getByTestId('game-board').evaluate(board => board.innerHTML)).toBe(beforeReload)
+  })
+})
+
 test('a waiting lobby stays open until the host starts and then rejects late joins', async ({ browser }) => {
   await withPlayerPages(browser, ['alice', 'bob', 'charlie'], async ({ alice, bob, charlie }) => {
     await alice.goto('/')
