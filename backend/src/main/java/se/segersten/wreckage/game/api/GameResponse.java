@@ -14,6 +14,7 @@ public record GameResponse(
         int roundLimit,
         GameConfiguration configuration,
         java.time.Instant createdAt,
+        UUID hostPlayerId,
         List<PlayerResponse> players,
         BoardResponse board,
         List<VehicleResponse> vehicles,
@@ -28,7 +29,7 @@ public record GameResponse(
                 ? null
                 : BoardResponse.from(game.getBoard());
         return new GameResponse(game.getId(), game.getStatus(), game.getConfiguration().roundLimit(), game.getConfiguration(),
-                game.getCreatedAt(), players, board,
+                game.getCreatedAt(), game.getHostPlayerId(), players, board,
                 game.getVehicleStates().stream().map(VehicleResponse::from).toList(),
                 PublicRoundResponse.from(game.getRound()), game.getPlacements());
     }

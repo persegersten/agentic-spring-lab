@@ -4,7 +4,7 @@ async function json<T>(response: Response, fallback: string): Promise<T> {
   return response.json() as Promise<T>
 }
 export async function createGame(options?:CreateGameOptions): Promise<CreatedGame> { return json(await fetch('/games',{method:'POST',headers:options?{'Content-Type':'application/json'}:undefined,body:options?JSON.stringify({maxPlayers:9,joinTimeoutSeconds:300,programSize:5,planningTimeoutSeconds:120,...options}):undefined}),'Kunde inte skapa spelet') }
-export async function addPlayer(gameId:string,name:string):Promise<PlayerJoin> { return json(await fetch(`/games/${gameId}/players`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})}),'Kunde inte lägga till spelaren') }
+export async function addPlayer(gameId:string,name:string,hostToken?:string):Promise<PlayerJoin> { return json(await fetch(`/games/${gameId}/players`,{method:'POST',headers:{'Content-Type':'application/json',...(hostToken?{'X-Host-Token':hostToken}:{})},body:JSON.stringify({name})}),'Kunde inte lägga till spelaren') }
 export async function addBot(session:PlayerSession):Promise<Player> { return json(await fetch(`/games/${session.gameId}/bots`,{method:'POST',headers:auth(session)}),'Kunde inte lägga till boten') }
 export async function getGame(gameId:string):Promise<Game> { return json(await fetch(`/games/${gameId}`),'Kunde inte hämta spelet') }
 export async function startGame(gameId:string,hostToken:string):Promise<Game>{return json(await fetch(`/games/${gameId}/start`,{method:'POST',headers:{'X-Host-Token':hostToken}}),'Kunde inte starta spelet')}

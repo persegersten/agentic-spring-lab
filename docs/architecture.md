@@ -122,7 +122,11 @@ finishes, the server's current aggregate remains the source of truth.
 
 ## API and authentication
 
-Joining returns a one-time player token. The browser keeps it in `localStorage`,
+Joining returns a one-time player token. When the creator joins, the browser also
+sends the one-time host token so the backend can persist that authenticated human
+player's id as the game's host. Subsequent bot creation uses the normal player id
+and token and is authorized against that persisted host id; no client host flag is
+trusted. The browser keeps the player token in `localStorage`,
 keyed by game id so several games can remain active in the same browser, and sends
 it as `X-Player-Token`; mutations also send `X-Player-Id`. A direct `/game/{id}`
 link restores only that game's player session, while `/` always displays the
@@ -161,8 +165,8 @@ state.
 
 Dependencies point inward. `Game` is the aggregate root and owns player, vehicle,
 round, scoring, respawn, and completion invariants. `PlayerAutomation` is an
-application-layer seam that locks programs for automated players. Authenticated
-human players add bots on demand through the lobby; bots otherwise use the same
+application-layer seam that locks programs for automated players. The authenticated
+creator adds bots on demand through the lobby; bots otherwise use the same
 aggregate membership, vehicles, cards, round lifecycle, and persistence as humans.
 
 ## Persistence and migrations

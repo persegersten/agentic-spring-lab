@@ -88,8 +88,9 @@ public class GameController {
                     description = "Player to add",
                     required = true,
                     content = @Content(schema = @Schema(implementation = AddPlayerRequest.class)))
-            @RequestBody AddPlayerRequest request) {
-        var join = gameService.addPlayer(gameId, request.name());
+            @RequestBody AddPlayerRequest request,
+            @RequestHeader(value = "X-Host-Token", required = false) String hostToken) {
+        var join = gameService.addPlayer(gameId, request.name(), hostToken);
         return new PlayerJoinResponse(join.player().getId(), join.player().getName(), join.token());
     }
 

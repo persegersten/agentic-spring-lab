@@ -17,6 +17,7 @@ public class Game {
     private final Instant createdAt;
     private final Instant joinDeadline;
     private final String hostTokenHash;
+    private UUID hostPlayerId;
     private final Map<UUID, VehicleState> vehicles;
     private Round round;
 
@@ -39,12 +40,18 @@ public class Game {
     public Game(UUID id, List<Player> players, Board board, GameStatus status,
                 Map<UUID, VehicleState> vehicles, Round round, GameConfiguration configuration,
                 Instant createdAt, Instant joinDeadline, String hostTokenHash) {
+        this(id, players, board, status, vehicles, round, configuration, createdAt, joinDeadline, hostTokenHash, null);
+    }
+    public Game(UUID id, List<Player> players, Board board, GameStatus status,
+                Map<UUID, VehicleState> vehicles, Round round, GameConfiguration configuration,
+                Instant createdAt, Instant joinDeadline, String hostTokenHash, UUID hostPlayerId) {
         this.id = Objects.requireNonNull(id); this.players = new ArrayList<>(Objects.requireNonNull(players));
         this.board = Objects.requireNonNull(board); this.status = Objects.requireNonNull(status);
         this.configuration = Objects.requireNonNull(configuration);
         this.createdAt = Objects.requireNonNull(createdAt);
         this.joinDeadline = Objects.requireNonNull(joinDeadline);
         this.hostTokenHash = Objects.requireNonNull(hostTokenHash);
+        this.hostPlayerId = hostPlayerId;
         this.vehicles = new LinkedHashMap<>(vehicles); this.round = round;
     }
     public UUID getId() { return id; }
@@ -55,6 +62,7 @@ public class Game {
     public Instant getCreatedAt() { return createdAt; }
     public Instant getJoinDeadline() { return joinDeadline; }
     public String getHostTokenHash() { return hostTokenHash; }
+    public UUID getHostPlayerId() { return hostPlayerId; }
     public List<VehicleState> getVehicleStates() { return List.copyOf(vehicles.values()); }
     public Round getRound() { return round; }
 
@@ -77,6 +85,13 @@ public class Game {
     }
     public Player addAutomatedPlayer(String name, String tokenHash, Instant now) {
         return addPlayer(name, tokenHash, now, true);
+    }
+    public void assignHost(UUID playerId) {
+        Player player = requirePlayer(playerId);
+        if (player.isAutomated()) throw new IllegalArgumentException("Automated players cannot be host");
+        if (hostPlayerId != null && !hostPlayerId.equals(playerId))
+            throw new IllegalStateException("The game already has a host player");
+        hostPlayerId = playerId;
     }
     private Player addPlayer(String name, String tokenHash, Instant now, boolean automated) {
         if (status == GameStatus.FINISHED || round != null)
