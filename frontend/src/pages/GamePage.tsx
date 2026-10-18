@@ -146,7 +146,7 @@ export function GamePage() {
   async function join() {
     if (!game || !name.trim()) return
     await run(async () => {
-      const player = await addPlayer(game.id, name.trim())
+      const player = await addPlayer(game.id, name.trim(), hostToken || undefined)
       const nextSession = { gameId: game.id, playerId: player.id, token: player.token }
       savePlayerSession(nextSession)
       setSession(nextSession); setView(await getPlayerGame(nextSession))
@@ -224,7 +224,7 @@ export function GamePage() {
       {lobby.status === 'WAITING_FOR_PLAYERS' ? <>
         <label>Spellänk<input aria-label="Spellänk" readOnly value={gameLink} /></label>
         <button className="secondary" disabled={working} onClick={() => void run(() => navigator.clipboard.writeText(gameLink))}>Kopiera spellänk</button>
-        {session && <button disabled={working || lobby.players.length >= lobby.configuration.maxPlayers} onClick={() => void createBot()}>Add Bot</button>}
+        {session?.playerId === lobby.hostPlayerId && <button disabled={working || lobby.players.length >= lobby.configuration.maxPlayers} onClick={() => void createBot()}>Add Bot</button>}
         <p>Brädstorlek och antal rundor bestäms när matchen startar.</p>
         <h3>Spelare anslutna</h3>
         {lobby.players.length ? <ul>{lobby.players.map(player => <li key={player.id}>{player.name} <span data-testid="player-kind">({player.automated ? 'Bot' : 'Human'})</span></li>)}</ul> : <p>Bli den första spelaren</p>}

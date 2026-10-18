@@ -195,9 +195,26 @@ class GameConcurrencyIntegrationTest {
         assertSingleResolution(persistedSecond);
     }
 
+    @Test
+    void concurrentHumanJoinAndBotCreationShareTheSameCapacityLock() throws Exception {
+        GameService.HostedGame hosted = gameService.createHostedGame(new GameConfiguration(3, 60, 5, 120));
+        GameService.PlayerJoin host = gameService.addPlayer(
+                hosted.game().getId(), "Capacity Host", hosted.hostToken());
+
+        List<Outcome> outcomes = runConcurrently(
+                () -> gameService.addPlayer(hosted.game().getId(), "Capacity Guest"),
+                () -> gameService.addBot(hosted.game().getId(), host.player().getId(), host.token()));
+
+        assertThat(outcomes).allMatch(Outcome::succeeded);
+        Game persisted = reload(hosted.game().getId());
+        assertThat(persisted.getPlayers()).hasSize(3);
+        assertThat(persisted.getPlayers()).filteredOn(player -> player.isAutomated()).hasSize(1);
+        assertThat(persisted.getHostPlayerId()).isEqualTo(host.player().getId());
+    }
+
     private Fixture createStartedGame(String aliceName, String bobName) {
         GameService.HostedGame hosted = gameService.createHostedGame(new GameConfiguration(2, 60, 5, 120));
-        GameService.PlayerJoin alice = gameService.addPlayer(hosted.game().getId(), aliceName);
+        GameService.PlayerJoin alice = gameService.addPlayer(hosted.game().getId(), aliceName, hosted.hostToken());
         GameService.PlayerJoin bob = gameService.addPlayer(hosted.game().getId(), bobName);
         gameService.startGame(hosted.game().getId(), hosted.hostToken());
         return new Fixture(hosted.game().getId(), alice, bob);
@@ -230,7 +247,7 @@ class GameConcurrencyIntegrationTest {
             current.getVehicleStates().forEach(state -> vehicles.put(state.vehicle().playerId(), state));
             gameRepository.save(new Game(current.getId(), current.getPlayers(), current.getBoard(), current.getStatus(),
                     vehicles, expired, current.getConfiguration(), current.getCreatedAt(), current.getJoinDeadline(),
-                    current.getHostTokenHash()));
+                    current.getHostTokenHash(), current.getHostPlayerId()));
         });
     }
 

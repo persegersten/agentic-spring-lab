@@ -389,7 +389,7 @@ class GameServiceTest {
         GameService service = new GameService(repository, Clock.systemUTC(), new BotPlayerAutomation());
         var hosted = service.createHostedGame(new GameConfiguration(4, 60, 5, 30));
         Game game = hosted.game();
-        var human = service.addPlayer(game.getId(), "Bot 1");
+        var human = service.addPlayer(game.getId(), "Bot 1", hosted.hostToken());
         service.addBot(game.getId(), human.player().getId(), human.token());
         service.addBot(game.getId(), human.player().getId(), human.token());
         service.addBot(game.getId(), human.player().getId(), human.token());
@@ -411,7 +411,7 @@ class GameServiceTest {
         InMemoryGameRepository repository = new InMemoryGameRepository();
         GameService service = new GameService(repository);
         var hosted = service.createHostedGame(new GameConfiguration(2, 60, 5, 30));
-        var human = service.addPlayer(hosted.game().getId(), "Alice");
+        var human = service.addPlayer(hosted.game().getId(), "Alice", hosted.hostToken());
 
         assertThatThrownBy(() -> service.addBot(hosted.game().getId(), human.player().getId(), "wrong"))
                 .isInstanceOf(SecurityException.class).hasMessage("Invalid player token");
@@ -435,7 +435,7 @@ class GameServiceTest {
         GameService service = new GameService(repository, Clock.systemUTC(), new BotPlayerAutomation());
         var hosted = service.createHostedGame(new GameConfiguration(3, 60, 5, 30));
         Game game = hosted.game();
-        var human = service.addPlayer(game.getId(), "Alice");
+        var human = service.addPlayer(game.getId(), "Alice", hosted.hostToken());
         service.addBot(game.getId(), human.player().getId(), human.token());
         service.addBot(game.getId(), human.player().getId(), human.token());
         service.startGame(game.getId(), hosted.hostToken());
@@ -456,6 +456,60 @@ class GameServiceTest {
             assertThat(program.ready()).isTrue();
             assertThat(program.commands()).containsExactlyElementsOf(program.commands());
         });
+    }
+
+    @Test
+    void onlyThePersistedHostPlayerCanAddBotsAfterReconnect() {
+        InMemoryGameRepository repository = new InMemoryGameRepository();
+        GameService service = new GameService(repository);
+        var hosted = service.createHostedGame(new GameConfiguration(4, 60, 5, 30));
+        var host = service.addPlayer(hosted.game().getId(), "Alice", hosted.hostToken());
+        var guest = service.addPlayer(hosted.game().getId(), "Bob");
+
+        assertThat(hosted.game().getHostPlayerId()).isEqualTo(host.player().getId());
+        assertThatThrownBy(() -> service.addBot(hosted.game().getId(), guest.player().getId(), guest.token()))
+                .isInstanceOf(SecurityException.class).hasMessage("Only the host can add bots");
+
+        GameService reconnected = new GameService(repository);
+        Player bot = reconnected.addBot(hosted.game().getId(), host.player().getId(), host.token());
+
+        assertThat(bot.isAutomated()).isTrue();
+        assertThat(repository.findById(hosted.game().getId()).orElseThrow().getHostPlayerId())
+                .isEqualTo(host.player().getId());
+    }
+
+    @Test
+    void supportsMixedHumanAndBotLobbyCompositionsInEitherJoinOrder() {
+        for (int humanCount = 1; humanCount <= 4; humanCount++) {
+            InMemoryGameRepository repository = new InMemoryGameRepository();
+            GameService service = new GameService(repository);
+            var hosted = service.createHostedGame(new GameConfiguration(4, 60, 5, 30));
+            var host = service.addPlayer(hosted.game().getId(), "Human 1", hosted.hostToken());
+            int botCount = 4 - humanCount;
+
+            if (humanCount <= 2 && botCount > 0)
+                service.addBot(hosted.game().getId(), host.player().getId(), host.token());
+            for (int index = 2; index <= humanCount; index++)
+                service.addPlayer(hosted.game().getId(), "Human " + index);
+            int existingBots = humanCount <= 2 && botCount > 0 ? 1 : 0;
+            for (int index = existingBots; index < botCount; index++)
+                service.addBot(hosted.game().getId(), host.player().getId(), host.token());
+
+            Game game = repository.findById(hosted.game().getId()).orElseThrow();
+            assertThat(game.getPlayers()).hasSize(4);
+            assertThat(game.getPlayers()).filteredOn(Player::isAutomated).hasSize(botCount);
+            assertThat(game.getPlayers()).filteredOn(player -> !player.isAutomated()).hasSize(humanCount);
+        }
+    }
+
+    @Test
+    void automatedPlayersCannotBeAssignedAsHost() {
+        Game game = new Game(UUID.randomUUID(), List.of(), new Board(5, 5), GameStatus.WAITING_FOR_PLAYERS);
+        Player bot = game.addAutomatedPlayer("Bot 1", "hash", Instant.now());
+
+        assertThatThrownBy(() -> game.assignHost(bot.getId()))
+                .isInstanceOf(IllegalArgumentException.class).hasMessage("Automated players cannot be host");
+        assertThat(game.getHostPlayerId()).isNull();
     }
 
     @Test

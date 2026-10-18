@@ -93,6 +93,20 @@ class InMemoryProfileIntegrationTest {
     }
 
     @Test
+    void persistsHostIdentityAndAuthorizesItAfterReload() {
+        var hosted = gameService.createHostedGame(new GameConfiguration(3, 300, 5, 120));
+        var host = gameService.addPlayer(hosted.game().getId(), "Host", hosted.hostToken());
+        gameService.addPlayer(hosted.game().getId(), "Guest");
+
+        Game reloaded = gameService.getGame(hosted.game().getId());
+        assertThat(reloaded.getHostPlayerId()).isEqualTo(host.player().getId());
+
+        Player bot = gameService.addBot(hosted.game().getId(), host.player().getId(), host.token());
+        assertThat(bot.isAutomated()).isTrue();
+        assertThat(gameService.getGame(hosted.game().getId()).getPlayers()).hasSize(3);
+    }
+
+    @Test
     void persistsResolvedProgramsAndPlaybackUsingInMemoryDatabase() {
         var hosted = gameService.createHostedGame(new GameConfiguration(2, 300, 5, 120));
         Game game = hosted.game();

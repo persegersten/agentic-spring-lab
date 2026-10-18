@@ -151,18 +151,29 @@ public class GameService {
     }
 
     public PlayerJoin addPlayer(UUID gameId, String name) {
+        return addPlayer(gameId, name, null);
+    }
+
+    public PlayerJoin addPlayer(UUID gameId, String name, String hostToken) {
         Game game = findGameForUpdate(gameId);
+        boolean joiningAsHost = hostToken != null;
+        if (joiningAsHost) {
+            authenticateHost(game, hostToken);
+            if (game.getHostPlayerId() != null)
+                throw new IllegalStateException("The game already has a host player");
+        }
         String token = UUID.randomUUID().toString() + UUID.randomUUID();
         Instant now = clock.instant();
         Player player = game.addPlayer(name, hash(token), now);
+        if (joiningAsHost) game.assignHost(player.getId());
         gameRepository.save(game);
         return new PlayerJoin(player, token);
     }
 
     public Player addBot(UUID gameId, UUID requestingPlayerId, String token) {
         Game game = authenticatedGameForUpdate(gameId, requestingPlayerId, token);
-        if (game.requirePlayer(requestingPlayerId).isAutomated())
-            throw new SecurityException("Automated players cannot add bots");
+        if (!requestingPlayerId.equals(game.getHostPlayerId()))
+            throw new SecurityException("Only the host can add bots");
         int nameIndex = 1;
         String name;
         do {

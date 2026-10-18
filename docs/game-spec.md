@@ -66,11 +66,15 @@ och rundantal utifrån det faktiska spelarantalet.
 Nya spelare får ansluta tills kapaciteten är nådd eller initiativtagaren startar
 spelet. Efter start är lobbyn permanent stängd för nya spelare.
 
-En ansluten mänsklig spelare kan lägga till en bot i den aktuella lobbyn. Varje
-tryck lägger till en bot med ett unikt namn och samma medlemskap, startposition,
-loadout och spelregler som övriga spelare. Kontrollen är inte tillgänglig när
-lobbyn är full eller matchen har startat. Botar låser automatiskt sina utdelade
-program varje runda och visas uttryckligen som botar för alla anslutna spelare.
+Den mänskliga spelare som skapade spelet är värd och kan lägga till botar i den
+aktuella lobbyn. Värdens identitet binds till spelarens autentiserade session när
+värden ansluter och bevaras vid återanslutning. Övriga spelare ser inte kontrollen
+och backend avvisar deras direkta anrop. Varje tryck lägger till en bot med ett
+unikt namn och samma medlemskap, startposition och spelregler som övriga spelare.
+Människor och botar delar lobbykapaciteten och deltar i samma match. Kontrollen är
+inte tillgänglig när lobbyn är full eller matchen har startat. Botar låser
+automatiskt sina utdelade program varje runda och visas uttryckligen som botar för
+alla anslutna spelare.
 
 ---
 
