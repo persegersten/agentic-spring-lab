@@ -37,7 +37,6 @@ test('the host starts planning for every connected player', async ({ browser }) 
 test('the lobby starts and renders a stable Random Corridors board', async ({ browser }) => {
   await withPlayerPages(browser, ['alice', 'bob'], async ({ alice, bob }) => {
     await alice.goto('/')
-    await alice.getByLabel('Karta').selectOption({ label: 'Random Corridors' })
     await alice.getByRole('button', { name: 'Bjud in till nytt spel', exact: true }).click()
     const gameLink = await alice.getByLabel('Spellänk').inputValue()
     await joinGame(alice, 'Alice')

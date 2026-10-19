@@ -187,6 +187,8 @@ public class GameService {
     public Game startGame(UUID gameId, String hostToken) {
         Game game = findGameForUpdate(gameId);
         authenticateHost(game, hostToken);
+        if (game.getStatus() != GameStatus.WAITING_FOR_PLAYERS || game.getRound() != null)
+            throw new IllegalStateException("The lobby is closed");
         if (game.getPlayers().size() < 2) throw new IllegalStateException("At least two players are required");
         boolean randomCorridors = GameConfiguration.RANDOM_CORRIDORS_MAP_ID.equals(game.getConfiguration().mapId());
         var selected = randomCorridors
@@ -197,7 +199,7 @@ public class GameService {
                         : mapRepository.get(game.getConfiguration().mapId());
         if (randomCorridors) LOGGER.info("Generated Random Corridors map:{}{}",
                 System.lineSeparator(), corridorAsciiFormatter.format(selected, game.getConfiguration().mapSeed()));
-        Board selectedBoard = randomCorridors || gameBoardFactory == null ? selected.toBoard()
+        Board selectedBoard = gameBoardFactory == null ? selected.toBoard()
                 : gameBoardFactory.createBoard(selected, game.getPlayers().size());
         var effective = new se.segersten.wreckage.game.domain.MapDefinition(selectedBoard.mapId(), selectedBoard.mapName(),
                 selectedBoard.width(), selectedBoard.height(),

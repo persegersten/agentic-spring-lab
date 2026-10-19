@@ -204,7 +204,6 @@ controlPointScore
 crashPenalty
 pushCrashScore
 weaponCrashScore
-mapId
 ```
 
 Recommended defaults:
@@ -233,6 +232,11 @@ of those cards in register order. Unused cards are discarded after the round.
 Hands and unfinished programs are private and are persisted for reconnection.
 
 The selected map must support the configured number of players.
+
+Normal player-facing game creation always uses a newly seeded Random Corridors
+map. The server generates and validates it once the actual player count is
+known, then persists that board for the rest of the match. Predefined maps and
+their loading infrastructure remain an internal capability.
 
 When the lobby closes, the server fixes the match settings from the number of
 players that actually joined:

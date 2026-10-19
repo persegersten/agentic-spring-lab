@@ -47,7 +47,6 @@ export function GamePage() {
   const [view, setView] = useState<PlayerGame | null>(null)
   const [session, setSession] = useState<PlayerSession | null>(() => loadPlayerSession(gameIdFromPath()))
   const [name, setName] = useState('')
-  const [mapId, setMapId] = useState('')
   const [hostToken] = useState(() => {
     const id = gameIdFromPath()
     return id ? localStorage.getItem(hostTokenKey(id)) ?? '' : ''
@@ -137,7 +136,7 @@ export function GamePage() {
 
   async function create() {
     await run(async () => {
-      const created = await createGame(mapId ? { mapId } : undefined)
+      const created = await createGame()
       localStorage.setItem(hostTokenKey(created.id), created.hostToken)
       window.location.assign(`/game/${created.id}/lobby`)
     })
@@ -210,12 +209,7 @@ export function GamePage() {
     {!lobby && !gameIdFromPath() && <section className="panel main-lobby">
       <h2>Starta ett nytt spel</h2>
       <p>Skapa en spel-lobby och dela länken med dem du vill bjuda in.</p>
-      <label>Karta
-        <select aria-label="Karta" value={mapId} onChange={event => setMapId(event.target.value)}>
-          <option value="">Hand-designed maps</option>
-          <option value="random-corridors">Random Corridors</option>
-        </select>
-      </label>
+      <p>Map: Random Corridors</p>
       <button disabled={working} onClick={() => void create()}>Bjud in till nytt spel</button>
     </section>}
     {lobby && <section className="panel game-lobby" data-testid="game-lobby">

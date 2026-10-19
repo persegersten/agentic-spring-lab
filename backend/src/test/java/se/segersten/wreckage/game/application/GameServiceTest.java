@@ -145,6 +145,23 @@ class GameServiceTest {
 
         assertThat(assignedSeed).isNotNull();
         assertThat(started.getConfiguration().mapSeed()).isEqualTo(assignedSeed);
+        Board generatedBoard = started.getBoard();
+        assertThatThrownBy(() -> service.startGame(hosted.game().getId(), hosted.hostToken()))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("The lobby is closed");
+        assertThat(repository.findById(started.getId()).orElseThrow().getBoard()).isEqualTo(generatedBoard);
+    }
+
+    @Test void defaultGamesReceiveIndependentRandomCorridorSeeds() {
+        GameService service = new GameService(new InMemoryGameRepository());
+
+        Game first = service.createGame();
+        Game second = service.createGame();
+
+        assertThat(first.getConfiguration().mapId()).isEqualTo(GameConfiguration.RANDOM_CORRIDORS_MAP_ID);
+        assertThat(first.getConfiguration().mapSeed()).isNotNull();
+        assertThat(second.getConfiguration().mapSeed()).isNotNull()
+                .isNotEqualTo(first.getConfiguration().mapSeed());
     }
 
     @Test void rejectsASeedForAHandDesignedMap() {
@@ -195,7 +212,10 @@ class GameServiceTest {
         assertThat(game.getId()).isNotNull();
         assertThat(game.getPlayers()).isEmpty();
         assertThat(game.getStatus()).isEqualTo(GameStatus.WAITING_FOR_PLAYERS);
-        assertThat(game.getConfiguration()).isEqualTo(GameConfiguration.defaults());
+        assertThat(game.getConfiguration().maxPlayers()).isEqualTo(GameConfiguration.DEFAULT_MAX_PLAYERS);
+        assertThat(game.getConfiguration().programSize()).isEqualTo(GameConfiguration.DEFAULT_PROGRAM_SIZE);
+        assertThat(game.getConfiguration().mapId()).isEqualTo(GameConfiguration.RANDOM_CORRIDORS_MAP_ID);
+        assertThat(game.getConfiguration().mapSeed()).isNotNull();
         assertThat(game.getBoard().mapId()).isEqualTo("default-large");
         assertThat(game.getBoard().conveyors()).isNotEmpty();assertThat(game.getBoard().rotators()).isNotEmpty();
         assertThat(repository.findById(game.getId())).containsSame(game);

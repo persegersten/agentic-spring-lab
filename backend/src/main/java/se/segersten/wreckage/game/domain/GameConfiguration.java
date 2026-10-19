@@ -66,7 +66,7 @@ public record GameConfiguration(
         return new GameConfiguration(DEFAULT_MAX_PLAYERS, DEFAULT_JOIN_TIMEOUT_SECONDS,
                 DEFAULT_PROGRAM_SIZE, DEFAULT_PLANNING_TIMEOUT_SECONDS, DEFAULT_ROUND_LIMIT,
                 DEFAULT_CHECKPOINT_SCORE, DEFAULT_CONTROL_POINT_SCORE, DEFAULT_CRASH_PENALTY,
-                DEFAULT_PUSH_CRASH_SCORE, null, null);
+                DEFAULT_PUSH_CRASH_SCORE, RANDOM_CORRIDORS_MAP_ID, null);
     }
 
     public GameConfiguration withRoundLimit(int selectedRoundLimit) {

@@ -22,8 +22,13 @@ A game starts in `WAITING_FOR_PLAYERS`. Creation returns a one-time host token,
 stored only as a hash by the server. Players join through the shareable game-lobby
 link, and the authenticated host explicitly closes the lobby and starts the match.
 At that point the domain derives and persists board dimensions and round limit
-from the actual participant count. Each joined vehicle immediately has the
-default public loadout `LASER + SHIELD`; its authenticated owner may update the
+from the actual participant count. Normal game creation always selects Random
+Corridors and assigns a fresh seed when the lobby is created. When the lobby
+closes, the application uses that seed and the actual participant count to
+generate and validate the board once; the persisted board is then reused for
+the complete match and reconnects. Predefined map resources and their loader
+remain available internally for tests and possible future use. Each joined
+vehicle immediately has the default public loadout `LASER + SHIELD`; its authenticated owner may update the
 weapon and ability while the lobby is open. Starting atomically fixes those
 choices and initializes weapon state, including one use for equipped Rockets.
 A game is `RUNNING` while rounds remain
