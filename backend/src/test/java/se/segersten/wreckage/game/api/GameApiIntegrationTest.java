@@ -72,6 +72,8 @@ class GameApiIntegrationTest {
         assertThat(game.path("configuration").path("controlPointScore").asInt()).isEqualTo(1);
         assertThat(game.path("configuration").path("crashPenalty").asInt()).isEqualTo(-1);
         assertThat(game.path("configuration").path("pushCrashScore").asInt()).isEqualTo(1);
+        assertThat(game.path("configuration").path("mapId").asText()).isEqualTo("random-corridors");
+        assertThat(game.path("configuration").path("mapSeed").isIntegralNumber()).isTrue();
         assertThat(game.path("configuration").has("weaponCrashScore")).isFalse();
         assertThat(game.path("hostToken").asText()).isNotBlank();
         assertThat(game.path("board").path("width").asInt()).isEqualTo(16);
@@ -130,16 +132,16 @@ class GameApiIntegrationTest {
     }
 
     @Test
-    void createsPersistsAndReloadsASeededRandomCorridorMap() throws Exception {
+    void createsPersistsAndReloadsARandomCorridorMap() throws Exception {
         HttpResponse<String> created = post("/games", """
-                {"maxPlayers":2,"joinTimeoutSeconds":90,"programSize":5,"planningTimeoutSeconds":45,
-                 "mapId":"random-corridors","mapSeed":731}
+                {"maxPlayers":2,"joinTimeoutSeconds":90,"programSize":5,"planningTimeoutSeconds":45}
                 """);
         assertThat(created.statusCode()).isEqualTo(HttpStatus.CREATED.value());
         JsonNode lobby = json(created);
         String gameId = lobby.path("id").asText();
         assertThat(lobby.path("configuration").path("mapId").asText()).isEqualTo("random-corridors");
-        assertThat(lobby.path("configuration").path("mapSeed").asLong()).isEqualTo(731L);
+        long mapSeed = lobby.path("configuration").path("mapSeed").asLong();
+        assertThat(lobby.path("configuration").path("mapSeed").isIntegralNumber()).isTrue();
         post("/games/%s/players".formatted(gameId), "{\"name\":\"Alice\"}");
         post("/games/%s/players".formatted(gameId), "{\"name\":\"Bob\"}");
 
@@ -156,7 +158,7 @@ class GameApiIntegrationTest {
                 .containsExactly("CP1", "CP2", "CP3", "CP4");
 
         JsonNode reloaded = json(get("/games/" + gameId));
-        assertThat(reloaded.path("configuration").path("mapSeed").asLong()).isEqualTo(731L);
+        assertThat(reloaded.path("configuration").path("mapSeed").asLong()).isEqualTo(mapSeed);
         JsonNode reloadedBoard = reloaded.path("board");
         assertThat(reloadedBoard.path("mapId")).isEqualTo(board.path("mapId"));
         assertThat(reloadedBoard.path("width")).isEqualTo(board.path("width"));
@@ -170,20 +172,22 @@ class GameApiIntegrationTest {
     }
 
     @Test
-    void autoGeneratesRandomCorridorSeedAndRejectsSeedForResourceMap() throws Exception {
+    void publicCreationAlwaysUsesRandomCorridorsAndFreshSeeds() throws Exception {
         HttpResponse<String> generated = post("/games", """
-                {"maxPlayers":2,"joinTimeoutSeconds":90,"programSize":5,"planningTimeoutSeconds":45,
-                 "mapId":"random-corridors"}
-                """);
-        assertThat(generated.statusCode()).isEqualTo(HttpStatus.CREATED.value());
-        assertThat(json(generated).path("configuration").path("mapSeed").isIntegralNumber()).isTrue();
-
-        HttpResponse<String> invalid = post("/games", """
                 {"maxPlayers":2,"joinTimeoutSeconds":90,"programSize":5,"planningTimeoutSeconds":45,
                  "mapId":"default-small","mapSeed":731}
                 """);
-        assertThat(invalid.statusCode()).isEqualTo(HttpStatus.BAD_REQUEST.value());
-        assertThat(json(invalid).path("message").asText()).contains("only be used with Random Corridors");
+        assertThat(generated.statusCode()).isEqualTo(HttpStatus.CREATED.value());
+        JsonNode first = json(generated);
+        assertThat(first.path("configuration").path("mapId").asText()).isEqualTo("random-corridors");
+        assertThat(first.path("configuration").path("mapSeed").isIntegralNumber()).isTrue();
+        assertThat(first.path("configuration").path("mapSeed").asLong()).isNotEqualTo(731L);
+
+        JsonNode second = json(post("/games", """
+                {"maxPlayers":2,"joinTimeoutSeconds":90,"programSize":5,"planningTimeoutSeconds":45}
+                """));
+        assertThat(second.path("configuration").path("mapSeed").asLong())
+                .isNotEqualTo(first.path("configuration").path("mapSeed").asLong());
     }
 
     @Test

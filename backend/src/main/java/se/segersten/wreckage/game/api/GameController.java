@@ -56,7 +56,7 @@ public class GameController {
                         request.controlPointScore() == null ? GameConfiguration.DEFAULT_CONTROL_POINT_SCORE : request.controlPointScore(),
                         request.crashPenalty() == null ? GameConfiguration.DEFAULT_CRASH_PENALTY : request.crashPenalty(),
                         request.pushCrashScore() == null ? GameConfiguration.DEFAULT_PUSH_CRASH_SCORE : request.pushCrashScore(),
-                        request.mapId(), request.mapSeed());
+                        GameConfiguration.RANDOM_CORRIDORS_MAP_ID, null);
         var created = gameService.createHostedGame(configuration);
         return new CreateGameResponse(GameResponse.from(created.game()), created.hostToken());
     }

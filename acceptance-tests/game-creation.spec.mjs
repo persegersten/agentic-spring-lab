@@ -39,14 +39,16 @@ test('Alice creates a game and Bob joins from a separate session', async ({ brow
   })
 })
 
-test('Random Corridors is available without changing the default map selection', async ({ page }) => {
+test('Random Corridors is the only map mode and needs no selection', async ({ page }) => {
   await page.goto('/')
-  await expect(page.getByLabel('Karta')).toHaveValue('')
-  await expect(page.getByLabel('Karta').getByRole('option')).toHaveText(['Hand-designed maps', 'Random Corridors'])
-  await page.getByLabel('Karta').selectOption({ label: 'Random Corridors' })
-  const createRequest = page.waitForRequest(request => request.url().endsWith('/games') && request.method() === 'POST')
+  await expect(page.getByText('Map: Random Corridors', { exact: true })).toBeVisible()
+  await expect(page.getByRole('combobox')).not.toBeVisible()
   await page.getByRole('button', { name: 'Bjud in till nytt spel', exact: true }).click()
-  expect((await createRequest).postDataJSON().mapId).toBe('random-corridors')
+  const gameLink = await page.getByLabel('Spellänk', { exact: true }).inputValue()
+  const gameId = gameLink.split('/').at(-2)
+  const created = await (await page.request.get(`/games/${gameId}`)).json()
+  expect(created.configuration.mapId).toBe('random-corridors')
+  expect(created.configuration.mapSeed).not.toBeNull()
   await expect(page.getByRole('heading', { name: 'Spel-lobby' })).toBeVisible()
 })
 

@@ -30,7 +30,11 @@ Följande parametrar ska kunna konfigureras:
 * `joinTimeoutSeconds` – antal sekunder som andra spelare har på sig att ansluta.
 * `planningTimeoutSeconds` – tidsgräns för spelarnas samtidiga planering.
 * `programSize` – fem register i varje spelares program.
-* `mapId` – vilken kompatibel spelkarta som används.
+
+Kartan väljs inte av spelaren. Normal spelstart använder alltid Random
+Corridors med ett nytt servergenererat seed. När det faktiska spelarantalet är
+känt genereras och valideras kartan en gång och sparas med spelet. Fördefinierade
+kartor finns kvar internt men visas inte som alternativ i GUI:t.
 
 När lobbyn stängs bestämmer servern brädstorlek och `roundLimit` från antalet
 spelare som faktiskt har anslutit: 2–3 ger 10×10 och 7 rundor, 4–6 ger 12×12

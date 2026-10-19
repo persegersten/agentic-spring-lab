@@ -5,7 +5,6 @@ export type Player = { id: string; name: string; score: number; visitedCheckpoin
 export type PlayerJoin = Player & { token: string }
 export type GameStatus = 'WAITING_FOR_PLAYERS' | 'RUNNING' | 'FINISHED'
 export type GameConfiguration = { maxPlayers: number; joinTimeoutSeconds: number; programSize: number; planningTimeoutSeconds: number; roundLimit: number; checkpointScore: number; controlPointScore: number; crashPenalty: number; pushCrashScore: number; mapId?: string | null; mapSeed?: number | null }
-export type CreateGameOptions = { mapId?: string | null; mapSeed?: number | null }
 export type Position = { x: number; y: number }
 export type Wall = { cell: Position; direction: Direction }
 export type Checkpoint = { id: string; order: number; position: Position }
