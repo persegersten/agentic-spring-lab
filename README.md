@@ -2,6 +2,9 @@
 
 Web-based turn-based multiplayer programming and checkpoint game.
 
+For a durable public deployment with PostgreSQL and automatic HTTPS, see the
+[Linux deployment guide](docs/deployment/linux.md).
+
 Current scope:
 - Create game
 - Add players
