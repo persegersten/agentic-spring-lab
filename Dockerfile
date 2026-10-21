@@ -17,6 +17,9 @@ RUN chmod +x mvnw && ./mvnw -B -DskipTests package
 
 FROM eclipse-temurin:25-jre AS backend-runtime
 WORKDIR /app
+RUN apt-get update \
+    && apt-get install --yes --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
 COPY --from=backend-build /build/backend/target/wreckage-0.0.1-SNAPSHOT.jar ./app.jar
 USER 1000
-CMD ["sh", "-c", "exec java -jar /app/app.jar --server.port=${PORT:-8080} --spring.profiles.active=in-memory"]
+CMD ["sh", "-c", "exec java -jar /app/app.jar --server.port=${PORT:-8080} --spring.profiles.active=${SPRING_PROFILES_ACTIVE:-in-memory}"]

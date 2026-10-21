@@ -2,6 +2,8 @@
 
 Web-based turn-based multiplayer programming and checkpoint game.
 
+See [docs/deployment/linux.md](docs/deployment/linux.md) for production Linux installation and safe updates.
+
 Current scope:
 - Create game
 - Add players
