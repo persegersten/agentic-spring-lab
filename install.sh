@@ -19,6 +19,9 @@ detect_os() {
     . /etc/os-release
     case "${ID:-}:${VERSION_ID:-}" in ubuntu:22.04|ubuntu:24.04|ubuntu:26.04|debian:12|debian:13) ;; *) fail "Unsupported operating system: ${PRETTY_NAME:-unknown}." ;; esac
     [[ -n ${VERSION_CODENAME:-} ]] || fail "Operating-system codename is missing."
+    if [[ $ID == debian && $VERSION_ID == 13 ]]; then
+        [[ $VERSION_CODENAME == trixie ]] || fail "Debian 13 must use the trixie suite."
+    fi
 }
 configure_docker_repository() {
     local arch tmp_key tmp_source
@@ -41,14 +44,20 @@ install_required_utilities() {
     if ((${#packages[@]})); then run_as_root apt-get update; run_as_root apt-get install --yes --no-install-recommends "${packages[@]}"; fi
 }
 ensure_docker() {
-    if ! command -v docker >/dev/null; then
+    local package status
+    for package in docker.io docker-compose docker-doc docker-buildx podman-docker containerd runc; do
+        status=$(dpkg-query -W -f='${Status}' "$package" 2>/dev/null || true)
+        [[ $status != 'install ok installed' ]] || fail "Conflicting package $package is installed. Replace it with Docker's official packages before retrying."
+    done
+    local needs_install=false
+    for package in docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin; do
+        status=$(dpkg-query -W -f='${Status}' "$package" 2>/dev/null || true)
+        [[ $status == 'install ok installed' ]] || needs_install=true
+    done
+    if $needs_install; then
         configure_docker_repository
         run_as_root apt-get install --yes --no-install-recommends docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
         command -v systemctl >/dev/null && run_as_root systemctl enable --now docker
-    fi
-    if ! docker compose version >/dev/null 2>&1; then
-        configure_docker_repository
-        run_as_root apt-get install --yes --no-install-recommends docker-compose-plugin
     fi
     select_docker_command
 }
@@ -75,7 +84,9 @@ ensure_environment() {
     mv "$tmp" "$env_file"
 }
 main() {
-    parse_domain "$@"; detect_os; install_required_utilities; ensure_environment; ensure_docker; cd "$script_dir"
+    parse_domain "$@"
+    [[ $EUID -ne 0 && $(id -un) == wreckage ]] || fail "Run this script as wreckage without sudo; it uses sudo only for privileged operations."
+    detect_os; install_required_utilities; ensure_environment; ensure_docker; cd "$script_dir"
     validate_installation
     local revision
     revision=$(git rev-parse HEAD 2>/dev/null || echo initial)

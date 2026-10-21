@@ -1,6 +1,10 @@
 # Linux deployment
 
-Wreckage's production stack uses Docker Compose, Caddy, nginx, Spring Boot, and PostgreSQL on Ubuntu 22.04/24.04/26.04 or Debian 12/13. Java and Node versions are controlled by the Dockerfile, not host packages.
+Wreckage's production stack uses Docker Compose, Caddy, nginx, Spring Boot, and PostgreSQL on Ubuntu 22.04/24.04/26.04 or Debian 12/13 (Bookworm/Trixie). Java and Node versions are controlled by the Dockerfile, not host packages.
+
+Run installation from a checkout owned by the `wreckage` user, logged in as `wreckage`, without prefixing `./install.sh` with `sudo`. The script rejects root and other users. It uses `sudo` only for system packages, repository configuration, service management, and Docker when the user cannot access the daemon directly. Application configuration and deployment metadata are written as `wreckage`.
+
+On Debian 13 the script explicitly requires the `trixie` suite and uses Docker's official Debian repository (`https://download.docker.com/linux/debian`), with its signing key and the `stable` component. It requires `docker-ce`, `docker-ce-cli`, `containerd.io`, `docker-buildx-plugin`, and `docker-compose-plugin`, following [Docker's Debian installation instructions](https://docs.docker.com/engine/install/debian/). Conflicting distribution packages such as `docker.io`, `containerd`, and `runc` cause installation to stop with an error; resolve those conflicts before retrying.
 
 ## Install
 
