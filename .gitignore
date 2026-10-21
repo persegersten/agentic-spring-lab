@@ -29,3 +29,6 @@ acceptance-tests/test-results/
 acceptance-tests/blob-report/
 
 acceptance-tests/node_modules/
+
+# Local deployment configuration and secrets
+.env
