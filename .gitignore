@@ -29,3 +29,7 @@ acceptance-tests/test-results/
 acceptance-tests/blob-report/
 
 acceptance-tests/node_modules/
+
+# Local deployment configuration, state, backups, and secrets
+.env
+.wreckage/
