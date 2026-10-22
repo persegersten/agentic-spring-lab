@@ -1,3 +1,9 @@
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "${DOCKER_LOG_MAX_SIZE:-10m}"
+    max-file: "${DOCKER_LOG_MAX_FILES:-7}"
+
 name: wreckage
 
 services:
@@ -17,6 +23,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 6
+    logging: *default-logging
     restart: unless-stopped
   frontend:
     image: wreckage-frontend:${WRECKAGE_IMAGE_TAG:-local}
@@ -31,6 +38,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 12
+    logging: *default-logging
     restart: unless-stopped
   backend:
     image: wreckage-backend:${WRECKAGE_IMAGE_TAG:-local}
@@ -51,6 +59,7 @@ services:
       timeout: 5s
       retries: 18
       start_period: 30s
+    logging: *default-logging
     restart: unless-stopped
   postgres:
     image: postgres:17
@@ -65,6 +74,7 @@ services:
       interval: 5s
       timeout: 5s
       retries: 12
+    logging: *default-logging
     restart: unless-stopped
 
 volumes:

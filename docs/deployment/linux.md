@@ -40,6 +40,32 @@ docker compose --env-file .env -f compose.prod.yml logs --tail=200
 docker compose --env-file .env -f compose.prod.yml logs -f backend
 ```
 
+All services use Docker's `json-file` logging driver with rotation at 10 MB per
+file and at most seven files per container (approximately 70 MB each, 280 MB
+for the four production services). Docker deletes the oldest file when the
+limit is reached. This is a size limit, not seven days of retention.
+
+Optional settings in `.env`:
+
+```dotenv
+DOCKER_LOG_MAX_SIZE=10m
+DOCKER_LOG_MAX_FILES=7
+```
+
+Existing `.env` files use these defaults without changes. Logging settings take
+effect when containers are recreated. To apply them to all production services
+after deploying the updated Compose file, run during a maintenance window:
+
+```bash
+docker compose --env-file .env -f compose.prod.yml up -d --no-build --force-recreate
+```
+
+This briefly interrupts services, including PostgreSQL. Named volumes are preserved.
+`./update.sh` recreates only backend/frontend during application updates, so it
+does not apply logging changes to existing PostgreSQL or Caddy containers.
+View logs through `docker compose logs`; container replacement removes the old
+container's logs.
+
 Correct the failed stage and rerun `./update.sh`. Existing containers, `.env`, PostgreSQL data, Caddy certificates, previous images, and metadata remain. Never use `docker compose down --volumes`.
 
 When prior tagged images remain, deliberate application-image rollback is available:

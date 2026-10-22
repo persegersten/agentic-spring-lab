@@ -53,6 +53,11 @@ docker compose logs -f
 ./start-with-docker.sh
 ```
 
+Container logs rotate at 10 MB per file, keeping at most seven files per container
+(approximately 70 MB). Set `DOCKER_LOG_MAX_SIZE` and `DOCKER_LOG_MAX_FILES` in `.env`
+to override these defaults. Oldest files are deleted when the limit is reached;
+retention depends on log volume, not days. Changes apply when containers are recreated.
+
 ## Run backend and frontend
 
 Install frontend dependencies once:
