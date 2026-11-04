@@ -27,10 +27,11 @@ Build and start the complete application in the background:
 ./start-with-docker.sh
 ```
 
-Open <http://localhost>. The frontend production build is served by nginx on
-port 80, which forwards the existing `/games` API requests to an internal
-backend container. The backend is not published on a host port, and game data
-uses the existing in-memory database and is lost when the backend is replaced.
+Open <http://localhost>. Host port 80 maps to the non-root nginx container on
+its unprivileged port 8080, which forwards the existing `/games` API requests
+to an internal backend container. The backend is not published on a host port,
+and game data uses the existing in-memory database and is lost when the backend
+is replaced.
 
 For temporary external alpha testing, manually forward router TCP port 80 to
 this laptop's TCP port 80, then open `http://<PUBLIC-IP>`. This setup uses plain

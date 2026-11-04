@@ -2,7 +2,9 @@
 
 deployment_init() {
     script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[1]}")" && pwd)
-    env_file="$script_dir/.env"
+    config_dir=/etc/wreckage
+    env_file="$config_dir/production.env"
+    password_file="$config_dir/postgres-password"
     compose_file="$script_dir/compose.prod.yml"
     state_dir="$script_dir/.wreckage"
     metadata_file="$state_dir/deployment.env"
@@ -11,26 +13,51 @@ deployment_init() {
 
 fail() { echo "Error: $*" >&2; exit 1; }
 note() { echo "==> $*"; }
-env_value() { awk -F= -v k="$1" '$1==k {sub(/^[^=]*=/,""); gsub(/^['\''\"]|['\''\"]$/,""); print; exit}' "$env_file"; }
+run_privileged() {
+    if [[ $EUID -eq 0 ]]; then "$@"
+    else command -v sudo >/dev/null || fail "sudo is required for production deployment."; sudo "$@"
+    fi
+}
+env_value() { run_privileged awk -F= -v k="$1" '$1==k {sub(/^[^=]*=/,""); gsub(/^['\''\"]|['\''\"]$/,""); print; exit}' "$env_file"; }
 
 select_docker_command() {
-    if docker info >/dev/null 2>&1; then docker_command=(docker)
+    if [[ $EUID -eq 0 ]] && docker info >/dev/null 2>&1; then docker_command=(docker)
     elif [[ $EUID -ne 0 ]] && command -v sudo >/dev/null && sudo docker info >/dev/null 2>&1; then docker_command=(sudo docker)
     else fail "Docker is unavailable, stopped, or inaccessible."; fi
     docker_cmd compose version >/dev/null 2>&1 || fail "Docker Compose v2 is required."
 }
 docker_cmd() { "${docker_command[@]}" "$@"; }
-compose() { docker_cmd compose --env-file "$env_file" -f "$compose_file" "$@"; }
+compose() {
+    local -a preserved_environment=()
+    [[ -z ${WRECKAGE_IMAGE_TAG:-} ]] || preserved_environment+=("WRECKAGE_IMAGE_TAG=$WRECKAGE_IMAGE_TAG")
+    [[ -z ${CADDY_IMAGE:-} ]] || preserved_environment+=("CADDY_IMAGE=$CADDY_IMAGE")
+    if [[ ${docker_command[0]} == sudo ]]; then
+        sudo env "${preserved_environment[@]}" docker compose --env-file "$env_file" -f "$compose_file" "$@"
+    else
+        env "${preserved_environment[@]}" docker compose --env-file "$env_file" -f "$compose_file" "$@"
+    fi
+}
 
 validate_installation() {
-    [[ -f $env_file && -f $compose_file && -f $script_dir/Caddyfile ]] || fail "This is not a complete Feature 1 installation."
-    local permissions
-    permissions=$(stat -c '%a' "$env_file" 2>/dev/null) || fail "Cannot inspect $env_file permissions."
-    (( (8#$permissions & 8#077) == 0 )) || fail "$env_file must not be readable or writable by group or others."
+    [[ -f $compose_file && -f $script_dir/Caddyfile ]] || fail "This is not a complete Wreckage installation."
+    run_privileged test -f "$env_file" || fail "$env_file is missing."
+    run_privileged test -f "$password_file" || fail "$password_file is missing."
+    local permissions owner protected_file
+    permissions=$(run_privileged stat -c '%a' "$config_dir") || fail "Cannot inspect $config_dir permissions."
+    [[ $permissions == 700 ]] || fail "$config_dir must have permissions 0700."
+    owner=$(run_privileged stat -c '%U:%G' "$config_dir")
+    [[ $owner == root:root ]] || fail "$config_dir must be owned by root:root."
+    for protected_file in "$env_file" "$password_file"; do
+        permissions=$(run_privileged stat -c '%a' "$protected_file")
+        [[ $permissions == 600 ]] || fail "$protected_file must have permissions 0600."
+        owner=$(run_privileged stat -c '%U:%G' "$protected_file")
+        [[ $owner == root:root ]] || fail "$protected_file must be owned by root:root."
+    done
     local key
-    for key in DOMAIN POSTGRES_DB POSTGRES_USER POSTGRES_PASSWORD DB_URL SPRING_PROFILES_ACTIVE; do
+    for key in DOMAIN POSTGRES_DB POSTGRES_USER POSTGRES_PASSWORD_FILE DB_URL SPRING_PROFILES_ACTIVE; do
         [[ -n $(env_value "$key") ]] || fail "$env_file is missing $key."
     done
+    [[ $(env_value POSTGRES_PASSWORD_FILE) == "$password_file" ]] || fail "POSTGRES_PASSWORD_FILE must be $password_file."
     [[ $(env_value SPRING_PROFILES_ACTIVE) == postgres ]] || fail "SPRING_PROFILES_ACTIVE must be postgres."
     select_docker_command
     compose config --quiet || fail "Production Compose configuration is invalid."
@@ -61,7 +88,7 @@ wait_for_services() {
 verify_internal_proxy() {
     local id response
     id=$(compose ps -q frontend)
-    response=$(docker_cmd exec "$id" wget -qO- http://127.0.0.1/games/running) || return 1
+    response=$(docker_cmd exec "$id" wget -qO- http://127.0.0.1:8080/games/running) || return 1
     [[ $response =~ ^[[:space:]]*\[ ]]
 }
 
