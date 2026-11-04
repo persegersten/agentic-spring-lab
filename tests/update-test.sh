@@ -17,6 +17,20 @@ assert "migration backups use pg_dump" grep -q pg_dump "$repo/update.sh"
 assert "migration backups are verified" grep -q 'pg_restore --list' "$repo/update.sh"
 assert "platform changes require confirmation" grep -q 'confirm "Apply only the platform updates' "$repo/update.sh"
 assert "platform packages are explicit" grep -q 'apt-get install.*docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin' "$repo/update.sh"
+assert "production configuration is outside repository" grep -q 'env_file="$config_dir/production.env"' "$repo/scripts/deployment-common.sh"
+assert "production Docker access uses sudo" grep -q 'docker_command=(sudo docker)' "$repo/scripts/deployment-common.sh"
+assert "sudo Compose preserves revision image tags" grep -q 'preserved_environment+=("WRECKAGE_IMAGE_TAG=' "$repo/scripts/deployment-common.sh"
+assert "backend has a dedicated non-root user" grep -q 'USER wreckage-app:wreckage-app' "$repo/Dockerfile"
+assert "frontend has a non-root user" grep -q '^USER nginx:nginx$' "$repo/Dockerfile"
+assert "frontend listens on an unprivileged port" grep -q 'listen 8080' "$repo/nginx.conf"
+assert "Caddy routes to the unprivileged frontend port" grep -q 'reverse_proxy frontend:8080' "$repo/Caddyfile"
+assert "database password uses a Compose secret" grep -q 'POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password' "$repo/compose.prod.yml"
+assert "application containers prevent privilege escalation" bash -c '[[ $(grep -c "no-new-privileges:true" "$1/compose.prod.yml") -eq 2 ]]' _ "$repo"
+assert "application containers drop capabilities" bash -c '[[ $(grep -c "cap_drop: \[ALL\]" "$1/compose.prod.yml") -eq 2 ]]' _ "$repo"
+assert "production Compose does not mount Docker socket" bash -c '! grep -q "/var/run/docker.sock" "$1/compose.prod.yml"' _ "$repo"
+assert "production Compose publishes only Caddy ports" bash -c '[[ $(grep -c "ports:" "$1/compose.prod.yml") -eq 1 ]] && grep -q "ports: \[\"80:80\", \"443:443\"\]" "$1/compose.prod.yml"' _ "$repo"
+assert "PostgreSQL uses the private application network" bash -c 'grep -A25 "^  postgres:" "$1/compose.prod.yml" | grep -q "networks: \[application\]"' _ "$repo"
+assert "application network is internal" bash -c 'grep -A2 "^  application:" "$1/compose.prod.yml" | grep -q "internal: true"' _ "$repo"
 
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT; mkdir -p "$tmp/.wreckage"
 (
@@ -29,8 +43,10 @@ tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT; mkdir -p "$tmp/.wreckage"
     [[ $DEPLOYED_REVISION == new-revision && $PREVIOUS_REVISION == old-revision && $HEALTH_STATUS == healthy ]]
 ) && pass "version metadata records current and previous revisions" || fail_test "version metadata records current and previous revisions"
 
-if command -v docker >/dev/null 2>&1; then
-    assert "production Compose configuration is valid" docker compose --env-file "$repo/.env.example" -f "$repo/compose.prod.yml" config --quiet
+printf 'test-password' >"$tmp/postgres-password"
+if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
+    assert "production Compose configuration is valid" env POSTGRES_PASSWORD_FILE="$tmp/postgres-password" docker compose --env-file "$repo/.env.example" -f "$repo/compose.prod.yml" config --quiet
+    assert "local Compose configuration remains valid" docker compose -f "$repo/compose.yml" config --quiet
 else
     pass "production Compose validation skipped (Docker unavailable)"
 fi

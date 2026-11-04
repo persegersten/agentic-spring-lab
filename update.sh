@@ -119,12 +119,15 @@ rollback() {
     trap - ERR; report_status
 }
 
-run_as_root() { if [[ $EUID -eq 0 ]]; then "$@"; else command -v sudo >/dev/null || fail "sudo is required for package maintenance."; sudo "$@"; fi; }
+run_as_root() { run_privileged "$@"; }
 set_env_value() {
-    local key=$1 value=$2 tmp
-    tmp=$(mktemp "$script_dir/.env.tmp.XXXXXX")
-    awk -F= -v k="$key" -v v="$value" 'BEGIN{done=0} $1==k {print k "=" v; done=1; next} {print} END{if(!done) print k "=" v}' "$env_file" >"$tmp"
-    chmod 600 "$tmp"; mv "$tmp" "$env_file"
+    local key=$1 value=$2 tmp protected_tmp
+    tmp=$(mktemp)
+    protected_tmp="$config_dir/.production.env.tmp.$$"
+    run_as_root awk -F= -v k="$key" -v v="$value" 'BEGIN{done=0} $1==k {print k "=" v; done=1; next} {print} END{if(!done) print k "=" v}' "$env_file" >"$tmp"
+    run_as_root install -o root -g root -m 0600 "$tmp" "$protected_tmp"
+    run_as_root mv -f "$protected_tmp" "$env_file"
+    rm -f "$tmp"
 }
 platform_update() {
     stage="platform inspection"; validate_installation; lock_update; ensure_volumes
@@ -171,4 +174,6 @@ platform_update() {
     trap - ERR; note "Platform maintenance completed and HTTPS is healthy."
 }
 
+[[ $EUID -ne 0 && $(id -un) == admin ]] || fail "Run this script as the admin account without prefixing the script with sudo."
+[[ $(readlink -f "$script_dir") == /opt/wreckage ]] || fail "The production checkout must be /opt/wreckage."
 case $#:$* in 0:) application_update ;; 1:--platform) platform_update ;; 1:--rollback) rollback ;; *) usage; exit 2 ;; esac

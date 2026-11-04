@@ -5,7 +5,7 @@ set -Eeuo pipefail
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/scripts/deployment-common.sh"
 deployment_init
 
-run_as_root() { if [[ $EUID -eq 0 ]]; then "$@"; else command -v sudo >/dev/null || fail "sudo is required."; sudo "$@"; fi; }
+run_as_root() { run_privileged "$@"; }
 
 usage() { echo "Usage: $0 --domain <hostname>" >&2; }
 parse_domain() {
@@ -45,6 +45,13 @@ install_required_utilities() {
 }
 ensure_docker() {
     local package status
+    if command -v docker >/dev/null && { [[ $EUID -eq 0 ]] || command -v sudo >/dev/null; }; then
+        if { [[ $EUID -eq 0 ]] && docker info >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; } \
+            || { [[ $EUID -ne 0 ]] && sudo docker info >/dev/null 2>&1 && sudo docker compose version >/dev/null 2>&1; }; then
+            select_docker_command
+            return
+        fi
+    fi
     for package in docker.io docker-compose docker-doc docker-buildx podman-docker containerd runc; do
         status=$(dpkg-query -W -f='${Status}' "$package" 2>/dev/null || true)
         [[ $status != 'install ok installed' ]] || fail "Conflicting package $package is installed. Replace it with Docker's official packages before retrying."
@@ -57,8 +64,8 @@ ensure_docker() {
     if $needs_install; then
         configure_docker_repository
         run_as_root apt-get install --yes --no-install-recommends docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-        command -v systemctl >/dev/null && run_as_root systemctl enable --now docker
     fi
+    command -v systemctl >/dev/null && run_as_root systemctl enable --now docker
     select_docker_command
 }
 check_ports() {
@@ -72,20 +79,27 @@ check_ports() {
     done
 }
 ensure_environment() {
-    if [[ -e $env_file ]]; then
-        [[ -f $env_file ]] || fail "$env_file is not a regular file."
-        [[ $(env_value DOMAIN) == "$domain" ]] || fail "Existing .env belongs to another domain."
+    if run_as_root test -e "$env_file" || run_as_root test -e "$password_file"; then
+        run_as_root test -f "$env_file" || fail "$env_file is not a regular file."
+        run_as_root test -f "$password_file" || fail "$password_file is not a regular file."
+        [[ $(env_value DOMAIN) == "$domain" ]] || fail "Existing production.env belongs to another domain."
         [[ $(env_value SPRING_PROFILES_ACTIVE) == postgres ]] || fail "Production must use the postgres profile."
-        chmod 600 "$env_file"; return
+        return
     fi
-    local password tmp
-    password=$(od -An -N24 -tx1 /dev/urandom | tr -d ' \n'); tmp=$(mktemp "$script_dir/.env.tmp.XXXXXX"); umask 077
-    printf 'DOMAIN=%s\nPOSTGRES_DB=wreckage\nPOSTGRES_USER=wreckage\nPOSTGRES_PASSWORD=%s\nDB_URL=jdbc:postgresql://postgres:5432/wreckage\nSPRING_PROFILES_ACTIVE=postgres\nCADDY_IMAGE=caddy:2.10.2-alpine\n' "$domain" "$password" >"$tmp"
-    mv "$tmp" "$env_file"
+    local password env_tmp password_tmp
+    password=$(od -An -N24 -tx1 /dev/urandom | tr -d ' \n')
+    env_tmp=$(mktemp); password_tmp=$(mktemp); umask 077
+    printf 'DOMAIN=%s\nPOSTGRES_DB=wreckage\nPOSTGRES_USER=wreckage\nPOSTGRES_PASSWORD_FILE=/etc/wreckage/postgres-password\nDB_URL=jdbc:postgresql://postgres:5432/wreckage\nSPRING_PROFILES_ACTIVE=postgres\nCADDY_IMAGE=caddy:2.10.2-alpine\n' "$domain" >"$env_tmp"
+    printf '%s' "$password" >"$password_tmp"
+    run_as_root install -d -o root -g root -m 0700 "$config_dir"
+    run_as_root install -o root -g root -m 0600 "$env_tmp" "$env_file"
+    run_as_root install -o root -g root -m 0600 "$password_tmp" "$password_file"
+    rm -f "$env_tmp" "$password_tmp"
 }
 main() {
     parse_domain "$@"
-    [[ $EUID -ne 0 && $(id -un) == wreckage ]] || fail "Run this script as wreckage without sudo; it uses sudo only for privileged operations."
+    [[ $EUID -ne 0 && $(id -un) == admin ]] || fail "Run this script as the admin account without prefixing the script with sudo."
+    [[ $(readlink -f "$script_dir") == /opt/wreckage ]] || fail "The production checkout must be /opt/wreckage."
     detect_os; install_required_utilities; ensure_environment; ensure_docker; cd "$script_dir"
     validate_installation
     local revision
