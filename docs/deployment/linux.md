@@ -98,6 +98,21 @@ automatic OS upgrades.
 
 ## Status and logs
 
+As `admin`, follow production logs in real time:
+
+```bash
+cd /opt/wreckage
+./logs.sh                  # All services
+./logs.sh backend          # Backend only
+./logs.sh frontend caddy   # Selected services
+```
+
+The script uses sudo for production configuration and Docker access. It shows
+the last 200 lines per service with timestamps, then follows new output.
+Press Ctrl+C to stop viewing logs; the services keep running.
+Run `./logs.sh --help` for usage. The script also works from other directories
+when invoked using its absolute path.
+
 Every production service uses Docker's `local` logging driver. Docker rotates a
 container's logs when the active file reaches 10 MB by default, keeps at most
 five files, compresses rotated files, and automatically removes the oldest file
