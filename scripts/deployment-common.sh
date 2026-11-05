@@ -18,7 +18,34 @@ run_privileged() {
     else command -v sudo >/dev/null || fail "sudo is required for production deployment."; sudo "$@"
     fi
 }
-env_value() { run_privileged awk -F= -v k="$1" '$1==k {sub(/^[^=]*=/,""); gsub(/^['\''\"]|['\''\"]$/,""); print; exit}' "$env_file"; }
+env_value() {
+    run_privileged awk -F= -v k="$1" '$1==k {
+        sub(/^[^=]*=/, "")
+        first=substr($0, 1, 1); last=substr($0, length($0), 1); single_quote=sprintf("%c", 39)
+        if ((first=="\"" && last=="\"") || (first==single_quote && last==single_quote)) print substr($0, 2, length($0)-2)
+        else print
+        exit
+    }' "$env_file"
+}
+env_has_key() { run_privileged awk -F= -v k="$1" '$1==k {found=1; exit} END{exit !found}' "$env_file"; }
+
+validate_logging_configuration() {
+    local size=10m files=5
+    if env_has_key WRECKAGE_LOG_MAX_SIZE; then
+        size=$(env_value WRECKAGE_LOG_MAX_SIZE)
+        [[ -n $size ]] || fail "WRECKAGE_LOG_MAX_SIZE must not be empty."
+    fi
+    if env_has_key WRECKAGE_LOG_MAX_FILES; then
+        files=$(env_value WRECKAGE_LOG_MAX_FILES)
+        [[ -n $files ]] || fail "WRECKAGE_LOG_MAX_FILES must not be empty."
+    fi
+    [[ $size =~ ^[1-9][0-9]*[kKmMgG]$ ]] \
+        || fail "WRECKAGE_LOG_MAX_SIZE must be a positive Docker size using k, m, or g (for example, 10m)."
+    [[ $files =~ ^[1-9][0-9]*$ ]] \
+        || fail "WRECKAGE_LOG_MAX_FILES must be a positive integer."
+    WRECKAGE_LOG_MAX_SIZE=$size
+    WRECKAGE_LOG_MAX_FILES=$files
+}
 
 select_docker_command() {
     if [[ $EUID -eq 0 ]] && docker info >/dev/null 2>&1; then docker_command=(docker)
@@ -31,6 +58,8 @@ compose() {
     local -a preserved_environment=()
     [[ -z ${WRECKAGE_IMAGE_TAG:-} ]] || preserved_environment+=("WRECKAGE_IMAGE_TAG=$WRECKAGE_IMAGE_TAG")
     [[ -z ${CADDY_IMAGE:-} ]] || preserved_environment+=("CADDY_IMAGE=$CADDY_IMAGE")
+    [[ -z ${WRECKAGE_LOG_MAX_SIZE:-} ]] || preserved_environment+=("WRECKAGE_LOG_MAX_SIZE=$WRECKAGE_LOG_MAX_SIZE")
+    [[ -z ${WRECKAGE_LOG_MAX_FILES:-} ]] || preserved_environment+=("WRECKAGE_LOG_MAX_FILES=$WRECKAGE_LOG_MAX_FILES")
     if [[ ${docker_command[0]} == sudo ]]; then
         sudo env "${preserved_environment[@]}" docker compose --env-file "$env_file" -f "$compose_file" "$@"
     else
@@ -59,8 +88,23 @@ validate_installation() {
     done
     [[ $(env_value POSTGRES_PASSWORD_FILE) == "$password_file" ]] || fail "POSTGRES_PASSWORD_FILE must be $password_file."
     [[ $(env_value SPRING_PROFILES_ACTIVE) == postgres ]] || fail "SPRING_PROFILES_ACTIVE must be postgres."
+    validate_logging_configuration
     select_docker_command
     compose config --quiet || fail "Production Compose configuration is invalid."
+}
+
+logging_services_requiring_recreation() {
+    local service id actual expected
+    expected="local|$WRECKAGE_LOG_MAX_SIZE|$WRECKAGE_LOG_MAX_FILES|true"
+    for service in postgres backend frontend caddy; do
+        id=$(compose ps -q "$service" 2>/dev/null || true)
+        if [[ -z $id ]]; then
+            printf '%s\n' "$service"
+            continue
+        fi
+        actual=$(docker_cmd inspect --format '{{.HostConfig.LogConfig.Type}}|{{index .HostConfig.LogConfig.Config "max-size"}}|{{index .HostConfig.LogConfig.Config "max-file"}}|{{index .HostConfig.LogConfig.Config "compress"}}' "$id")
+        [[ $actual == "$expected" ]] || printf '%s\n' "$service"
+    done
 }
 
 container_state() {
