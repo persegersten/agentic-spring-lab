@@ -51,16 +51,8 @@ services:
       context: .
       target: backend-runtime
     environment:
-      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:?Set SPRING_PROFILES_ACTIVE in production.env}
-      DB_URL: ${DB_URL:?Set DB_URL in production.env}
-      DB_USERNAME: ${POSTGRES_USER:?Set POSTGRES_USER in production.env}
-    secrets:
-      - source: postgres_password
-        target: postgres_password
-        mode: 0444
+      SPRING_PROFILES_ACTIVE: in-memory
     expose: ["8080"]
-    depends_on:
-      postgres: {condition: service_healthy}
     healthcheck:
       test: ["CMD", "curl", "--fail", "--silent", "--show-error", "http://127.0.0.1:8080/games/running"]
       interval: 10s
@@ -72,33 +64,8 @@ services:
     security_opt: ["no-new-privileges:true"]
     cap_drop: [ALL]
     networks: [application]
-  postgres:
-    image: postgres:17
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB:?Set POSTGRES_DB in production.env}
-      POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER in production.env}
-      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
-    secrets:
-      - source: postgres_password
-        target: postgres_password
-        mode: 0444
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
-      interval: 5s
-      timeout: 5s
-      retries: 12
-    logging: *default-logging
-    restart: unless-stopped
-    networks: [application]
-
-secrets:
-  postgres_password:
-    file: ${POSTGRES_PASSWORD_FILE:-/etc/wreckage/postgres-password}
 
 volumes:
-  postgres-data: {name: wreckage-postgres-data}
   caddy-data: {name: wreckage-caddy-data}
   caddy-config: {name: wreckage-caddy-config}
 

@@ -29,4 +29,4 @@ RUN apt-get update \
     && chown wreckage-app:wreckage-app /app
 COPY --from=backend-build --chown=wreckage-app:wreckage-app /build/backend/target/wreckage-0.0.1-SNAPSHOT.jar ./app.jar
 USER wreckage-app:wreckage-app
-CMD ["sh", "-c", "if [ -f /run/secrets/postgres_password ]; then DB_PASSWORD=$(cat /run/secrets/postgres_password); export DB_PASSWORD; fi; exec java -jar /app/app.jar --server.port=${PORT:-8080} --spring.profiles.active=${SPRING_PROFILES_ACTIVE:-in-memory}"]
+CMD ["java", "-jar", "/app/app.jar", "--server.port=8080", "--spring.profiles.active=in-memory"]

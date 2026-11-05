@@ -17,11 +17,10 @@ import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.annotation.Import;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
-import se.segersten.wreckage.TestcontainersConfiguration;
 import se.segersten.wreckage.game.domain.Game;
 import se.segersten.wreckage.game.domain.GameConfiguration;
 import se.segersten.wreckage.game.domain.GameRepository;
@@ -32,7 +31,7 @@ import se.segersten.wreckage.game.domain.RoundEventType;
 import se.segersten.wreckage.game.domain.RoundPhase;
 import se.segersten.wreckage.game.domain.VehicleState;
 
-@Import(TestcontainersConfiguration.class)
+@TestPropertySource(properties = "spring.datasource.url=jdbc:h2:mem:concurrency-test;MODE=PostgreSQL;DB_CLOSE_DELAY=0;DATABASE_TO_LOWER=TRUE")
 @SpringBootTest(properties = "wreckage.scheduling.enabled=false")
 class GameConcurrencyIntegrationTest {
 

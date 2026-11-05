@@ -1,3 +1,8 @@
+> Historical record: PostgreSQL support and its Testcontainers baseline test have
+> been removed. The application now uses only H2 in memory. Existing migration
+> SQL is retained to initialize H2; the commands and verification below describe
+> the former implementation.
+
 # Flyway baseline
 
 ## Version and prerequisites

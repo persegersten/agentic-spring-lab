@@ -4,7 +4,6 @@ deployment_init() {
     script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[1]}")" && pwd)
     config_dir=/etc/wreckage
     env_file="$config_dir/production.env"
-    password_file="$config_dir/postgres-password"
     compose_file="$script_dir/compose.prod.yml"
     state_dir="$script_dir/.wreckage"
     metadata_file="$state_dir/deployment.env"
@@ -70,24 +69,21 @@ compose() {
 validate_installation() {
     [[ -f $compose_file && -f $script_dir/Caddyfile ]] || fail "This is not a complete Wreckage installation."
     run_privileged test -f "$env_file" || fail "$env_file is missing."
-    run_privileged test -f "$password_file" || fail "$password_file is missing."
     local permissions owner protected_file
     permissions=$(run_privileged stat -c '%a' "$config_dir") || fail "Cannot inspect $config_dir permissions."
     [[ $permissions == 700 ]] || fail "$config_dir must have permissions 0700."
     owner=$(run_privileged stat -c '%U:%G' "$config_dir")
     [[ $owner == root:root ]] || fail "$config_dir must be owned by root:root."
-    for protected_file in "$env_file" "$password_file"; do
+    for protected_file in "$env_file"; do
         permissions=$(run_privileged stat -c '%a' "$protected_file")
         [[ $permissions == 600 ]] || fail "$protected_file must have permissions 0600."
         owner=$(run_privileged stat -c '%U:%G' "$protected_file")
         [[ $owner == root:root ]] || fail "$protected_file must be owned by root:root."
     done
     local key
-    for key in DOMAIN POSTGRES_DB POSTGRES_USER POSTGRES_PASSWORD_FILE DB_URL SPRING_PROFILES_ACTIVE; do
+    for key in DOMAIN; do
         [[ -n $(env_value "$key") ]] || fail "$env_file is missing $key."
     done
-    [[ $(env_value POSTGRES_PASSWORD_FILE) == "$password_file" ]] || fail "POSTGRES_PASSWORD_FILE must be $password_file."
-    [[ $(env_value SPRING_PROFILES_ACTIVE) == postgres ]] || fail "SPRING_PROFILES_ACTIVE must be postgres."
     validate_logging_configuration
     select_docker_command
     compose config --quiet || fail "Production Compose configuration is invalid."
@@ -96,7 +92,7 @@ validate_installation() {
 logging_services_requiring_recreation() {
     local service id actual expected
     expected="local|$WRECKAGE_LOG_MAX_SIZE|$WRECKAGE_LOG_MAX_FILES|true"
-    for service in postgres backend frontend caddy; do
+    for service in backend frontend caddy; do
         id=$(compose ps -q "$service" 2>/dev/null || true)
         if [[ -z $id ]]; then
             printf '%s\n' "$service"

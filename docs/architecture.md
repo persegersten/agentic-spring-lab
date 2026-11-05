@@ -5,7 +5,7 @@ fixed sequence of vehicle commands, the backend resolves those programs against
 the board, and every browser plays back the same authoritative event stream.
 
 ```text
-React frontend -- HTTP / JSON --> Spring Boot backend --> PostgreSQL
+React frontend -- HTTP / JSON --> Spring Boot backend --> H2 (in memory)
                                    API
                                    Application
                                    Domain
@@ -13,8 +13,8 @@ React frontend -- HTTP / JSON --> Spring Boot backend --> PostgreSQL
 ```
 
 The frontend and backend are separate applications. In development, Vite proxies
-`/games` to Spring Boot on port 8080. PostgreSQL is the normal database; the
-`in-memory` profile uses H2 in PostgreSQL compatibility mode.
+`/games` to Spring Boot on port 8080. H2 in memory is the only supported database. The `in-memory` profile uses
+H2 compatibility syntax for the existing migrations; no PostgreSQL server is needed.
 
 ## Game lifecycle
 
@@ -176,9 +176,9 @@ aggregate membership, vehicles, cards, round lifecycle, and persistence as human
 
 ## Persistence and migrations
 
-Flyway owns schema creation and evolution for PostgreSQL and H2. Hibernate uses
+Flyway creates the H2 schema at every backend startup. Hibernate uses
 `ddl-auto=validate`, so entity changes require a versioned migration that works in
-both database profiles. Numeric database identifiers remain infrastructure
+H2. Numeric database identifiers remain infrastructure
 details; domain and API identities are UUIDs.
 
 The current round, private programs, initiative, initial state, scores, and event
@@ -189,7 +189,7 @@ write the v2 layout.
 ## Testing boundaries
 
 Domain and application tests exercise rules directly. Spring integration tests
-use PostgreSQL Testcontainers to cover Flyway, Hibernate validation, repository
+use H2 in memory to cover Flyway, Hibernate validation, repository
 mapping, authentication, and JSON responses. The in-memory integration test
 covers the H2 profile. Playwright starts the H2-backed backend and Vite frontend
 to test planning, resolution, board effects, scoring, playback, reconnects,

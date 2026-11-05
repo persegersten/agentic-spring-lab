@@ -9,8 +9,9 @@ secrets, or write access to the checkout.
 The application checkout is `/opt/wreckage`. Production configuration is
 root-owned under `/etc/wreckage`; it is never copied into Git. Backend and
 frontend run as non-root users inside their containers. Caddy is the only
-service publishing host ports (TCP 80 and 443). PostgreSQL, backend port 8080,
-and frontend port 8080 remain on Docker networks.
+service publishing host ports (TCP 80 and 443). Backend port 8080 and frontend port 8080 remain on Docker networks.
+The only database is H2 in memory. All game data is lost when the backend
+restarts, is updated, or is rolled back.
 
 ## Manual server preparation
 
@@ -38,38 +39,19 @@ the explicit Docker CE packages. It does not install host Java or Node.
 
 ## Protected configuration
 
-On first installation, if neither protected file exists, the installer creates
-both with random database credentials:
-
-- `/etc/wreckage/production.env`: root:root, mode 0600
-- `/etc/wreckage/postgres-password`: root:root, mode 0600
-- `/etc/wreckage`: root:root, mode 0700
-
-It never overwrites either existing file. A partial configuration is treated as
-an error. To provision configuration manually, create both files before
-installing. `production.env` requires:
+On first installation, the installer creates `/etc/wreckage/production.env`
+(root:root, mode 0600) inside `/etc/wreckage` (root:root, mode 0700).
+Existing configuration is reused. To provision it manually, use:
 
 ```dotenv
 DOMAIN=wreckage.segersten.eu
-POSTGRES_DB=wreckage
-POSTGRES_USER=wreckage
-POSTGRES_PASSWORD_FILE=/etc/wreckage/postgres-password
-DB_URL=jdbc:postgresql://postgres:5432/wreckage
-SPRING_PROFILES_ACTIVE=postgres
 CADDY_IMAGE=caddy:2.10.2-alpine
 WRECKAGE_LOG_MAX_SIZE=10m
 WRECKAGE_LOG_MAX_FILES=5
 ```
 
-Write only the password value to `postgres-password`, without putting the
-password in `production.env`. Compose's `--env-file` supplies interpolation
-values to the Compose model; it does not automatically inject them into
-containers. `compose.prod.yml` explicitly maps the required non-secret values.
-It mounts the password as a Compose secret: PostgreSQL uses
-`POSTGRES_PASSWORD_FILE`, while the non-root backend reads its container-only
-secret immediately before executing Java. The source file stays mode 0600 on
-the host; the secret mount is readable by the intended non-root process inside
-the container.
+Production always selects `in-memory`. No database credentials or database
+server are required. Existing database-related environment keys are ignored.
 
 ## Install
 
@@ -82,10 +64,10 @@ cd /opt/wreckage
 
 The script uses sudo only for system packages, protected configuration, service
 management, and Docker. It validates the Compose model before deployment,
-creates the three named volumes idempotently, builds revision-tagged images,
+creates the two Caddy named volumes idempotently, builds revision-tagged images,
 starts the stack, and verifies container health, internal proxy routing, and
-public HTTPS. Repeating installation preserves configuration, database data,
-Caddy state, and volumes. It never runs `docker compose down --volumes` or a
+public HTTPS. Repeating installation preserves configuration and Caddy state.
+Backend recreation discards game data. It never runs `docker compose down --volumes` or a
 destructive Flyway operation.
 
 ## Update and rollback
@@ -100,9 +82,8 @@ cd /opt/wreckage
 Updates refuse tracked, staged, or untracked local changes; fetch the configured
 upstream; require a fast-forward from the recorded healthy revision; build
 before replacing containers; and report the deployed revision after health and
-HTTPS verification. Added Flyway migrations trigger a verified custom-format
-database dump under `.wreckage/backups`. Changed or removed historical
-migrations are rejected. Database and Caddy named volumes are never replaced.
+HTTPS verification. Every backend replacement starts an empty database.
+Caddy named volumes are never replaced.
 
 Application-image rollback remains explicit and interactive:
 
@@ -110,10 +91,10 @@ Application-image rollback remains explicit and interactive:
 ./update.sh --rollback
 ```
 
-It does not roll back PostgreSQL data or Flyway migrations. Review schema
-compatibility and the verified backup first. `./update.sh --platform` remains a
+Rollback starts an empty in-memory database. Only roll back to revisions
+that support in-memory production deployment. `./update.sh --platform` remains a
 separate, interactive Docker/Caddy maintenance operation; it does not perform
-automatic OS or PostgreSQL major-version upgrades.
+automatic OS upgrades.
 
 ## Status and logs
 
@@ -163,7 +144,7 @@ Inspect the effective logging configuration for every production container:
 ```bash
 cd /opt/wreckage
 dc='sudo docker compose --env-file /etc/wreckage/production.env -f compose.prod.yml'
-for service in backend frontend caddy postgres; do
+for service in backend frontend caddy; do
   id=$($dc ps -q "$service")
   printf '%s: ' "$service"
   sudo docker inspect --format '{{json .HostConfig.LogConfig}}' "$id"
@@ -177,7 +158,7 @@ Each result must show type `local` with `max-size`, `max-file`, and
 
 Do not perform a forced rotation test on the live VPS. On a disposable copy of
 the production deployment, set a small valid limit such as `10k` and a file
-count of `2`, run `./update.sh`, and record the four container IDs and inspected
+count of `2`, run `./update.sh`, and record the three container IDs and inspected
 logging configurations. Follow the logs in one terminal:
 
 ```bash
@@ -192,12 +173,11 @@ Restart the service and repeat the log commands, then change the limits and run
 IDs; a subsequent update with unchanged settings must preserve their IDs.
 Never inspect or modify files inside Docker's internal log storage.
 
-Finally, verify HTTPS and persistence after recreation:
+Finally, verify HTTPS after recreation:
 
 ```bash
 curl -fsS https://wreckage.segersten.eu/games/running
-$dc exec -T postgres pg_isready -U "$($dc exec -T postgres printenv POSTGRES_USER)"
-$dc logs --tail=20 backend frontend caddy postgres
+$dc logs --tail=20 backend frontend caddy
 ```
 
 ## Security verification
@@ -227,17 +207,16 @@ sudo -u wreckage docker info   # must fail
 Backend UID 10001 and the frontend `nginx` UID must be non-zero. Only Caddy
 should show host mappings for 80 and 443. No service mounts the Docker socket.
 
-Verify persistence only in a disposable environment or an approved maintenance
-window: create test database data, restart/recreate PostgreSQL without `-v`, and
-confirm the data; record Caddy `/data` contents, recreate Caddy, and confirm the
-same named volume remains. Never use `down --volumes` in production.
+In a disposable environment, create a game and restart the backend. Verify
+that the game no longer exists. Caddy state remains in its named volumes.
+Never use `down --volumes` in production.
 
 ## Failure recovery
 
 The update script leaves the previously recorded healthy metadata unchanged on
 failure and prints the failed stage, attempted revision, recent logs, and last
 healthy revision. Diagnose first, then rerun `./update.sh` or use the explicit
-image rollback when schema-compatible. Compare:
+image rollback to an in-memory-compatible revision. Compare:
 
 ```bash
 git status --short
@@ -247,17 +226,31 @@ sudo docker compose --env-file /etc/wreckage/production.env -f compose.prod.yml 
 sudo docker compose --env-file /etc/wreckage/production.env -f compose.prod.yml logs --tail=200
 ```
 
-Database restore, OS upgrades, PostgreSQL major upgrades, DNS/firewall changes,
+OS upgrades, DNS/firewall changes,
 and certificate incident recovery remain manual procedures and must be rehearsed
 in disposable infrastructure. Do not deploy or test failure recovery against
 the live VPS without an explicit maintenance plan.
 
 ## Persistent resources
 
-- `wreckage-postgres-data`: PostgreSQL data
 - `wreckage-caddy-data`: certificates and ACME state
 - `wreckage-caddy-config`: Caddy runtime configuration
 - `/etc/wreckage/production.env`: non-secret production settings
-- `/etc/wreckage/postgres-password`: database secret
 - `/opt/wreckage/.wreckage/deployment.env`: last verified version
-- `/opt/wreckage/.wreckage/backups`: pre-migration dumps
+
+## Transition from the former PostgreSQL deployment
+
+For this transition, load the new deployment scripts before running the update
+(the former updater still waits for the PostgreSQL service):
+
+```bash
+cd /opt/wreckage
+git pull --ff-only
+./update.sh
+```
+
+The first update to this version starts an empty H2 database. No existing game
+data is imported. Once the new services are started, Compose removes the old
+PostgreSQL container with `--remove-orphans`. Its old `wreckage-postgres-data`
+volume, password file, and any backup dumps are left untouched for manual
+retention or removal. They are no longer used by the application.

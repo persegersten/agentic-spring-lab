@@ -1,3 +1,7 @@
+> Historical audit: PostgreSQL support has since been removed. Runtime and
+> integration tests now use H2 in memory. Deployment and test instructions in
+> this audit describe the former implementation.
+
 # Wreckage Codebase Audit — Engineering Cleanup Stage 1
 
 Audit date: 2026-10-12  

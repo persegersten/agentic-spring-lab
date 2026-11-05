@@ -40,25 +40,9 @@ lock_update() {
 }
 ensure_volumes() {
     local volume
-    for volume in wreckage-postgres-data wreckage-caddy-data wreckage-caddy-config; do
+    for volume in wreckage-caddy-data wreckage-caddy-config; do
         docker_cmd volume inspect "$volume" >/dev/null 2>&1 || fail "Required persistent volume $volume is missing."
     done
-}
-check_migrations_and_backup() {
-    local old=$1 new=$2 changes backup
-    changes=$(git diff --name-status "$old..$new" -- backend/src/main/resources/db/migration/)
-    [[ -n $changes ]] || return 0
-    if awk '$1 != "A" {exit 1}' <<<"$changes"; then :; else
-        fail "Existing Flyway migrations changed or were removed. Historical migrations are immutable."
-    fi
-    stage="verified database backup"
-    mkdir -p "$state_dir/backups"
-    backup="$state_dir/backups/wreckage-${old:0:12}-$(date -u +%Y%m%dT%H%M%SZ).dump"
-    note "New Flyway migrations detected; creating $backup"
-    compose exec -T postgres pg_dump -U "$(env_value POSTGRES_USER)" -d "$(env_value POSTGRES_DB)" -Fc >"$backup"
-    [[ -s $backup ]] || fail "Database backup is empty."
-    docker_cmd run --rm -i postgres:17 pg_restore --list <"$backup" >/dev/null || fail "Database backup verification failed."
-    note "Verified database backup: $backup"
 }
 report_status() {
     read_metadata
@@ -76,7 +60,7 @@ reconcile_logging_only() {
     local revision=$1
     shift
     local service
-    for service in postgres backend frontend caddy; do
+    for service in backend frontend caddy; do
         service_is_selected "$service" "$@" || continue
         note "Recreating $service to apply Docker logging configuration"
         WRECKAGE_IMAGE_TAG=$revision compose up -d --no-deps "$service"
@@ -103,24 +87,18 @@ application_update() {
         reconcile_logging_only "$old" "${logging_services[@]}"
         stage="health verification"
         WRECKAGE_IMAGE_TAG=$old verify_internal_proxy
-        WRECKAGE_IMAGE_TAG=$old wait_for_services postgres backend frontend caddy
+        WRECKAGE_IMAGE_TAG=$old wait_for_services backend frontend caddy
         WRECKAGE_IMAGE_TAG=$old verify_https
         trap - ERR
         report_status
         return
     fi
     git diff --quiet "$old..$target" -- Caddyfile compose.prod.yml || caddy_changed=true
-    check_migrations_and_backup "$old" "$target"
     stage="fast-forward checkout"; git merge --ff-only "$target"
     stage="Docker image build"; note "Building $target while the current application remains running"
     WRECKAGE_IMAGE_TAG=$target compose build frontend backend
     mapfile -t logging_services < <(logging_services_requiring_recreation)
     stage="application container startup"
-    if service_is_selected postgres "${logging_services[@]}"; then
-        note "Recreating postgres to apply Docker logging configuration"
-        WRECKAGE_IMAGE_TAG=$target compose up -d --no-deps postgres
-        WRECKAGE_IMAGE_TAG=$target wait_for_services postgres
-    fi
     WRECKAGE_IMAGE_TAG=$target compose up -d --no-deps backend
     WRECKAGE_IMAGE_TAG=$target wait_for_services backend
     WRECKAGE_IMAGE_TAG=$target compose up -d --no-deps frontend
@@ -129,9 +107,10 @@ application_update() {
         WRECKAGE_IMAGE_TAG=$target compose up -d --no-deps caddy
         WRECKAGE_IMAGE_TAG=$target wait_for_services caddy
     fi
+    WRECKAGE_IMAGE_TAG=$target compose up -d --remove-orphans
     stage="health verification"
     WRECKAGE_IMAGE_TAG=$target verify_internal_proxy
-    WRECKAGE_IMAGE_TAG=$target wait_for_services postgres backend frontend caddy
+    WRECKAGE_IMAGE_TAG=$target wait_for_services backend frontend caddy
     WRECKAGE_IMAGE_TAG=$target verify_https
     write_metadata "$target" "$old" healthy
     trap - ERR
@@ -142,7 +121,7 @@ rollback() {
     stage="rollback validation"; validate_installation; lock_update; ensure_volumes; read_metadata
     [[ -n ${PREVIOUS_REVISION:-} ]] || fail "No previous deployed revision is recorded."
     docker_cmd image inspect "wreckage-backend:$PREVIOUS_REVISION" "wreckage-frontend:$PREVIOUS_REVISION" >/dev/null || fail "Previous revision images are unavailable."
-    echo "WARNING: this rolls back application images only. It does not roll back Flyway migrations or PostgreSQL data."
+    echo "WARNING: rollback restarts the backend and discards all in-memory game data."
     confirm "Deploy application images for $PREVIOUS_REVISION?" || { note "Rollback cancelled."; return; }
     local current=$DEPLOYED_REVISION
     stage="application-image rollback"

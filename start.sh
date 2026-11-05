@@ -2,16 +2,16 @@
 
 set -euo pipefail
 
-if [[ $# -ne 1 ]]; then
-    echo "Usage: $0 <postgres|in-memory>" >&2
+if [[ $# -gt 1 ]]; then
+    echo "Usage: $0 [in-memory]" >&2
     exit 1
 fi
 
-case "$1" in
-    postgres|in-memory) ;;
+case "${1:-in-memory}" in
+    in-memory) ;;
     *)
         echo "Unknown database profile: $1" >&2
-        echo "Usage: $0 <postgres|in-memory>" >&2
+        echo "Usage: $0 [in-memory]" >&2
         exit 1
         ;;
 esac

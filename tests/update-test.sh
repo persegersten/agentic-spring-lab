@@ -13,8 +13,8 @@ assert "dirty tracked and untracked files are checked" grep -q 'git ls-files --o
 assert "application build precedes recreation" awk '/compose build frontend backend/{b=NR} /compose up -d --no-deps backend/{u=NR} END{exit !(b && u && b<u)}' "$repo/update.sh"
 assert "Compose never removes volumes" bash -c '! grep -E "down.*(-v|--volumes)|volume (rm|prune)" "$1/install.sh" "$1/update.sh"' _ "$repo"
 assert "destructive Flyway operations are absent" bash -c '! grep -Ei "flyway (clean|repair|baseline)|baselineOnMigrate" "$1/install.sh" "$1/update.sh"' _ "$repo"
-assert "migration backups use pg_dump" grep -q pg_dump "$repo/update.sh"
-assert "migration backups are verified" grep -q 'pg_restore --list' "$repo/update.sh"
+assert "production uses only in-memory storage" bash -c 'grep -q "SPRING_PROFILES_ACTIVE: in-memory" "$1/compose.prod.yml" && ! grep -qi postgres "$1/compose.prod.yml" "$1/compose.yml" "$1/backend/pom.xml"' _ "$repo"
+assert "updates remove obsolete containers without deleting volumes" grep -q 'compose up -d --remove-orphans' "$repo/update.sh"
 assert "platform changes require confirmation" grep -q 'confirm "Apply only the platform updates' "$repo/update.sh"
 assert "platform packages are explicit" grep -q 'apt-get install.*docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin' "$repo/update.sh"
 assert "production configuration is outside repository" grep -q 'env_file="$config_dir/production.env"' "$repo/scripts/deployment-common.sh"
@@ -24,18 +24,16 @@ assert "production logging uses the local driver" grep -q '^  driver: local$' "$
 assert "production logging enables compression" grep -q 'compress: "true"' "$repo/compose.prod.yml"
 assert "production logging defaults to 10m" grep -q 'WRECKAGE_LOG_MAX_SIZE:-10m' "$repo/compose.prod.yml"
 assert "production logging defaults to five files" grep -q 'WRECKAGE_LOG_MAX_FILES:-5' "$repo/compose.prod.yml"
-assert "all production services share the logging anchor" bash -c '[[ $(grep -c "logging: \*default-logging" "$1/compose.prod.yml") -eq 4 ]]' _ "$repo"
+assert "all production services share the logging anchor" bash -c '[[ $(grep -c "logging: \*default-logging" "$1/compose.prod.yml") -eq 3 ]]' _ "$repo"
 assert "local Compose logging remains unchanged" bash -c 'grep -q "driver: json-file" "$1/compose.yml" && grep -q "DOCKER_LOG_MAX_SIZE:-10m" "$1/compose.yml" && ! grep -q WRECKAGE_LOG "$1/compose.yml"' _ "$repo"
 assert "backend has a dedicated non-root user" grep -q 'USER wreckage-app:wreckage-app' "$repo/Dockerfile"
 assert "frontend has a non-root user" grep -q '^USER nginx:nginx$' "$repo/Dockerfile"
 assert "frontend listens on an unprivileged port" grep -q 'listen 8080' "$repo/nginx.conf"
 assert "Caddy routes to the unprivileged frontend port" grep -q 'reverse_proxy frontend:8080' "$repo/Caddyfile"
-assert "database password uses a Compose secret" grep -q 'POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password' "$repo/compose.prod.yml"
 assert "application containers prevent privilege escalation" bash -c '[[ $(grep -c "no-new-privileges:true" "$1/compose.prod.yml") -eq 2 ]]' _ "$repo"
 assert "application containers drop capabilities" bash -c '[[ $(grep -c "cap_drop: \[ALL\]" "$1/compose.prod.yml") -eq 2 ]]' _ "$repo"
 assert "production Compose does not mount Docker socket" bash -c '! grep -q "/var/run/docker.sock" "$1/compose.prod.yml"' _ "$repo"
 assert "production Compose publishes only Caddy ports" bash -c '[[ $(grep -c "ports:" "$1/compose.prod.yml") -eq 1 ]] && grep -q "ports: \[\"80:80\", \"443:443\"\]" "$1/compose.prod.yml"' _ "$repo"
-assert "PostgreSQL uses the private application network" bash -c 'grep -A25 "^  postgres:" "$1/compose.prod.yml" | grep -q "networks: \[application\]"' _ "$repo"
 assert "application network is internal" bash -c 'grep -A2 "^  application:" "$1/compose.prod.yml" | grep -q "internal: true"' _ "$repo"
 
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT; mkdir -p "$tmp/.wreckage"
@@ -77,7 +75,7 @@ done
     WRECKAGE_LOG_MAX_FILES=5
     compose() {
         local service=$3
-        case $service in postgres|backend|frontend|caddy) printf 'id-%s\n' "$service";; esac
+        case $service in backend|frontend|caddy) printf 'id-%s\n' "$service";; esac
     }
     docker_cmd() {
         local id=${@: -1}
@@ -89,14 +87,13 @@ done
     [[ $(logging_services_requiring_recreation) == backend ]]
 ) && pass "logging reconciliation selects only mismatched containers" || fail_test "logging reconciliation selects only mismatched containers"
 
-printf 'test-password' >"$tmp/postgres-password"
 if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
-    assert "production Compose configuration is valid" env POSTGRES_PASSWORD_FILE="$tmp/postgres-password" docker compose --env-file "$repo/.env.example" -f "$repo/compose.prod.yml" config --quiet
-    rendered=$(env POSTGRES_PASSWORD_FILE="$tmp/postgres-password" docker compose --env-file "$repo/.env.example" -f "$repo/compose.prod.yml" config)
-    assert "rendered production Compose applies local logging to all services" bash -c '[[ $(grep -c "driver: local" <<<"$1") -eq 5 ]]' _ "$rendered"
-    assert "rendered production Compose applies compression to all services" bash -c '[[ $(grep -c "compress: \"true\"" <<<"$1") -eq 5 ]]' _ "$rendered"
-    custom=$(env POSTGRES_PASSWORD_FILE="$tmp/postgres-password" WRECKAGE_LOG_MAX_SIZE=25m WRECKAGE_LOG_MAX_FILES=8 docker compose --env-file "$repo/.env.example" -f "$repo/compose.prod.yml" config)
-    assert "rendered production Compose applies custom logging limits" bash -c '[[ $(grep -c "max-size: 25m" <<<"$1") -eq 5 && $(grep -c "max-file: \"8\"" <<<"$1") -eq 5 ]]' _ "$custom"
+    assert "production Compose configuration is valid" docker compose --env-file "$repo/.env.example" -f "$repo/compose.prod.yml" config --quiet
+    rendered=$(docker compose --env-file "$repo/.env.example" -f "$repo/compose.prod.yml" config)
+    assert "rendered production Compose applies local logging to all services" bash -c '[[ $(grep -c "driver: local" <<<"$1") -eq 4 ]]' _ "$rendered"
+    assert "rendered production Compose applies compression to all services" bash -c '[[ $(grep -c "compress: \"true\"" <<<"$1") -eq 4 ]]' _ "$rendered"
+    custom=$(WRECKAGE_LOG_MAX_SIZE=25m WRECKAGE_LOG_MAX_FILES=8 docker compose --env-file "$repo/.env.example" -f "$repo/compose.prod.yml" config)
+    assert "rendered production Compose applies custom logging limits" bash -c '[[ $(grep -c "max-size: 25m" <<<"$1") -eq 4 && $(grep -c "max-file: \"8\"" <<<"$1") -eq 4 ]]' _ "$custom"
     assert "local Compose configuration remains valid" docker compose -f "$repo/compose.yml" config --quiet
 else
     pass "production Compose validation skipped (Docker unavailable)"

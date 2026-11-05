@@ -69,75 +69,37 @@ npm ci
 cd ..
 ```
 
-Start both services with one database profile argument:
+Start both services with the in-memory database:
 
 ```bash
-./start.sh in-memory
+./start.sh
 ```
 
 For manual testing from a single browser, join the created lobby and use the
 `Add Bot` button. Each bot occupies a normal player slot and submits its program
 automatically throughout the match.
 
-For PostgreSQL, start the database first:
-
-```bash
-docker compose up -d postgres
-./start.sh postgres
-```
-
 Open the frontend URL printed by Vite (normally <http://localhost:5173>).
 The frontend listens on all network interfaces so players on the same network
 can use your computer's IP address. Press Ctrl+C to stop both services; if
-either service exits, the script stops the other as well. PostgreSQL remains
-running independently.
+either service exits, the script stops the other as well.
 
-## Heroku
+## Dedicated Debian server
 
-Heroku builds the root `Dockerfile` using `heroku.yml`. The build installs
-Node.js 24, npm and frontend dependencies (including Vite), builds the frontend,
-and packages it inside the Spring Boot JAR using Java 25 and the Maven wrapper.
-The runtime image contains Java 25 and the JAR; Spring Boot serves both the
-frontend and API on Heroku's `PORT` with the `in-memory` profile enabled.
-No Vite development server or Maven runs in production.
+Production runs on a dedicated Debian Linux server using Docker Compose and
+Caddy for HTTPS. Follow [the Linux deployment guide](docs/deployment/linux.md)
+to prepare the server, run `install.sh`, and deploy updates with `update.sh`.
 
-Set the existing Heroku app to the container stack once before deploying:
-
-```bash
-heroku stack:set container --app YOUR_APP_NAME
-```
-
-Then deploy this repository using your normal Heroku Git/GitHub workflow.
-Heroku uses the Dockerfile's `CMD`; no buildpacks or `Procfile` are required.
-See [Heroku's container build documentation](https://devcenter.heroku.com/articles/build-docker-images-heroku-yml).
-
-To build and run the same image locally:
-
-```bash
-docker build --platform linux/amd64 -t wreckage .
-docker run --rm -p 8080:8080 -e PORT=8080 wreckage
-```
-
-Open <http://localhost:8080>. In-memory game data is lost whenever the container
-or dyno restarts. Local development uses `./start.sh in-memory` with Vite and the
-backend as separate processes.
+The backend listens on container port 8080. Only Caddy publishes host ports
+80 and 443. Game data is stored in memory and is lost whenever the backend
+restarts or is replaced during an update.
 
 ## Run the backend only
 
-The startup script requires a database profile. To run with PostgreSQL, first
-start the database and then the backend:
+Start the backend with its default in-memory database:
 
 ```bash
-docker compose up -d postgres
-./start-server.sh postgres
-```
-
-The PostgreSQL connection can be configured with the `DB_URL`, `DB_USERNAME`,
-and `DB_PASSWORD` environment variables. To run without an external database,
-use the `in-memory` profile:
-
-```bash
-./start-server.sh in-memory
+./start-server.sh
 ```
 
 Each backend process accepts at most 10 waiting or running games by default.
@@ -147,8 +109,7 @@ Override the runtime limit with the Spring property
 limit.
 
 The `in-memory` profile uses an H2 database that is discarded when the backend
-process exits. Calling the script without either `postgres` or `in-memory`
-results in an error.
+process exits. It is the only supported database; no external database is required.
 
 With the backend running, interactive API documentation is available in
 Swagger UI at <http://localhost:8080/swagger-ui.html>. The generated OpenAPI

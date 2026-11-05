@@ -79,22 +79,17 @@ check_ports() {
     done
 }
 ensure_environment() {
-    if run_as_root test -e "$env_file" || run_as_root test -e "$password_file"; then
+    if run_as_root test -e "$env_file"; then
         run_as_root test -f "$env_file" || fail "$env_file is not a regular file."
-        run_as_root test -f "$password_file" || fail "$password_file is not a regular file."
         [[ $(env_value DOMAIN) == "$domain" ]] || fail "Existing production.env belongs to another domain."
-        [[ $(env_value SPRING_PROFILES_ACTIVE) == postgres ]] || fail "Production must use the postgres profile."
         return
     fi
-    local password env_tmp password_tmp
-    password=$(od -An -N24 -tx1 /dev/urandom | tr -d ' \n')
-    env_tmp=$(mktemp); password_tmp=$(mktemp); umask 077
-    printf 'DOMAIN=%s\nPOSTGRES_DB=wreckage\nPOSTGRES_USER=wreckage\nPOSTGRES_PASSWORD_FILE=/etc/wreckage/postgres-password\nDB_URL=jdbc:postgresql://postgres:5432/wreckage\nSPRING_PROFILES_ACTIVE=postgres\nCADDY_IMAGE=caddy:2.10.2-alpine\nWRECKAGE_LOG_MAX_SIZE=10m\nWRECKAGE_LOG_MAX_FILES=5\n' "$domain" >"$env_tmp"
-    printf '%s' "$password" >"$password_tmp"
+    local env_tmp
+    env_tmp=$(mktemp); umask 077
+    printf 'DOMAIN=%s\nCADDY_IMAGE=caddy:2.10.2-alpine\nWRECKAGE_LOG_MAX_SIZE=10m\nWRECKAGE_LOG_MAX_FILES=5\n' "$domain" >"$env_tmp"
     run_as_root install -d -o root -g root -m 0700 "$config_dir"
     run_as_root install -o root -g root -m 0600 "$env_tmp" "$env_file"
-    run_as_root install -o root -g root -m 0600 "$password_tmp" "$password_file"
-    rm -f "$env_tmp" "$password_tmp"
+    rm -f "$env_tmp"
 }
 main() {
     parse_domain "$@"
@@ -106,11 +101,11 @@ main() {
     revision=$(git rev-parse HEAD 2>/dev/null || echo initial)
     check_ports
     getent ahosts "$domain" >/dev/null 2>&1 || echo "Warning: $domain does not currently resolve from this server." >&2
-    for volume in wreckage-postgres-data wreckage-caddy-data wreckage-caddy-config; do docker_cmd volume create "$volume" >/dev/null; done
+    for volume in wreckage-caddy-data wreckage-caddy-config; do docker_cmd volume create "$volume" >/dev/null; done
     note "Building revision $revision"
     WRECKAGE_IMAGE_TAG=$revision compose build frontend backend
-    WRECKAGE_IMAGE_TAG=$revision compose up -d
-    WRECKAGE_IMAGE_TAG=$revision wait_for_services postgres backend frontend caddy || fail "Containers did not become healthy; inspect Compose logs."
+    WRECKAGE_IMAGE_TAG=$revision compose up -d --remove-orphans
+    WRECKAGE_IMAGE_TAG=$revision wait_for_services backend frontend caddy || fail "Containers did not become healthy; inspect Compose logs."
     WRECKAGE_IMAGE_TAG=$revision verify_internal_proxy || fail "Internal application routing failed."
     WRECKAGE_IMAGE_TAG=$revision verify_https || fail "HTTPS verification failed; check DNS, firewall, and Caddy logs."
     write_metadata "$revision" "" healthy

@@ -15,15 +15,14 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
 import org.springframework.boot.test.web.server.LocalServerPort;
-import org.springframework.context.annotation.Import;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.http.HttpStatus;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
-import se.segersten.wreckage.TestcontainersConfiguration;
 import se.segersten.wreckage.game.domain.Game;
 import se.segersten.wreckage.game.domain.GameRepository;
 import se.segersten.wreckage.game.domain.GameState;
@@ -37,7 +36,7 @@ import se.segersten.wreckage.game.domain.VehicleStatus;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
-@Import(TestcontainersConfiguration.class)
+@TestPropertySource(properties = "spring.datasource.url=jdbc:h2:mem:api-test;MODE=PostgreSQL;DB_CLOSE_DELAY=0;DATABASE_TO_LOWER=TRUE")
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT,
         properties = {"wreckage.scheduling.enabled=false", "wreckage.games.max-concurrent=50"})
 class GameApiIntegrationTest {

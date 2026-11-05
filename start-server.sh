@@ -3,17 +3,12 @@
 set -euo pipefail
 
 usage() {
-    echo "Usage: $0 <postgres|in-memory> [deterministic-e2e]" >&2
+    echo "Usage: $0 [in-memory] [deterministic-e2e]" >&2
 }
 
-if [[ $# -lt 1 ]]; then
-    usage
-    exit 1
-fi
-
-profile=$1
+profile=${1:-in-memory}
 case "$profile" in
-    postgres|in-memory)
+    in-memory)
         ;;
     *)
         echo "Unknown database profile: $profile" >&2
@@ -23,7 +18,7 @@ case "$profile" in
 esac
 
 profiles=$profile
-shift
+if (( $# )); then shift; fi
 for optional_profile in "$@"; do
     if [[ $optional_profile != "deterministic-e2e" ]]; then
         echo "Unknown optional profile: $optional_profile" >&2
