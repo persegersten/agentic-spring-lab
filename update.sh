@@ -66,11 +66,29 @@ report_status() {
         "${PREVIOUS_REVISION:-none}" "$DEPLOYED_REVISION" "$DEPLOYED_AT" "$HEALTH_STATUS"
     compose ps
 }
+service_is_selected() {
+    local wanted=$1 service
+    shift
+    for service in "$@"; do [[ $service == "$wanted" ]] && return 0; done
+    return 1
+}
+reconcile_logging_only() {
+    local revision=$1
+    shift
+    local service
+    for service in postgres backend frontend caddy; do
+        service_is_selected "$service" "$@" || continue
+        note "Recreating $service to apply Docker logging configuration"
+        WRECKAGE_IMAGE_TAG=$revision compose up -d --no-deps "$service"
+        WRECKAGE_IMAGE_TAG=$revision wait_for_services "$service"
+    done
+}
 application_update() {
     stage="installation validation"; validate_installation; lock_update; ensure_volumes
     [[ -d $script_dir/.git ]] || fail "The installation is not a Git checkout."
     require_clean_tree; read_metadata
     local old upstream remote target caddy_changed=false
+    local -a logging_services=()
     old=$DEPLOYED_REVISION
     git cat-file -e "$old^{commit}" 2>/dev/null || fail "Recorded revision $old is not available locally."
     upstream=$(git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' 2>/dev/null) || fail "The current branch has no configured upstream."
@@ -78,18 +96,36 @@ application_update() {
     stage="Git fetch"; note "Fetching $upstream"; git fetch --prune "$remote"
     target=$(git rev-parse "$upstream"); attempted_revision=$target
     git merge-base --is-ancestor "$old" "$target" || fail "Upstream is not a fast-forward from deployed revision $old."
-    if [[ $old == "$target" ]]; then note "Wreckage is already up to date at $old."; report_status; return; fi
+    if [[ $old == "$target" ]]; then
+        mapfile -t logging_services < <(logging_services_requiring_recreation)
+        if ((${#logging_services[@]} == 0)); then note "Wreckage is already up to date at $old."; report_status; return; fi
+        stage="Docker logging configuration"
+        reconcile_logging_only "$old" "${logging_services[@]}"
+        stage="health verification"
+        WRECKAGE_IMAGE_TAG=$old verify_internal_proxy
+        WRECKAGE_IMAGE_TAG=$old wait_for_services postgres backend frontend caddy
+        WRECKAGE_IMAGE_TAG=$old verify_https
+        trap - ERR
+        report_status
+        return
+    fi
     git diff --quiet "$old..$target" -- Caddyfile compose.prod.yml || caddy_changed=true
     check_migrations_and_backup "$old" "$target"
     stage="fast-forward checkout"; git merge --ff-only "$target"
     stage="Docker image build"; note "Building $target while the current application remains running"
     WRECKAGE_IMAGE_TAG=$target compose build frontend backend
+    mapfile -t logging_services < <(logging_services_requiring_recreation)
     stage="application container startup"
+    if service_is_selected postgres "${logging_services[@]}"; then
+        note "Recreating postgres to apply Docker logging configuration"
+        WRECKAGE_IMAGE_TAG=$target compose up -d --no-deps postgres
+        WRECKAGE_IMAGE_TAG=$target wait_for_services postgres
+    fi
     WRECKAGE_IMAGE_TAG=$target compose up -d --no-deps backend
     WRECKAGE_IMAGE_TAG=$target wait_for_services backend
     WRECKAGE_IMAGE_TAG=$target compose up -d --no-deps frontend
     WRECKAGE_IMAGE_TAG=$target wait_for_services frontend
-    if $caddy_changed; then
+    if $caddy_changed || service_is_selected caddy "${logging_services[@]}"; then
         WRECKAGE_IMAGE_TAG=$target compose up -d --no-deps caddy
         WRECKAGE_IMAGE_TAG=$target wait_for_services caddy
     fi

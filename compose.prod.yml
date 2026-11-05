@@ -1,8 +1,9 @@
 x-logging: &default-logging
-  driver: json-file
+  driver: local
   options:
-    max-size: "${DOCKER_LOG_MAX_SIZE:-10m}"
-    max-file: "${DOCKER_LOG_MAX_FILES:-7}"
+    max-size: "${WRECKAGE_LOG_MAX_SIZE:-10m}"
+    max-file: "${WRECKAGE_LOG_MAX_FILES:-5}"
+    compress: "true"
 
 name: wreckage
 

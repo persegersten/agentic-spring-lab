@@ -89,7 +89,7 @@ ensure_environment() {
     local password env_tmp password_tmp
     password=$(od -An -N24 -tx1 /dev/urandom | tr -d ' \n')
     env_tmp=$(mktemp); password_tmp=$(mktemp); umask 077
-    printf 'DOMAIN=%s\nPOSTGRES_DB=wreckage\nPOSTGRES_USER=wreckage\nPOSTGRES_PASSWORD_FILE=/etc/wreckage/postgres-password\nDB_URL=jdbc:postgresql://postgres:5432/wreckage\nSPRING_PROFILES_ACTIVE=postgres\nCADDY_IMAGE=caddy:2.10.2-alpine\n' "$domain" >"$env_tmp"
+    printf 'DOMAIN=%s\nPOSTGRES_DB=wreckage\nPOSTGRES_USER=wreckage\nPOSTGRES_PASSWORD_FILE=/etc/wreckage/postgres-password\nDB_URL=jdbc:postgresql://postgres:5432/wreckage\nSPRING_PROFILES_ACTIVE=postgres\nCADDY_IMAGE=caddy:2.10.2-alpine\nWRECKAGE_LOG_MAX_SIZE=10m\nWRECKAGE_LOG_MAX_FILES=5\n' "$domain" >"$env_tmp"
     printf '%s' "$password" >"$password_tmp"
     run_as_root install -d -o root -g root -m 0700 "$config_dir"
     run_as_root install -o root -g root -m 0600 "$env_tmp" "$env_file"

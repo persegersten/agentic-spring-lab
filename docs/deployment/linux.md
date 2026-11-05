@@ -57,8 +57,8 @@ POSTGRES_PASSWORD_FILE=/etc/wreckage/postgres-password
 DB_URL=jdbc:postgresql://postgres:5432/wreckage
 SPRING_PROFILES_ACTIVE=postgres
 CADDY_IMAGE=caddy:2.10.2-alpine
-DOCKER_LOG_MAX_SIZE=10m
-DOCKER_LOG_MAX_FILES=7
+WRECKAGE_LOG_MAX_SIZE=10m
+WRECKAGE_LOG_MAX_FILES=5
 ```
 
 Write only the password value to `postgres-password`, without putting the
@@ -117,6 +117,33 @@ automatic OS or PostgreSQL major-version upgrades.
 
 ## Status and logs
 
+Every production service uses Docker's `local` logging driver. Docker rotates a
+container's logs when the active file reaches 10 MB by default, keeps at most
+five files, compresses rotated files, and automatically removes the oldest file
+after that limit is exceeded. This retention policy is based on size, not time;
+there is no daily rotation or fixed number of retention days.
+
+To customize the limits, edit the protected configuration as `admin`:
+
+```bash
+sudoedit /etc/wreckage/production.env
+```
+
+Set a positive Docker size with a `k`, `m`, or `g` suffix and a positive integer
+file count, for example:
+
+```dotenv
+WRECKAGE_LOG_MAX_SIZE=25m
+WRECKAGE_LOG_MAX_FILES=8
+```
+
+Omitted settings use `10m` and `5`. Empty, zero, negative, fractional, or
+unsupported values cause installation or update to stop with a clear error.
+Changing these values does not alter existing containers. Run `./update.sh` to
+inspect the effective settings and recreate only containers whose logging
+configuration differs, even when the application revision is already current.
+Persistent named volumes are retained.
+
 Use the same privileged Compose form used by the scripts:
 
 ```bash
@@ -127,9 +154,51 @@ sudo docker compose --env-file /etc/wreckage/production.env -f compose.prod.yml 
 sed -n '1,20p' .wreckage/deployment.env
 ```
 
-All services retain rotated `json-file` logging. Defaults are 10 MB per file and
-seven files per container. Changing logging values requires container
-recreation during a maintenance window; named volumes remain intact.
+`docker compose logs` and `docker compose logs -f` continue to read and follow
+logs through Docker; applications continue writing to stdout and stderr and do
+not write files under `/var/log/wreckage`.
+
+Inspect the effective logging configuration for every production container:
+
+```bash
+cd /opt/wreckage
+dc='sudo docker compose --env-file /etc/wreckage/production.env -f compose.prod.yml'
+for service in backend frontend caddy postgres; do
+  id=$($dc ps -q "$service")
+  printf '%s: ' "$service"
+  sudo docker inspect --format '{{json .HostConfig.LogConfig}}' "$id"
+done
+```
+
+Each result must show type `local` with `max-size`, `max-file`, and
+`compress:true` matching `production.env` or the defaults.
+
+### Disposable rotation verification
+
+Do not perform a forced rotation test on the live VPS. On a disposable copy of
+the production deployment, set a small valid limit such as `10k` and a file
+count of `2`, run `./update.sh`, and record the four container IDs and inspected
+logging configurations. Follow the logs in one terminal:
+
+```bash
+$dc logs -f frontend
+```
+
+In another terminal, generate enough normal HTTP requests to make the frontend
+access log exceed the configured total, then confirm `$dc logs frontend`
+continues to work and its oldest output is discarded as new output arrives.
+Restart the service and repeat the log commands, then change the limits and run
+`./update.sh` again. Containers with changed logging settings must receive new
+IDs; a subsequent update with unchanged settings must preserve their IDs.
+Never inspect or modify files inside Docker's internal log storage.
+
+Finally, verify HTTPS and persistence after recreation:
+
+```bash
+curl -fsS https://wreckage.segersten.eu/games/running
+$dc exec -T postgres pg_isready -U "$($dc exec -T postgres printenv POSTGRES_USER)"
+$dc logs --tail=20 backend frontend caddy postgres
+```
 
 ## Security verification
 

@@ -20,6 +20,12 @@ assert "platform packages are explicit" grep -q 'apt-get install.*docker-ce dock
 assert "production configuration is outside repository" grep -q 'env_file="$config_dir/production.env"' "$repo/scripts/deployment-common.sh"
 assert "production Docker access uses sudo" grep -q 'docker_command=(sudo docker)' "$repo/scripts/deployment-common.sh"
 assert "sudo Compose preserves revision image tags" grep -q 'preserved_environment+=("WRECKAGE_IMAGE_TAG=' "$repo/scripts/deployment-common.sh"
+assert "production logging uses the local driver" grep -q '^  driver: local$' "$repo/compose.prod.yml"
+assert "production logging enables compression" grep -q 'compress: "true"' "$repo/compose.prod.yml"
+assert "production logging defaults to 10m" grep -q 'WRECKAGE_LOG_MAX_SIZE:-10m' "$repo/compose.prod.yml"
+assert "production logging defaults to five files" grep -q 'WRECKAGE_LOG_MAX_FILES:-5' "$repo/compose.prod.yml"
+assert "all production services share the logging anchor" bash -c '[[ $(grep -c "logging: \*default-logging" "$1/compose.prod.yml") -eq 4 ]]' _ "$repo"
+assert "local Compose logging remains unchanged" bash -c 'grep -q "driver: json-file" "$1/compose.yml" && grep -q "DOCKER_LOG_MAX_SIZE:-10m" "$1/compose.yml" && ! grep -q WRECKAGE_LOG "$1/compose.yml"' _ "$repo"
 assert "backend has a dedicated non-root user" grep -q 'USER wreckage-app:wreckage-app' "$repo/Dockerfile"
 assert "frontend has a non-root user" grep -q '^USER nginx:nginx$' "$repo/Dockerfile"
 assert "frontend listens on an unprivileged port" grep -q 'listen 8080' "$repo/nginx.conf"
@@ -43,9 +49,54 @@ tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT; mkdir -p "$tmp/.wreckage"
     [[ $DEPLOYED_REVISION == new-revision && $PREVIOUS_REVISION == old-revision && $HEALTH_STATUS == healthy ]]
 ) && pass "version metadata records current and previous revisions" || fail_test "version metadata records current and previous revisions"
 
+validate_log_settings() {
+    local env_path=$1 expected_size=$2 expected_files=$3
+    bash -c '
+        source "$1/scripts/deployment-common.sh"
+        env_file=$2
+        run_privileged() { "$@"; }
+        validate_logging_configuration
+        [[ $WRECKAGE_LOG_MAX_SIZE == "$3" && $WRECKAGE_LOG_MAX_FILES == "$4" ]]
+    ' _ "$repo" "$env_path" "$expected_size" "$expected_files"
+}
+printf 'DOMAIN=example.test\n' >"$tmp/log-defaults.env"
+assert "logging validation supplies defaults" validate_log_settings "$tmp/log-defaults.env" 10m 5
+printf 'WRECKAGE_LOG_MAX_SIZE=25m\nWRECKAGE_LOG_MAX_FILES=8\n' >"$tmp/log-custom.env"
+assert "logging validation accepts custom values" validate_log_settings "$tmp/log-custom.env" 25m 8
+for invalid in '=5' '0m=5' '-1m=5' '10=5' '1.5m=5' '10t=5' '10m=0' '10m=-1' '10m=1.5' '10m=many'; do
+    size=${invalid%%=*}; files=${invalid#*=}
+    printf 'WRECKAGE_LOG_MAX_SIZE=%s\nWRECKAGE_LOG_MAX_FILES=%s\n' "$size" "$files" >"$tmp/log-invalid.env"
+    assert "logging validation rejects size '$size' and count '$files'" bash -c '
+        ! (source "$1/scripts/deployment-common.sh"; env_file=$2; run_privileged() { "$@"; }; validate_logging_configuration) >/dev/null 2>&1
+    ' _ "$repo" "$tmp/log-invalid.env"
+done
+
+(
+    source "$repo/scripts/deployment-common.sh"
+    WRECKAGE_LOG_MAX_SIZE=10m
+    WRECKAGE_LOG_MAX_FILES=5
+    compose() {
+        local service=$3
+        case $service in postgres|backend|frontend|caddy) printf 'id-%s\n' "$service";; esac
+    }
+    docker_cmd() {
+        local id=${@: -1}
+        case $id in
+            id-backend) printf 'local|10m|7|true\n';;
+            *) printf 'local|10m|5|true\n';;
+        esac
+    }
+    [[ $(logging_services_requiring_recreation) == backend ]]
+) && pass "logging reconciliation selects only mismatched containers" || fail_test "logging reconciliation selects only mismatched containers"
+
 printf 'test-password' >"$tmp/postgres-password"
 if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
     assert "production Compose configuration is valid" env POSTGRES_PASSWORD_FILE="$tmp/postgres-password" docker compose --env-file "$repo/.env.example" -f "$repo/compose.prod.yml" config --quiet
+    rendered=$(env POSTGRES_PASSWORD_FILE="$tmp/postgres-password" docker compose --env-file "$repo/.env.example" -f "$repo/compose.prod.yml" config)
+    assert "rendered production Compose applies local logging to all services" bash -c '[[ $(grep -c "driver: local" <<<"$1") -eq 5 ]]' _ "$rendered"
+    assert "rendered production Compose applies compression to all services" bash -c '[[ $(grep -c "compress: \"true\"" <<<"$1") -eq 5 ]]' _ "$rendered"
+    custom=$(env POSTGRES_PASSWORD_FILE="$tmp/postgres-password" WRECKAGE_LOG_MAX_SIZE=25m WRECKAGE_LOG_MAX_FILES=8 docker compose --env-file "$repo/.env.example" -f "$repo/compose.prod.yml" config)
+    assert "rendered production Compose applies custom logging limits" bash -c '[[ $(grep -c "max-size: 25m" <<<"$1") -eq 5 && $(grep -c "max-file: \"8\"" <<<"$1") -eq 5 ]]' _ "$custom"
     assert "local Compose configuration remains valid" docker compose -f "$repo/compose.yml" config --quiet
 else
     pass "production Compose validation skipped (Docker unavailable)"
