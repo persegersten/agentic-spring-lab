@@ -126,6 +126,23 @@ Container logs rotate at 10 MB per file, keeping at most seven files per contain
 to override these defaults. Oldest files are deleted when the limit is reached;
 retention depends on log volume, not days. Changes apply when containers are recreated.
 
+### Troubleshooting: missing Rolldown native binding
+
+If the frontend build fails with `Cannot find native binding` and a missing
+`@rolldown/binding-linux-x64-gnu` module, rebuild the images without Docker's
+build cache to reinstall dependencies, then start the application:
+
+```bash
+docker compose -f compose.yml build --no-cache frontend backend
+./scripts/local-dev-docker/start.sh
+```
+
+Run these commands from the repository root. The Docker build explicitly includes
+optional dependencies because Rolldown distributes its platform bindings that way.
+Keep the existing lockfile and use normal cached builds for everyday development.
+If the error persists, inspect the npm installation output for skipped or failed
+optional dependencies.
+
 ## 3. Production Debian in Docker
 
 Production runs on a dedicated Debian Linux server using Docker Compose and

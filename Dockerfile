@@ -1,7 +1,7 @@
 FROM node:24-bookworm-slim AS frontend-build
 WORKDIR /build/frontend
 COPY frontend/package.json frontend/package-lock.json ./
-RUN npm ci --include=dev
+RUN npm ci --include=dev --include=optional
 COPY frontend/ ./
 RUN npm run build
 
