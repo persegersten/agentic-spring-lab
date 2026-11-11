@@ -59,7 +59,7 @@ Run the script as `admin`, not with `sudo` in front of the script:
 
 ```bash
 cd /opt/wreckage
-./install.sh --domain wreckage.segersten.eu
+./scripts/production-debian-docker/install.sh --domain wreckage.segersten.eu
 ```
 
 The script uses sudo only for system packages, protected configuration, service
@@ -76,7 +76,7 @@ Run application updates as `admin`:
 
 ```bash
 cd /opt/wreckage
-./update.sh
+./scripts/production-debian-docker/update.sh
 ```
 
 Updates refuse tracked, staged, or untracked local changes; fetch the configured
@@ -88,29 +88,37 @@ Caddy named volumes are never replaced.
 Application-image rollback remains explicit and interactive:
 
 ```bash
-./update.sh --rollback
+./scripts/production-debian-docker/update.sh --rollback
 ```
 
 Rollback starts an empty in-memory database. Only roll back to revisions
-that support in-memory production deployment. `./update.sh --platform` remains a
+that support in-memory production deployment. `./scripts/production-debian-docker/update.sh --platform` remains a
 separate, interactive Docker/Caddy maintenance operation; it does not perform
 automatic OS upgrades.
 
 ## Status and logs
 
+```bash
+./scripts/production-debian-docker/status.sh
+```
+
+Containers use automatic restart policies, so Docker starts the installed site
+after a server reboot. Installation starts the stack; application updates rebuild
+and recreate it. There is no separate production start script.
+
 As `admin`, follow production logs in real time:
 
 ```bash
 cd /opt/wreckage
-./logs.sh                  # All services
-./logs.sh backend          # Backend only
-./logs.sh frontend caddy   # Selected services
+./scripts/production-debian-docker/logs.sh                  # All services
+./scripts/production-debian-docker/logs.sh backend          # Backend only
+./scripts/production-debian-docker/logs.sh frontend caddy   # Selected services
 ```
 
 The script uses sudo for production configuration and Docker access. It shows
 the last 200 lines per service with timestamps, then follows new output.
 Press Ctrl+C to stop viewing logs; the services keep running.
-Run `./logs.sh --help` for usage. The script also works from other directories
+Run `./scripts/production-debian-docker/logs.sh --help` for usage. The script also works from other directories
 when invoked using its absolute path.
 
 Every production service uses Docker's `local` logging driver. Docker rotates a
@@ -135,7 +143,7 @@ WRECKAGE_LOG_MAX_FILES=8
 
 Omitted settings use `10m` and `5`. Empty, zero, negative, fractional, or
 unsupported values cause installation or update to stop with a clear error.
-Changing these values does not alter existing containers. Run `./update.sh` to
+Changing these values does not alter existing containers. Run `./scripts/production-debian-docker/update.sh` to
 inspect the effective settings and recreate only containers whose logging
 configuration differs, even when the application revision is already current.
 Persistent named volumes are retained.
@@ -173,7 +181,7 @@ Each result must show type `local` with `max-size`, `max-file`, and
 
 Do not perform a forced rotation test on the live VPS. On a disposable copy of
 the production deployment, set a small valid limit such as `10k` and a file
-count of `2`, run `./update.sh`, and record the three container IDs and inspected
+count of `2`, run `./scripts/production-debian-docker/update.sh`, and record the three container IDs and inspected
 logging configurations. Follow the logs in one terminal:
 
 ```bash
@@ -184,7 +192,7 @@ In another terminal, generate enough normal HTTP requests to make the frontend
 access log exceed the configured total, then confirm `$dc logs frontend`
 continues to work and its oldest output is discarded as new output arrives.
 Restart the service and repeat the log commands, then change the limits and run
-`./update.sh` again. Containers with changed logging settings must receive new
+`./scripts/production-debian-docker/update.sh` again. Containers with changed logging settings must receive new
 IDs; a subsequent update with unchanged settings must preserve their IDs.
 Never inspect or modify files inside Docker's internal log storage.
 
@@ -230,7 +238,7 @@ Never use `down --volumes` in production.
 
 The update script leaves the previously recorded healthy metadata unchanged on
 failure and prints the failed stage, attempted revision, recent logs, and last
-healthy revision. Diagnose first, then rerun `./update.sh` or use the explicit
+healthy revision. Diagnose first, then rerun `./scripts/production-debian-docker/update.sh` or use the explicit
 image rollback to an in-memory-compatible revision. Compare:
 
 ```bash
@@ -253,6 +261,21 @@ the live VPS without an explicit maintenance plan.
 - `/etc/wreckage/production.env`: non-secret production settings
 - `/opt/wreckage/.wreckage/deployment.env`: last verified version
 
+## Migration from root-level scripts
+
+Existing installations must fetch these renamed scripts before using the new
+updater. From a clean production checkout:
+
+```bash
+cd /opt/wreckage
+git pull --ff-only
+./scripts/production-debian-docker/update.sh
+```
+
+The former root-level scripts have moved into environment folders. Use the new
+paths in operator commands and any external automation. Each entry point accepts
+`--help` without requiring production privileges.
+
 ## Transition from the former PostgreSQL deployment
 
 For this transition, load the new deployment scripts before running the update
@@ -261,7 +284,7 @@ For this transition, load the new deployment scripts before running the update
 ```bash
 cd /opt/wreckage
 git pull --ff-only
-./update.sh
+./scripts/production-debian-docker/update.sh
 ```
 
 The first update to this version starts an empty H2 database. No existing game

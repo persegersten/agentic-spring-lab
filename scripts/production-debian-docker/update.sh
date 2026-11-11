@@ -1,8 +1,15 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
+if [[ ${1:-} == --help || ${1:-} == -h ]]; then
+    echo "Usage: $0 [--platform|--rollback]"
+    echo "PRODUCTION — Debian / Docker — Update the application; --platform maintains Docker/Caddy, --rollback restores prior images."
+    echo "Run as admin from the /opt/wreckage checkout. Requires sudo and protected production configuration (created by install)."
+    echo "Related: install.sh, update.sh, logs.sh, status.sh in this folder."
+    exit 0
+fi
 
-# shellcheck source=scripts/deployment-common.sh
-source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/scripts/deployment-common.sh"
+# shellcheck source=scripts/lib/deployment-common.sh
+source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)/scripts/lib/deployment-common.sh"
 deployment_init
 stage=initialization
 attempted_revision=
@@ -17,7 +24,7 @@ on_error() {
     echo "Persistent volumes and the recorded deployment reference were not changed." >&2
     [[ -n $attempted_revision ]] && echo "Attempted revision: $attempted_revision" >&2
     [[ -f $metadata_file ]] && { read_metadata; echo "Recorded healthy revision: $DEPLOYED_REVISION" >&2; } || true
-    echo "After diagnosing the failure, retry ./update.sh or review the rollback procedure in docs/deployment/linux.md." >&2
+    echo "After diagnosing the failure, retry ./scripts/production-debian-docker/update.sh or review the rollback procedure in docs/deployment/linux.md." >&2
     exit "$status"
 }
 trap on_error ERR
@@ -191,4 +198,5 @@ platform_update() {
 
 [[ $EUID -ne 0 && $(id -un) == admin ]] || fail "Run this script as the admin account without prefixing the script with sudo."
 [[ $(readlink -f "$script_dir") == /opt/wreckage ]] || fail "The production checkout must be /opt/wreckage."
+echo "PRODUCTION — Debian / Docker — update ${1:-application} — https://$(env_value DOMAIN)"
 case $#:$* in 0:) application_update ;; 1:--platform) platform_update ;; 1:--rollback) rollback ;; *) usage; exit 2 ;; esac

@@ -2,6 +2,17 @@
 
 set -euo pipefail
 
+if [[ ${1:-} == --help || ${1:-} == -h ]]; then
+    echo "Usage: $0 [in-memory]"
+    echo "LOCAL DEVELOPMENT — Start backend and Vite frontend. Press Ctrl+C to stop both. Related: start-backend.sh."
+    echo "Requires Java 25; the full application also requires npm and frontend dependencies."
+    exit 0
+fi
+if ! command -v java >/dev/null 2>&1; then
+    echo "Java 25 is required for local development." >&2
+    exit 1
+fi
+
 if [[ $# -gt 1 ]]; then
     echo "Usage: $0 [in-memory]" >&2
     exit 1
@@ -16,7 +27,7 @@ case "${1:-in-memory}" in
         ;;
 esac
 
-script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)
 if ! command -v npm >/dev/null 2>&1; then
     echo "npm is required to start the frontend." >&2
     exit 1
@@ -40,7 +51,7 @@ trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
-"$script_dir/start-server.sh" "$@" &
+"$script_dir/scripts/local-dev/start-backend.sh" "$@" &
 service_pids+=("$!")
 (
     cd "$script_dir/frontend"
@@ -48,6 +59,6 @@ service_pids+=("$!")
 ) &
 service_pids+=("$!")
 
-echo "Starting backend and frontend. Open the URL printed by Vite. Press Ctrl+C to stop both."
+echo "LOCAL DEVELOPMENT — backend and frontend. Open the URL printed by Vite. Press Ctrl+C to stop both."
 # If either service exits, stop the other and preserve the exit status.
 wait -n "${service_pids[@]}"

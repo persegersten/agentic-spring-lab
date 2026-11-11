@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 deployment_init() {
-    script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[1]}")" && pwd)
+    script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)
     config_dir=/etc/wreckage
     env_file="$config_dir/production.env"
     compose_file="$script_dir/compose.prod.yml"
@@ -153,7 +153,7 @@ write_metadata() {
 }
 
 read_metadata() {
-    [[ -f $metadata_file ]] || fail "Deployment metadata is missing; rerun install.sh to verify and initialize this installation."
+    [[ -f $metadata_file ]] || fail "Deployment metadata is missing; rerun scripts/production-debian-docker/install.sh to verify and initialize this installation."
     # shellcheck disable=SC1090
     source "$metadata_file"
     [[ -n ${DEPLOYED_REVISION:-} ]] || fail "Deployment metadata is invalid."

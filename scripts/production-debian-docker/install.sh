@@ -1,8 +1,15 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
+if [[ ${1:-} == --help || ${1:-} == -h ]]; then
+    echo "Usage: $0 --domain <hostname>"
+    echo "PRODUCTION — Debian / Docker — Install and start the HTTPS site; containers restart automatically with Docker."
+    echo "Run as admin from the /opt/wreckage checkout. Requires sudo and protected production configuration (created by install)."
+    echo "Related: install.sh, update.sh, logs.sh, status.sh in this folder."
+    exit 0
+fi
 
-# shellcheck source=scripts/deployment-common.sh
-source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/scripts/deployment-common.sh"
+# shellcheck source=scripts/lib/deployment-common.sh
+source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)/scripts/lib/deployment-common.sh"
 deployment_init
 
 run_as_root() { run_privileged "$@"; }
@@ -95,6 +102,7 @@ main() {
     parse_domain "$@"
     [[ $EUID -ne 0 && $(id -un) == admin ]] || fail "Run this script as the admin account without prefixing the script with sudo."
     [[ $(readlink -f "$script_dir") == /opt/wreckage ]] || fail "The production checkout must be /opt/wreckage."
+    echo "PRODUCTION — Debian / Docker — install — https://$domain"
     detect_os; install_required_utilities; ensure_environment; ensure_docker; cd "$script_dir"
     validate_installation
     local revision

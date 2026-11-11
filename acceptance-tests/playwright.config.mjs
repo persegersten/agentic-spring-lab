@@ -22,7 +22,7 @@ export default defineConfig({
   ],
   webServer: [
     {
-      command: '../start-server.sh in-memory deterministic-e2e',
+      command: '../scripts/local-dev/start-backend.sh in-memory deterministic-e2e',
       url: 'http://127.0.0.1:8080/games/running',
       reuseExistingServer: !process.env.CI,
       timeout: 120_000,
