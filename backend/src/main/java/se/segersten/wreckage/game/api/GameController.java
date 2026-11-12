@@ -116,6 +116,13 @@ public class GameController {
         return PlayerGameResponse.from(gameService.getPlayerGame(gameId, playerId, token), playerId);
     }
 
+    @PostMapping("/{gameId}/commands")
+    public PlayerGameResponse append(@PathVariable UUID gameId, @RequestHeader("X-Player-Id") UUID playerId,
+            @RequestHeader(value = "X-Player-Token", required = false) String token, @RequestBody CommandRequest request) {
+        return PlayerGameResponse.from(gameService.appendCommand(gameId, playerId, token, request.command(), request.requestId()), playerId);
+    }
+    public record CommandRequest(MovementOrder command, UUID requestId) {}
+
     @PostMapping("/{gameId}/rounds")
     @ResponseStatus(HttpStatus.CREATED)
     public PlayerGameResponse startRound(@PathVariable UUID gameId,

@@ -46,10 +46,12 @@ class GameEntity {
     @OrderBy("id ASC") private List<PlayerEntity> players = new ArrayList<>();
     @OneToMany(mappedBy = "game", cascade = CascadeType.ALL, orphanRemoval = true) private List<VehicleEntity> vehicles = new ArrayList<>();
     @OneToOne(mappedBy = "game", cascade = CascadeType.ALL, orphanRemoval = true) private RoundEntity round;
+    @Column(name = "continuous_state", columnDefinition = "text") private String continuousState;
     protected GameEntity() {}
     private GameEntity(UUID domainId, Board board) { this.domainId = domainId; setBoard(board); }
     static GameEntity fromDomain(Game game) { return new GameEntity(game.getId(), game.getBoard()).updateFrom(game); }
     GameEntity updateFrom(Game game) {
+        continuousState = game.getContinuous() == null ? null : game.getContinuous().encode();
         setBoard(game.getBoard()); status = game.getStatus();
         GameConfiguration configuration = game.getConfiguration();
         maxPlayers = configuration.maxPlayers(); joinTimeoutSeconds = configuration.joinTimeoutSeconds();
@@ -148,7 +150,9 @@ class GameEntity {
         GameConfiguration configuration = new GameConfiguration(maxPlayers, joinTimeoutSeconds,
                 programSize, planningTimeoutSeconds, roundLimit, checkpointScore, controlPointScore,
                 crashPenalty, pushCrashScore, configuredMapId, mapSeed);
-        return new Game(domainId, domainPlayers, board, status, vehicleMap, domainRound,
+        Game restored = new Game(domainId, domainPlayers, board, status, vehicleMap, domainRound,
                 configuration, createdAt.toInstant(), joinDeadline, hostTokenHash, hostPlayerId);
+        restored.restoreContinuous(continuousState);
+        return restored;
     }
 }

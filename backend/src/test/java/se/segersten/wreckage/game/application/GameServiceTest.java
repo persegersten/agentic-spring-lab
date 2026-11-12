@@ -383,47 +383,24 @@ class GameServiceTest {
     }
 
     @Test
-    void shouldDealEightFreshCardsForTheNextRound() {
-        InMemoryGameRepository repository = new InMemoryGameRepository();
-        GameService service = new GameService(repository);
-        var hosted = service.createHostedGame();
-        var alice = service.addPlayer(hosted.game().getId(), "Alice");
-        var bob = service.addPlayer(hosted.game().getId(), "Bob");
-        Game game = service.startGame(hosted.game().getId(), hosted.hostToken());
-        var firstAliceHand = game.getRound().programs().get(alice.player().getId()).hand();
-        var firstBobHand = game.getRound().programs().get(bob.player().getId()).hand();
-        assertThat(firstAliceHand).hasSize(8);
-        assertThat(firstBobHand).hasSize(8);
-        service.submitProgram(game.getId(), alice.player().getId(), alice.token(), firstAliceHand.subList(0, 5));
-        service.submitProgram(game.getId(), bob.player().getId(), bob.token(), firstBobHand.subList(0, 5));
-
-        var next = service.startRound(game.getId(), alice.player().getId(), alice.token(), 1);
-
-        assertThat(next.programs().get(alice.player().getId()).hand()).hasSize(8).isNotSameAs(firstAliceHand);
-        assertThat(next.programs().get(bob.player().getId()).hand()).hasSize(8).isNotSameAs(firstBobHand);
+    void continuousStartHasEmptyQueuesAndRejectsClientRounds() {
+        var repository=new InMemoryGameRepository();var service=new GameService(repository);
+        var hosted=service.createHostedGame();var id=hosted.game().getId();
+        var a=service.addPlayer(id,"A",hosted.hostToken());service.addPlayer(id,"B");
+        var game=service.startGame(id,hosted.hostToken());
+        assertThat(game.getContinuous().queues.get(a.player().getId()).snapshot()).containsOnlyNulls();
+        assertThatThrownBy(() -> service.startRound(id,a.player().getId(),a.token(),1)).isInstanceOf(IllegalStateException.class);
     }
 
     @Test
-    void shouldAddUniquelyNamedBotsAndLockTheirProgramsInDealtOrder() {
-        InMemoryGameRepository repository = new InMemoryGameRepository();
-        GameService service = new GameService(repository, Clock.systemUTC(), new BotPlayerAutomation());
-        var hosted = service.createHostedGame(new GameConfiguration(4, 60, 5, 30));
-        Game game = hosted.game();
-        var human = service.addPlayer(game.getId(), "Bot 1", hosted.hostToken());
-        service.addBot(game.getId(), human.player().getId(), human.token());
-        service.addBot(game.getId(), human.player().getId(), human.token());
-        service.addBot(game.getId(), human.player().getId(), human.token());
-        service.startGame(game.getId(), hosted.hostToken());
-
-        assertThat(game.getPlayers()).extracting(Player::getName)
-                .containsExactly("Bot 1", "Bot 2", "Bot 3", "Bot 4");
-        assertThat(game.getRound().phase()).isEqualTo(RoundPhase.PLANNING);
-        assertThat(game.getRound().programs().get(human.player().getId()).ready()).isFalse();
-        game.getPlayers().stream().skip(1).forEach(player -> {
-            var program = game.getRound().programs().get(player.getId());
-            assertThat(program.ready()).isTrue();
-            assertThat(program.commands()).containsExactlyElementsOf(program.commands());
-        });
+    void prototypeDoesNotFillBotQueues() {
+        var repository=new InMemoryGameRepository();var service=new GameService(repository);
+        var hosted=service.createHostedGame();var id=hosted.game().getId();
+        var host=service.addPlayer(id,"Bot 1",hosted.hostToken());
+        service.addBot(id,host.player().getId(),host.token());
+        var game=service.startGame(id,hosted.hostToken());
+        assertThat(game.getPlayers()).extracting(Player::getName).containsExactly("Bot 1","Bot 2");
+        assertThat(game.getContinuous().queues.values()).allSatisfy(q -> assertThat(q.snapshot()).containsOnlyNulls());
     }
 
     @Test
@@ -450,32 +427,13 @@ class GameServiceTest {
     }
 
     @Test
-    void shouldResolveAndPrepareBotsForTheNextRound() {
-        InMemoryGameRepository repository = new InMemoryGameRepository();
-        GameService service = new GameService(repository, Clock.systemUTC(), new BotPlayerAutomation());
-        var hosted = service.createHostedGame(new GameConfiguration(3, 60, 5, 30));
-        Game game = hosted.game();
-        var human = service.addPlayer(game.getId(), "Alice", hosted.hostToken());
-        service.addBot(game.getId(), human.player().getId(), human.token());
-        service.addBot(game.getId(), human.player().getId(), human.token());
-        service.startGame(game.getId(), hosted.hostToken());
-
-        service.submitProgram(game.getId(), human.player().getId(), human.token(),
-                game.getRound().programs().get(human.player().getId()).hand().subList(0, 5));
-
-        assertThat(game.getRound().phase()).isEqualTo(RoundPhase.PLAYBACK);
-
-        service.startRound(game.getId(), human.player().getId(), human.token(), 1);
-        service.startRound(game.getId(), human.player().getId(), human.token(), 1);
-
-        assertThat(game.getRound().number()).isEqualTo(2);
-        assertThat(game.getRound().phase()).isEqualTo(RoundPhase.PLANNING);
-        assertThat(game.getRound().programs().get(human.player().getId()).ready()).isFalse();
-        game.getPlayers().stream().skip(1).forEach(player -> {
-            var program = game.getRound().programs().get(player.getId());
-            assertThat(program.ready()).isTrue();
-            assertThat(program.commands()).containsExactlyElementsOf(program.commands());
-        });
+    void programSubmissionCannotAdvanceContinuousGame() {
+        var repository=new InMemoryGameRepository();var service=new GameService(repository);
+        var hosted=service.createHostedGame();var id=hosted.game().getId();
+        var a=service.addPlayer(id,"A",hosted.hostToken());service.addPlayer(id,"B");
+        var game=service.startGame(id,hosted.hostToken());
+        assertThatThrownBy(() -> service.submitProgram(id,a.player().getId(),a.token(),List.of(MovementOrder.LASER))).isInstanceOf(IllegalStateException.class);
+        assertThat(game.getContinuous().tick).isZero();
     }
 
     @Test

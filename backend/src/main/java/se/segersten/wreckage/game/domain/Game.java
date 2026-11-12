@@ -20,6 +20,36 @@ public class Game {
     private UUID hostPlayerId;
     private final Map<UUID, VehicleState> vehicles;
     private Round round;
+    private ContinuousExecution continuous;
+    public ContinuousExecution getContinuous() { return continuous; }
+    public void restoreContinuous(String data) { continuous = data == null ? null : ContinuousExecution.decode(data); }
+    public void enableContinuous(Instant now, long interval, long duration) {
+        continuous = new ContinuousExecution(now, interval, duration);
+        players.forEach(p -> continuous.queues.put(p.getId(), new CommandQueue()));
+    }
+    public void tick(Instant now) {
+        if (continuous == null || status != GameStatus.RUNNING) return;
+        if (!now.isBefore(continuous.deadline)) { status = GameStatus.FINISHED; continuous.revision++; return; }
+        if (now.isBefore(continuous.nextTick)) return;
+        var startEvents = respawnCrashedVehicles();
+        Map<UUID, PlayerProgram> programs = new LinkedHashMap<>();
+        for (Player p : players) if (vehicles.get(p.getId()).isActive())
+            programs.put(p.getId(), new PlayerProgram(p.getId(), 1, List.of(continuous.queues.get(p.getId()).head()), true));
+        var initiative = new ArrayList<>(players.stream().map(Player::getId).toList());
+        java.util.Collections.rotate(initiative, -(int)(continuous.tick % players.size()));
+        initiative.removeIf(id -> !programs.containsKey(id));
+        round = new Round((int)continuous.tick + 1, RoundPhase.PLANNING, programs, initiative,
+            new GameState(board, getVehicleStates()), List.of(), continuous.nextTick,
+            players.stream().collect(java.util.stream.Collectors.toMap(Player::getId, Player::getScore)), startEvents);
+        if (!programs.isEmpty()) {
+            var engine = new se.segersten.wreckage.game.engine.MovementEngine();
+            round.resolve(engine, new se.segersten.wreckage.game.engine.BoardEffectEngine(engine), players, configuration, true);
+            round.finalVehicleStates().forEach(v -> vehicles.put(v.vehicle().playerId(), v));
+        }
+        continuous.queues.forEach((id,q) -> { if (vehicles.get(id).isActive()) q.shift(); else q.clear(); });
+        continuous.tick++; continuous.revision++; continuous.nextTick = now.plusMillis(continuous.intervalMillis);
+        if (players.stream().anyMatch(p -> p.hasCompletedCheckpoints(board))) status = GameStatus.FINISHED;
+    }
 
     public Game(UUID id, Board board) { this(id, new ArrayList<>(), board, GameStatus.RUNNING); }
     public Game(UUID id, List<Player> players, Board board) { this(id, players, board, GameStatus.RUNNING); }

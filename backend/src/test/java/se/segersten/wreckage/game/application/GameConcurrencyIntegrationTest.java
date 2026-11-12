@@ -1,6 +1,7 @@
 package se.segersten.wreckage.game.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -47,151 +48,74 @@ class GameConcurrencyIntegrationTest {
     private PlatformTransactionManager transactionManager;
 
     @Test
-    void twoPlayersCanSubmitTheLastRequiredProgramsConcurrently() throws Exception {
-        Fixture fixture = createStartedGame("Alice", "Bob");
-        List<MovementOrder> aliceProgram = programFor(fixture.gameId(), fixture.alice().player().getId());
-        List<MovementOrder> bobProgram = programFor(fixture.gameId(), fixture.bob().player().getId());
-
-        List<Outcome> outcomes = runConcurrently(
-                () -> gameService.submitProgram(fixture.gameId(), fixture.alice().player().getId(),
-                        fixture.alice().token(), aliceProgram),
-                () -> gameService.submitProgram(fixture.gameId(), fixture.bob().player().getId(),
-                        fixture.bob().token(), bobProgram));
-
+    void twoPlayersCanAppendConcurrently() throws Exception {
+        Fixture f = createStartedGame("Alice", "Bob");
+        var request = UUID.randomUUID();
+        var outcomes=runConcurrently(
+            () -> gameService.appendCommand(f.gameId(),f.alice().player().getId(),f.alice().token(),MovementOrder.TURN_LEFT,request),
+            () -> gameService.appendCommand(f.gameId(),f.bob().player().getId(),f.bob().token(),MovementOrder.TURN_RIGHT,request));
         assertThat(outcomes).allMatch(Outcome::succeeded);
-        Game persisted = reload(fixture.gameId());
-        assertThat(persisted.getRound().phase()).isEqualTo(RoundPhase.PLAYBACK);
-        assertThat(persisted.getRound().programs().get(fixture.alice().player().getId()).commands())
-                .containsExactlyElementsOf(aliceProgram);
-        assertThat(persisted.getRound().programs().get(fixture.bob().player().getId()).commands())
-                .containsExactlyElementsOf(bobProgram);
-        assertSingleResolution(persisted);
+        var c=reload(f.gameId()).getContinuous();
+        assertThat(c.queues.get(f.alice().player().getId()).snapshot().get(3)).isEqualTo(MovementOrder.TURN_LEFT);
+        assertThat(c.queues.get(f.bob().player().getId()).snapshot().get(3)).isEqualTo(MovementOrder.TURN_RIGHT);
     }
 
     @Test
-    void schedulerTimeoutCanCompeteWithAHumanSubmission() throws Exception {
-        Fixture fixture = createStartedGame("Scheduler Alice", "Scheduler Bob");
-        List<MovementOrder> aliceProgram = programFor(fixture.gameId(), fixture.alice().player().getId());
-        gameService.saveProgramDraft(fixture.gameId(), fixture.alice().player().getId(),
-                fixture.alice().token(), aliceProgram);
-        expireCurrentRound(fixture.gameId());
-
-        List<Outcome> outcomes = runConcurrently(
-                () -> {
-                    gameService.completeExpiredPlanning();
-                    return null;
-                },
-                () -> gameService.submitProgram(fixture.gameId(), fixture.alice().player().getId(),
-                        fixture.alice().token(), aliceProgram));
-
-        assertThat(outcomes.get(0)).matches(Outcome::succeeded);
-        assertThat(outcomes.get(1).error()).isIn(null, IllegalStateException.class);
-        Game persisted = reload(fixture.gameId());
-        assertThat(persisted.getRound().phase()).isEqualTo(RoundPhase.PLAYBACK);
-        assertThat(persisted.getRound().programs().get(fixture.alice().player().getId()).commands())
-                .containsExactlyElementsOf(aliceProgram);
-        assertThat(persisted.getRound().programs().values()).allMatch(PlayerProgram::ready);
-        assertSingleResolution(persisted);
-    }
-
-    @Test
-    void twoClientsStartingTheNextRoundCreateOnlyOneRound() throws Exception {
-        Fixture fixture = createResolvedGame("Round Alice", "Round Bob");
-
-        List<Outcome> outcomes = runConcurrently(
-                () -> gameService.startRound(fixture.gameId(), fixture.alice().player().getId(),
-                        fixture.alice().token(), 1),
-                () -> gameService.startRound(fixture.gameId(), fixture.bob().player().getId(),
-                        fixture.bob().token(), 1));
-
+    void tickCanCompeteWithAnAppend() throws Exception {
+        Fixture f = createStartedGame("Alice", "Bob");
+        var request = UUID.randomUUID();
+        new TransactionTemplate(transactionManager).executeWithoutResult(tx -> {
+            var game=gameRepository.findByIdForUpdate(f.gameId()).orElseThrow();
+            game.getContinuous().nextTick=Instant.EPOCH;gameRepository.save(game);
+        });
+        var outcomes=runConcurrently(
+            () -> {gameService.advanceTick(f.gameId());return null;},
+            () -> gameService.appendCommand(f.gameId(),f.alice().player().getId(),f.alice().token(),MovementOrder.TURN_LEFT,request));
         assertThat(outcomes).allMatch(Outcome::succeeded);
-        assertThat(outcomes).extracting(Outcome::roundNumber).containsOnly(2);
-        Game persisted = reload(fixture.gameId());
-        assertThat(persisted.getRound().number()).isEqualTo(2);
-        assertThat(persisted.getRound().phase()).isEqualTo(RoundPhase.PLANNING);
-        assertThat(persisted.getRound().programs()).containsOnlyKeys(
-                fixture.alice().player().getId(), fixture.bob().player().getId());
-        assertThat(persisted.getRound().initiative()).containsExactlyInAnyOrder(
-                fixture.alice().player().getId(), fixture.bob().player().getId());
+        assertThat(reload(f.gameId()).getContinuous().tick).isEqualTo(1);
+        assertThat(reload(f.gameId()).getContinuous().queues.get(f.alice().player().getId()).snapshot().get(3)).isEqualTo(MovementOrder.TURN_LEFT);
     }
 
     @Test
-    void repeatedRequestsCannotCompleteTheSameRoundOrBypassValidation() throws Exception {
-        Fixture fixture = createStartedGame("Repeat Alice", "Repeat Bob");
-        List<MovementOrder> aliceProgram = programFor(fixture.gameId(), fixture.alice().player().getId());
-        List<MovementOrder> bobProgram = programFor(fixture.gameId(), fixture.bob().player().getId());
-        gameService.submitProgram(fixture.gameId(), fixture.alice().player().getId(),
-                fixture.alice().token(), aliceProgram);
+    void concurrentSchedulerCallsExecuteOneTick() throws Exception {
+        Fixture f = createStartedGame("Alice", "Bob");
+        var request = UUID.randomUUID();
+        new TransactionTemplate(transactionManager).executeWithoutResult(tx -> {
+            var game=gameRepository.findByIdForUpdate(f.gameId()).orElseThrow();
+            game.getContinuous().nextTick=Instant.EPOCH;gameRepository.save(game);
+        });
+        var outcomes=runConcurrently(
+            () -> {gameService.advanceTick(f.gameId());return null;},
+            () -> {gameService.advanceTick(f.gameId());return null;});
+        assertThat(outcomes).allMatch(Outcome::succeeded);
+        assertThat(reload(f.gameId()).getContinuous().tick).isEqualTo(1);
+    }
 
-        List<Outcome> outcomes = runConcurrently(
-                () -> gameService.submitProgram(fixture.gameId(), fixture.bob().player().getId(),
-                        fixture.bob().token(), bobProgram),
-                () -> gameService.submitProgram(fixture.gameId(), fixture.bob().player().getId(),
-                        fixture.bob().token(), bobProgram));
-
-        assertThat(outcomes).filteredOn(Outcome::succeeded).hasSize(1);
-        assertThat(outcomes).filteredOn(outcome -> !outcome.succeeded()).singleElement()
-                .extracting(Outcome::error).isEqualTo(IllegalStateException.class);
-        Game resolved = reload(fixture.gameId());
-        assertThat(resolved.getRound().phase()).isEqualTo(RoundPhase.PLAYBACK);
-        assertSingleResolution(resolved);
-
-        Fixture validationFixture = createStartedGame("Validation Alice", "Validation Bob");
-        List<MovementOrder> validProgram = programFor(
-                validationFixture.gameId(), validationFixture.alice().player().getId());
-        StateFingerprint beforeInvalidRequests = fingerprint(reload(validationFixture.gameId()));
-
-        List<Outcome> invalidOutcomes = runConcurrently(
-                () -> gameService.submitProgram(validationFixture.gameId(),
-                        validationFixture.alice().player().getId(), "invalid-token", validProgram),
-                () -> gameService.submitProgram(validationFixture.gameId(),
-                        validationFixture.alice().player().getId(), validationFixture.alice().token(),
-                        List.of(MovementOrder.WAIT, MovementOrder.WAIT,
-                                MovementOrder.WAIT, MovementOrder.WAIT, MovementOrder.WAIT)));
-
-        assertThat(invalidOutcomes).extracting(Outcome::error)
-                .containsExactlyInAnyOrder(SecurityException.class, IllegalArgumentException.class);
-        assertThat(fingerprint(reload(validationFixture.gameId()))).isEqualTo(beforeInvalidRequests);
+    @Test
+    void duplicateAppendsCannotBypassAuthenticationOrInputValidation() throws Exception {
+        Fixture f = createStartedGame("Alice", "Bob");
+        var request = UUID.randomUUID();
+        var outcomes=runConcurrently(
+            () -> gameService.appendCommand(f.gameId(),f.alice().player().getId(),f.alice().token(),MovementOrder.TURN_LEFT,request),
+            () -> gameService.appendCommand(f.gameId(),f.alice().player().getId(),f.alice().token(),MovementOrder.TURN_LEFT,request));
+        assertThat(outcomes).allMatch(Outcome::succeeded);
+        assertThat(reload(f.gameId()).getContinuous().revision).isEqualTo(2);
+        assertThat(reload(f.gameId()).getContinuous().queues.get(f.alice().player().getId()).snapshot().get(4)).isNull();
+        assertThatThrownBy(() -> gameService.appendCommand(f.gameId(),f.alice().player().getId(),"wrong",MovementOrder.TURN_LEFT,request)).isInstanceOf(SecurityException.class);
+        assertThatThrownBy(() -> gameService.appendCommand(f.gameId(),f.alice().player().getId(),f.alice().token(),MovementOrder.TURN_RIGHT,request)).isInstanceOf(IllegalStateException.class);
     }
 
     @Test
     void concurrentRequestsForDifferentGamesRemainIsolated() throws Exception {
-        Fixture first = createStartedGame("First Alice", "First Bob");
-        Fixture second = createStartedGame("Second Alice", "Second Bob");
-        List<MovementOrder> firstAliceProgram = programFor(first.gameId(), first.alice().player().getId());
-        List<MovementOrder> firstBobProgram = programFor(first.gameId(), first.bob().player().getId());
-        List<MovementOrder> secondAliceProgram = programFor(second.gameId(), second.alice().player().getId());
-        List<MovementOrder> secondBobProgram = programFor(second.gameId(), second.bob().player().getId());
-        gameService.submitProgram(first.gameId(), first.alice().player().getId(),
-                first.alice().token(), firstAliceProgram);
-        gameService.submitProgram(second.gameId(), second.alice().player().getId(),
-                second.alice().token(), secondAliceProgram);
-
-        List<Outcome> outcomes = runConcurrently(
-                () -> gameService.submitProgram(first.gameId(), first.bob().player().getId(),
-                        first.bob().token(), firstBobProgram),
-                () -> gameService.submitProgram(second.gameId(), second.bob().player().getId(),
-                        second.bob().token(), secondBobProgram));
-
+        Fixture f = createStartedGame("Alice", "Bob");
+        var request = UUID.randomUUID();
+        Fixture other=createStartedGame("Other A","Other B");
+        var outcomes=runConcurrently(
+            () -> gameService.appendCommand(f.gameId(),f.alice().player().getId(),f.alice().token(),MovementOrder.LASER,request),
+            () -> gameService.appendCommand(other.gameId(),other.bob().player().getId(),other.bob().token(),MovementOrder.TURN_RIGHT,request));
         assertThat(outcomes).allMatch(Outcome::succeeded);
-        Game persistedFirst = reload(first.gameId());
-        Game persistedSecond = reload(second.gameId());
-        assertThat(persistedFirst.getRound().phase()).isEqualTo(RoundPhase.PLAYBACK);
-        assertThat(persistedSecond.getRound().phase()).isEqualTo(RoundPhase.PLAYBACK);
-        assertThat(persistedFirst.getPlayers()).extracting(player -> player.getName())
-                .containsExactly("First Alice", "First Bob");
-        assertThat(persistedSecond.getPlayers()).extracting(player -> player.getName())
-                .containsExactly("Second Alice", "Second Bob");
-        assertThat(persistedFirst.getRound().programs().get(first.bob().player().getId()).commands())
-                .containsExactlyElementsOf(firstBobProgram);
-        assertThat(persistedSecond.getRound().programs().get(second.bob().player().getId()).commands())
-                .containsExactlyElementsOf(secondBobProgram);
-        assertThat(persistedFirst.getRound().programs()).doesNotContainKeys(
-                second.alice().player().getId(), second.bob().player().getId());
-        assertThat(persistedSecond.getRound().programs()).doesNotContainKeys(
-                first.alice().player().getId(), first.bob().player().getId());
-        assertSingleResolution(persistedFirst);
-        assertSingleResolution(persistedSecond);
+        assertThat(reload(f.gameId()).getContinuous().queues).doesNotContainKey(other.bob().player().getId());
+        assertThat(reload(other.gameId()).getContinuous().queues).doesNotContainKey(f.alice().player().getId());
     }
 
     @Test

@@ -107,35 +107,16 @@ class InMemoryProfileIntegrationTest {
     }
 
     @Test
-    void persistsResolvedProgramsAndPlaybackUsingInMemoryDatabase() {
-        var hosted = gameService.createHostedGame(new GameConfiguration(2, 300, 5, 120));
-        Game game = hosted.game();
-        var alice = gameService.addPlayer(game.getId(), "Alice");
-        var bob = gameService.addPlayer(game.getId(), "Bob");
-        gameService.startGame(game.getId(), hosted.hostToken());
-
-        Game aliceView = gameService.getPlayerGame(game.getId(), alice.player().getId(), alice.token());
-        Game bobView = gameService.getPlayerGame(game.getId(), bob.player().getId(), bob.token());
-        assertThat(aliceView.getRound().programs().get(alice.player().getId()).hand()).hasSize(8);
-        assertThat(bobView.getRound().programs().get(bob.player().getId()).hand()).hasSize(8);
-        gameService.submitProgram(game.getId(), alice.player().getId(), alice.token(),
-                aliceView.getRound().programs().get(alice.player().getId()).hand().subList(0, 5));
-        gameService.submitProgram(game.getId(), bob.player().getId(), bob.token(),
-                bobView.getRound().programs().get(bob.player().getId()).hand().subList(0, 5));
-
-        Game retrieved = gameService.getGame(game.getId());
-        assertThat(retrieved.getRound().phase()).isEqualTo(RoundPhase.PLAYBACK);
-        assertThat(retrieved.getRound().allReady()).isTrue();
-        assertThat(retrieved.getRound().playback()).allSatisfy(event -> {
-            assertThat(event.sequence()).isPositive();
-            assertThat(event.oldPosition()).isNotNull();
-            assertThat(event.newPosition()).isNotNull();
-        });
-        assertThat(retrieved.getRound().programs().get(alice.player().getId()).commands()).hasSize(5);
-        assertThat(retrieved.getRound().initiative()).containsExactly(
-                alice.player().getId(), bob.player().getId());
+    void persistsContinuousQueuesAndReceiptsUsingInMemoryDatabase() {
+        var hosted=gameService.createHostedGame();var id=hosted.game().getId();
+        var a=gameService.addPlayer(id,"A");gameService.addPlayer(id,"B");
+        gameService.startGame(id,hosted.hostToken());
+        var request=java.util.UUID.randomUUID();
+        gameService.appendCommand(id,a.player().getId(),a.token(),MovementOrder.LASER,request);
+        var retrieved=gameService.getGame(id);
+        assertThat(retrieved.getContinuous().queues.get(a.player().getId()).snapshot().get(3)).isEqualTo(MovementOrder.LASER);
+        assertThat(retrieved.getContinuous().duplicate(a.player().getId(),request,MovementOrder.LASER)).isTrue();
         assertThat(retrieved.getVehicleStates()).hasSize(2);
-        assertThat(retrieved.getRound().finalVehicleStates()).hasSize(2);
     }
 
     @Test

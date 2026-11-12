@@ -86,6 +86,10 @@ public final class Round {
         resolve(engine,new se.segersten.wreckage.game.engine.BoardEffectEngine(engine),players,configuration);
     }
     public void resolve(se.segersten.wreckage.game.engine.MovementEngine engine,se.segersten.wreckage.game.engine.BoardEffectEngine effects,List<Player> players,GameConfiguration configuration){
+        resolve(engine, effects, players, configuration, false);
+    }
+
+    public void resolve(se.segersten.wreckage.game.engine.MovementEngine engine, se.segersten.wreckage.game.engine.BoardEffectEngine effects, List<Player> players, GameConfiguration configuration, boolean continuous) {
         if (!allReady()) throw new IllegalStateException("Not all players are ready");
         phase = RoundPhase.RESOLVING;
         GameState state = initialState;
@@ -124,7 +128,7 @@ public final class Round {
             checkpointVictory = playersById.values().stream().anyMatch(player -> player.hasCompletedCheckpoints(initialState.board()));
             if (checkpointVictory) break;
         }
-        if (!checkpointVictory) awardControlPoints(events, state, playersById, configuration);
+        if (!checkpointVictory && !continuous) awardControlPoints(events, state, playersById, configuration);
         playback = List.copyOf(events);
         phase = RoundPhase.PLAYBACK;
     }

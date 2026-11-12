@@ -1,18 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { addBot, addPlayer, createGame, getGame, getPlayerGame, saveProgramDraft, startGame, startRound, submitProgram } from '../api/games'
-import { CommandHand } from '../components/CommandHand'
-import { GameBoard } from '../components/GameBoard'
-import { RoundPlayback } from '../components/RoundPlayback'
-import { RoundStatus } from '../components/RoundStatus'
-import { ScoreTable } from '../components/ScoreTable'
-import type { Game, MovementOrder, PlayerGame, PlayerSession, RoundEvent, Vehicle } from '../types/game'
-
-type ProgramSnapshot = {
-  roundNumber: number
-  hand: MovementOrder[]
-  program: MovementOrder[]
-  shieldSelected: boolean
-}
+import { useCallback, useEffect, useState } from 'react'
+import { addPlayer, createGame, getGame, getPlayerGame, startGame } from '../api/games'
+import { ContinuousGame } from '../components/ContinuousGame'
+import type { Game, PlayerGame, PlayerSession } from '../types/game'
 
 function gameIdFromPath() {
   return window.location.pathname.match(/^\/game\/([0-9a-f-]+)(?:\/lobby)?\/?$/i)?.[1] ?? ''
@@ -51,24 +40,17 @@ export function GamePage() {
     const id = gameIdFromPath()
     return id ? localStorage.getItem(hostTokenKey(id)) ?? '' : ''
   })
-  const [vehicles, setVehicles] = useState<Vehicle[]>([])
   const [error, setError] = useState<string | null>(null)
   const [working, setWorking] = useState(false)
-  const [playbackDone, setPlaybackDone] = useState(false)
-  const [scores, setScores] = useState<Record<string, number>>({})
-  const [startingRound, setStartingRound] = useState<number | null>(null)
-  const [playbackEvent, setPlaybackEvent] = useState<RoundEvent | undefined>()
-  const [programSnapshot, setProgramSnapshot] = useState<ProgramSnapshot | null>(null)
-  const advancingRound = useRef<number | null>(null)
+  const apply = useCallback((next: PlayerGame) => setView(old =>
+    old?.continuous && (!next.continuous || old.continuous.revision >= next.continuous.revision) ? old : next), [])
 
   const refresh = useCallback(async () => {
     if (!session) return
     const next = await getPlayerGame(session)
-    setView(next)
-    if (next.round?.state.phase !== 'PLAYBACK') setScores(Object.fromEntries(next.players.map(player => [player.id, player.score])))
+    apply(next)
     setError(null)
-    if (next.round?.state.phase !== 'PLAYBACK') setVehicles(next.vehicles)
-  }, [session])
+  }, [session, apply])
 
   useEffect(() => {
     const pathId = gameIdFromPath()
@@ -78,7 +60,7 @@ export function GamePage() {
   useEffect(() => {
     if (!session) return
     void refresh().catch(e => setError(e.message))
-    const id = setInterval(() => void refresh().catch(e => setError(e.message)), 1500)
+    const id = setInterval(() => void refresh().catch(e => setError(e.message)), 500)
     return () => clearInterval(id)
   }, [session, refresh])
 
@@ -89,44 +71,6 @@ export function GamePage() {
     }, 1500)
     return () => window.clearInterval(id)
   }, [game, session])
-
-  useEffect(() => {
-    if (!session || !view?.round || !playbackDone || view.status === 'FINISHED') return
-    const completedRound = view.round.state
-    if (completedRound.phase !== 'PLAYBACK' || completedRound.number >= view.roundLimit || advancingRound.current === completedRound.number) return
-    advancingRound.current = completedRound.number
-    void startRound(session, completedRound.number).then(next => {
-      const nextRound = next.round?.state.number
-      setPlaybackDone(false)
-      setView(next)
-      setError(null)
-      if (nextRound && nextRound > completedRound.number) setStartingRound(nextRound)
-    }).catch(e => setError(e instanceof Error ? e.message : 'Ett oväntat fel inträffade'))
-      .finally(() => { advancingRound.current = null })
-  }, [session, view, playbackDone])
-
-  useEffect(() => {
-    if (startingRound === null) return
-    const id = window.setTimeout(() => setStartingRound(null), 1800)
-    return () => window.clearTimeout(id)
-  }, [startingRound])
-
-  useEffect(() => {
-    const playerRound = view?.round
-    if (!playerRound) return
-    if (playerRound.state.phase === 'PLANNING' || playerRound.program.length > 0) {
-      setProgramSnapshot({
-        roundNumber: playerRound.state.number,
-        hand: playerRound.hand,
-        program: playerRound.program,
-        shieldSelected: playerRound.shieldSelected,
-      })
-    }
-  }, [view?.round])
-
-  useEffect(() => {
-    if (view?.round?.state.phase !== 'PLAYBACK') setPlaybackEvent(undefined)
-  }, [view?.round?.state.number, view?.round?.state.phase])
 
   async function run(action: () => Promise<void>) {
     setWorking(true); setError(null)
@@ -162,14 +106,6 @@ export function GamePage() {
     })
   }
 
-  async function createBot() {
-    if (!session) return
-    await run(async () => {
-      await addBot(session)
-      await refresh()
-    })
-  }
-
   const lobby = view ?? game
 
   useEffect(() => {
@@ -181,28 +117,12 @@ export function GamePage() {
   }, [lobby, session])
 
   if (view && session && view.status !== 'WAITING_FOR_PLAYERS') {
-    const round = view.round?.state
-    const displayedVehicles = round?.phase === 'PLAYBACK' ? vehicles : view.vehicles
-    const statusVehicles = round?.phase === 'PLAYBACK' && !playbackDone ? round.initialVehicles : view.vehicles
-    const crashed = statusVehicles.filter(v => v.status === 'CRASHED').map(v => v.playerId)
-    const ownCrashed = statusVehicles.some(v => v.playerId === view.playerId && v.status === 'CRASHED')
-    const finished = view.status === 'FINISHED' && (round?.phase !== 'PLAYBACK' || playbackDone)
-    const winners = (view.placements ?? []).filter(result => result.winner).map(result => view.players.find(player => player.id === result.playerId)!).filter(Boolean)
-    const boardVehicles = displayedVehicles.filter(v => v.status === 'ACTIVE')
-    const respawned = round?.startEvents?.some(event => event.type === 'VEHICLE_RESPAWNED' && event.playerId === view.playerId)
-    const planningProgram = round?.phase === 'PLANNING' ? view.round : null
-    const playbackProgram = round?.phase === 'PLAYBACK' && programSnapshot?.roundNumber === round.number ? programSnapshot : null
-    const displayedProgram = planningProgram ?? playbackProgram
-    const showProgram = !!displayedProgram && (round?.phase === 'PLAYBACK' || (!ownCrashed && !finished))
-    const activeRegister = round?.phase === 'PLAYBACK' && (!playbackDone || view.status === 'FINISHED')
-      ? playbackEvent?.registerIndex ?? null
-      : null
-    return <main className="game-page" data-testid="game-page" data-game-status={view.status}><header><div><p className="eyebrow">Wreckage control deck</p><h1>WRECKAGE</h1></div><div className="game-identity"><span className="game-code">Spel {view.id.slice(0, 8)}</span><strong data-testid="game-status">{view.status}</strong></div></header>{error && <p className="error" role="alert">{error}</p>}{startingRound !== null && <div className="round-start-overlay" role="dialog" aria-modal="true" aria-labelledby="round-start-title" data-testid="round-start-dialog"><div className="round-start-dialog"><p className="eyebrow">Ny runda</p><h2 id="round-start-title">Runda {startingRound} startar</h2></div></div>}<div className={`game-layout${showProgram ? ' game-layout-with-program' : ''}`}>{showProgram && displayedProgram && <CommandHand hand={displayedProgram.hand} program={displayedProgram.program} shieldSelected={displayedProgram.shieldSelected} shieldAvailable={view.shieldAvailable || displayedProgram.shieldSelected} programSize={view.configuration.programSize} locked={round?.ready[view.playerId] ?? false} executing={round?.phase === 'PLAYBACK'} activeRegister={activeRegister} onReorder={async (orders, shield) => run(async () => setView(await saveProgramDraft(session, orders, shield)))} onSubmit={async (orders, shield) => run(async () => setView(await submitProgram(session, orders, shield)))} />}<section className="board-column"><GameBoard board={view.board} vehicles={boardVehicles} players={view.players} currentPlayerId={view.playerId} playbackEvent={playbackEvent} /></section><div className="sidebar">{finished && <section className="panel final-result" role="status" data-testid="finished-game"><h2>Match finished</h2><p>{winners.length === 1 ? `Winner: ${winners[0].name}` : `Winners: ${winners.map(player => player.name).join(', ')}`}</p></section>}<ScoreTable players={view.players} scores={round?.phase === 'PLAYBACK' ? scores : undefined} placements={finished ? view.placements : []} />{round && <RoundStatus round={round} roundLimit={view.roundLimit} players={view.players} crashed={crashed} />} {round && ownCrashed && <section className="panel" role="status"><h2>Du har kraschat</h2><p>Ingen spawnplats är ledig. Ett nytt försök görs nästa runda.</p></section>}{round?.phase === 'PLANNING' && respawned && <p role="status">Ditt fordon har respawnat.</p>}{round?.phase === 'PLAYBACK' && <RoundPlayback key={`${view.id}:${round.number}`} board={view.board} round={round} players={view.players} onVehicles={setVehicles} onScores={setScores} onCurrentEvent={setPlaybackEvent} onFinished={setPlaybackDone} />}</div></div></main>
+    return <ContinuousGame view={view} session={session} onSnapshot={apply} />
   }
 
   const gameLink = lobby ? `${window.location.origin}/game/${lobby.id}/lobby` : ''
   return <main className="landing">
-    <p className="eyebrow">Turn-based vehicular mayhem</p>
+    <p className="eyebrow">Continuous robot programming</p>
     <h1>WRECKAGE</h1>
     <p className="lead">Programmera. Kollidera. Se kaoset spelas upp.</p>
     {error && <p className="error" role="alert">{error}</p>}
@@ -218,8 +138,8 @@ export function GamePage() {
       {lobby.status === 'WAITING_FOR_PLAYERS' ? <>
         <label>Spellänk<input aria-label="Spellänk" readOnly value={gameLink} /></label>
         <button className="secondary" disabled={working} onClick={() => void run(() => navigator.clipboard.writeText(gameLink))}>Kopiera spellänk</button>
-        {session?.playerId === lobby.hostPlayerId && <button disabled={working || lobby.players.length >= lobby.configuration.maxPlayers} onClick={() => void createBot()}>Add Bot</button>}
-        <p>Brädstorlek och antal rundor bestäms när matchen startar.</p>
+
+        <p>Brädstorleken bestäms när matchen startar. Servern kör ett kommando varannan sekund.</p>
         <h3>Spelare anslutna</h3>
         {lobby.players.length ? <ul>{lobby.players.map(player => <li key={player.id}>{player.name} <span data-testid="player-kind">({player.automated ? 'Bot' : 'Human'})</span></li>)}</ul> : <p>Bli den första spelaren</p>}
         <p>{lobby.players.length} / {lobby.configuration.maxPlayers} spelare</p>

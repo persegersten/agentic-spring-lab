@@ -38,6 +38,8 @@ public class GameService {
 
     private final GameRepository gameRepository;
     private final Clock clock;
+    @Value("${wreckage.tick-interval-ms:2000}") private long tickIntervalMillis = 2000;
+    @Value("${wreckage.match-duration-ms:600000}") private long matchDurationMillis = 600000;
     private final PlayerAutomation playerAutomation;
     private final GameBoardFactory gameBoardFactory;
     private final MapRepository mapRepository;
@@ -208,13 +210,13 @@ public class GameService {
                 selectedBoard.walls().stream().toList(), selectedBoard.pits().stream().toList(),
                 selectedBoard.conveyors(), selectedBoard.rotators(), selectedBoard.controlPoints().stream().toList());
         game.start(clock.instant(), effective, dealHands(game));
-        playerAutomation.lockBotPrograms(game);
-        resolveIfReady(game);
+        game.enableContinuous(clock.instant(), tickIntervalMillis, matchDurationMillis);
         return gameRepository.save(game);
     }
 
     public Round startRound(UUID gameId, UUID playerId, String token, int completedRoundNumber) {
         Game game = authenticatedGameForUpdate(gameId, playerId, token);
+        if (game.getContinuous() != null) throw new IllegalStateException("Continuous matches accept append commands only");
         if (game.getRound() == null)
             throw new IllegalStateException("The first round starts automatically");
         if (game.getRound().number() > completedRoundNumber)
@@ -228,7 +230,36 @@ public class GameService {
         return round;
     }
 
-    public void completeExpiredPlanning(){Instant now=clock.instant();for(Game game:gameRepository.findAllByStatusForUpdate(GameStatus.RUNNING)){Round round=game.getRound();if(round!=null&&round.completeTimedOutPrograms(now)){consumeSelectedShields(game);resolveIfReady(game);gameRepository.save(game);}}}
+    public List<UUID> continuousGameIds() {
+        return gameRepository.findAllByStatus(GameStatus.RUNNING).stream().filter(g -> g.getContinuous() != null).map(Game::getId).toList();
+    }
+    public void advanceTick(UUID id) {
+        Game game = findGameForUpdate(id);
+        game.tick(clock.instant());
+        gameRepository.save(game);
+    }
+    public Game appendCommand(UUID id, UUID player, String token, MovementOrder command, UUID requestId) {
+        Game game = authenticatedGameForUpdate(id, player, token);
+        var c = game.getContinuous();
+        if (c == null) throw new IllegalStateException("Match has not started");
+        if (c.duplicate(player, requestId, command)) return game;
+        game.tick(clock.instant());
+        if (game.getStatus() != GameStatus.RUNNING) throw new IllegalStateException("Match is finished");
+        if (game.getVehicleStates().stream().anyMatch(v -> v.vehicle().playerId().equals(player) && !v.isActive()))
+            throw new IllegalStateException("Crashed vehicles cannot append");
+        c.append(player, requestId, command);
+        return gameRepository.save(game);
+    }
+    public void completeExpiredPlanning() {
+        Instant now = clock.instant();
+        for (Game game : gameRepository.findAllByStatusForUpdate(GameStatus.RUNNING)) {
+            if (game.getContinuous() != null) continue;
+            Round round = game.getRound();
+            if (round != null && round.completeTimedOutPrograms(now)) {
+                consumeSelectedShields(game); resolveIfReady(game); gameRepository.save(game);
+            }
+        }
+    }
 
     public Game getPlayerGame(UUID gameId, UUID playerId, String token) {
         return authenticatedGame(gameId, playerId, token);
@@ -236,6 +267,7 @@ public class GameService {
 
     public Round saveProgramDraft(UUID gameId, UUID playerId, String token, List<MovementOrder> orders) {
         Game game = authenticatedGameForUpdate(gameId, playerId, token);
+        if (game.getContinuous() != null) throw new IllegalStateException("Continuous matches accept append commands only");
         boolean shield = game.getRound() != null && game.getRound().programs().get(playerId).shieldSelected();
         return saveProgramDraft(game, playerId, orders, shield);
     }
@@ -243,6 +275,7 @@ public class GameService {
     public Round saveProgramDraft(UUID gameId, UUID playerId, String token, List<MovementOrder> orders,
                                   boolean shieldSelected) {
         Game game = authenticatedGameForUpdate(gameId, playerId, token);
+        if (game.getContinuous() != null) throw new IllegalStateException("Continuous matches accept append commands only");
         return saveProgramDraft(game, playerId, orders, shieldSelected);
     }
 
@@ -256,6 +289,7 @@ public class GameService {
 
     public Round submitProgram(UUID gameId, UUID playerId, String token, List<MovementOrder> orders) {
         Game game = authenticatedGameForUpdate(gameId, playerId, token);
+        if (game.getContinuous() != null) throw new IllegalStateException("Continuous matches accept append commands only");
         boolean shield = game.getRound() != null && game.getRound().programs().get(playerId).shieldSelected();
         return submitProgram(game, playerId, orders, shield);
     }
@@ -263,6 +297,7 @@ public class GameService {
     public Round submitProgram(UUID gameId, UUID playerId, String token, List<MovementOrder> orders,
                                boolean shieldSelected) {
         Game game = authenticatedGameForUpdate(gameId, playerId, token);
+        if (game.getContinuous() != null) throw new IllegalStateException("Continuous matches accept append commands only");
         return submitProgram(game, playerId, orders, shieldSelected);
     }
 

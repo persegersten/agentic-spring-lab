@@ -356,83 +356,16 @@ class GameApiIntegrationTest {
     }
 
     @Test
-    void keepsFiveCardHandsPrivateAndPublishesReadiness() throws Exception {
-        HttpResponse<String> created = post("/games", """
-                {"maxPlayers":2,"joinTimeoutSeconds":90,"programSize":5,"planningTimeoutSeconds":45}
-                """);
-        String gameId = json(created).path("id").asText();
-        JsonNode per = json(post("/games/%s/players".formatted(gameId), "{\"name\":\"Per\"}"));
-        JsonNode alice = json(post("/games/%s/players".formatted(gameId), "{\"name\":\"Alice\"}"));
-        postHost(gameId, json(created).path("hostToken").asText());
-
-        JsonNode publicGame = json(get("/games/" + gameId));
-        JsonNode perGame = json(getPlayerGame(gameId, per));
-        JsonNode aliceGame = json(getPlayerGame(gameId, alice));
-
-        assertThat(publicGame.toString()).doesNotContain("\"program\":", "orders");
-        assertThat(perGame.path("round").path("hand")).hasSize(8);
-        assertThat(aliceGame.path("round").path("hand")).hasSize(8);
-        assertThat(perGame.path("round").path("program")).isEmpty();
-        assertThat(perGame.path("round").has("state")).isTrue();
-        assertThat(perGame.path("round").path("shieldSelected").asBoolean()).isFalse();
-        assertThat(perGame.path("round").size()).isEqualTo(4);
-
-        HttpResponse<String> invented = postPlayer(
-                "/games/%s/rounds/current/program".formatted(gameId), per,
-                "{\"orders\":[\"WAIT\",\"WAIT\",\"WAIT\",\"WAIT\",\"WAIT\"]}");
-        assertThat(invented.statusCode()).isEqualTo(HttpStatus.BAD_REQUEST.value());
-
-        var selectedOrder = objectMapper.createArrayNode();
-        for (int index = 0; index < 5; index++) selectedOrder.add(perGame.path("round").path("hand").get(index));
-        HttpResponse<String> submitted = postPlayer(
-                "/games/%s/rounds/current/program".formatted(gameId), per,
-                objectMapper.createObjectNode()
-                        .set("orders", selectedOrder)
-                        .toString());
-        assertThat(submitted.statusCode()).isEqualTo(HttpStatus.OK.value());
-        assertThat(json(submitted).path("round").path("program")).isEqualTo(selectedOrder);
-
-        JsonNode aliceAfterSubmission = json(getPlayerGame(gameId, alice));
-        assertThat(aliceAfterSubmission.path("round").path("state").path("phase").asText())
-                .isEqualTo("PLANNING");
-        assertThat(aliceAfterSubmission.path("round").path("state").path("ready")
-                .path(per.path("id").asText()).asBoolean()).isTrue();
-        assertThat(aliceAfterSubmission.path("round").path("program")).isEmpty();
-        assertThat(aliceAfterSubmission.toString()).doesNotContain("orders", "playback\":[{");
-
-        var aliceSelectedOrder = objectMapper.createArrayNode();
-        for (int index = 0; index < 5; index++) aliceSelectedOrder.add(aliceGame.path("round").path("hand").get(index));
-        HttpResponse<String> resolved = postPlayer(
-                "/games/%s/rounds/current/program".formatted(gameId), alice,
-                objectMapper.createObjectNode()
-                        .set("orders", aliceSelectedOrder)
-                        .toString());
-
-        assertThat(resolved.statusCode()).isEqualTo(HttpStatus.OK.value());
-        assertThat(json(resolved).path("round").path("state").path("phase").asText())
-                .isEqualTo("PLAYBACK");
-        JsonNode resolvedPlayback = json(resolved).path("round").path("state").path("playback");
-        assertThat(resolvedPlayback.isArray()).isTrue();
-        assertThat(json(resolved).path("round").path("state").path("initiative").valueStream()
-                .map(JsonNode::asText)).containsExactly(per.path("id").asText(), alice.path("id").asText());
-        JsonNode publicResolved = json(get("/games/" + gameId));
-        assertThat(publicResolved.path("round").path("phase").asText()).isEqualTo("PLAYBACK");
-        assertThat(publicResolved.path("round").path("playback")).isEqualTo(resolvedPlayback);
-        JsonNode aliceResolved = json(getPlayerGame(gameId, per));
-        assertThat(aliceResolved.path("round").path("state").path("playback"))
-                .isEqualTo(resolvedPlayback);
-        assertThat(publicResolved.toString()).doesNotContain("\"program\":", "orders");
-
-        HttpResponse<String> nextRound = postPlayer(
-                "/games/%s/rounds?completedRound=1".formatted(gameId), per, "");
-        HttpResponse<String> duplicateRequest = postPlayer(
-                "/games/%s/rounds?completedRound=1".formatted(gameId), alice, "");
-
-        assertThat(nextRound.statusCode()).isEqualTo(HttpStatus.CREATED.value());
-        assertThat(json(nextRound).path("round").path("state").path("number").asInt()).isEqualTo(2);
-        assertThat(json(duplicateRequest).path("round").path("state").path("number").asInt()).isEqualTo(2);
-        assertThat(json(duplicateRequest).path("round").path("state").path("phase").asText())
-                .isEqualTo("PLANNING");
+    void keepsFutureQueuesPrivate() throws Exception {
+        var created=post("/games",null);var gameId=json(created).path("id").asText();
+        var a=json(post("/games/"+gameId+"/players","{\"name\":\"A\"}"));
+        var b=json(post("/games/"+gameId+"/players","{\"name\":\"B\"}"));
+        postHost(gameId,json(created).path("hostToken").asText());
+        var accepted=postPlayer("/games/"+gameId+"/commands",a,"{\"command\":\"LASER\",\"requestId\":\""+UUID.randomUUID()+"\"}");
+        assertThat(accepted.statusCode()).isEqualTo(200);
+        assertThat(json(accepted).path("continuous").path("queue").get(3).asText()).isEqualTo("LASER");
+        assertThat(json(getPlayerGame(gameId,b)).path("continuous").path("queue").get(3).isNull()).isTrue();
+        assertThat(json(get("/games/"+gameId)).has("continuous")).isFalse();
     }
 
     @Test
@@ -479,31 +412,16 @@ class GameApiIntegrationTest {
     }
 
     @Test
-    void persistsAPlayersPrivatePlanningDraftForReconnect() throws Exception {
-        HttpResponse<String> created = post("/games", """
-                {"maxPlayers":2,"joinTimeoutSeconds":90,"programSize":5,"planningTimeoutSeconds":45}
-                """);
-        String gameId = json(created).path("id").asText();
-        JsonNode per = json(post("/games/%s/players".formatted(gameId), "{\"name\":\"Per\"}"));
-        post("/games/%s/players".formatted(gameId), "{\"name\":\"Alice\"}");
-        postHost(gameId, json(created).path("hostToken").asText());
-        JsonNode original = json(getPlayerGame(gameId, per));
-        var draft = objectMapper.createArrayNode();
-        draft.add(original.path("round").path("hand").get(0));
-        draft.add(original.path("round").path("hand").get(1));
-
-        HttpResponse<String> saved = putPlayer(
-                "/games/%s/rounds/current/program".formatted(gameId), per,
-                objectMapper.createObjectNode().set("orders", draft).toString());
-
-        assertThat(saved.statusCode()).isEqualTo(HttpStatus.OK.value());
-        JsonNode recovered = json(getPlayerGame(gameId, per));
-        assertThat(recovered.path("round").path("program")).isEqualTo(draft);
-        assertThat(recovered.path("round").path("state").path("number").asInt()).isEqualTo(1);
-        assertThat(recovered.path("board")).isEqualTo(original.path("board"));
-        assertThat(recovered.path("round").path("state").path("ready")
-                .path(per.path("id").asText()).asBoolean()).isFalse();
-        assertThat(json(get("/games/" + gameId)).toString()).doesNotContain("\"program\":", "orders");
+    void reconnectRestoresImmutableAcceptedQueue() throws Exception {
+        var created=post("/games",null);var gameId=json(created).path("id").asText();
+        var a=json(post("/games/"+gameId+"/players","{\"name\":\"A\"}"));
+        var b=json(post("/games/"+gameId+"/players","{\"name\":\"B\"}"));
+        postHost(gameId,json(created).path("hostToken").asText());
+        var command="{\"command\":\"FORWARD_1\",\"requestId\":\""+UUID.randomUUID()+"\"}";
+        assertThat(postPlayer("/games/"+gameId+"/commands",a,command).statusCode()).isEqualTo(200);
+        assertThat(json(getPlayerGame(gameId,a)).path("continuous").path("queue").get(3).asText()).isEqualTo("FORWARD_1");
+        assertThat(putPlayer("/games/"+gameId+"/rounds/current/program",a,"{\"orders\":[]}").statusCode()).isEqualTo(409);
+        assertThat(json(getPlayerGame(gameId,a)).path("continuous").path("queue").get(3).asText()).isEqualTo("FORWARD_1");
     }
 
     @Test

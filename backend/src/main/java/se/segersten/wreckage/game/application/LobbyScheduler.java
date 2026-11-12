@@ -16,6 +16,9 @@ public class LobbyScheduler {
 
     @Scheduled(fixedDelay = 500)
     public void completeExpiredPlanning() {
-        gameService.completeExpiredPlanning();
+        for (var id : gameService.continuousGameIds()) {
+            try { gameService.advanceTick(id); }
+            catch (RuntimeException error) { org.slf4j.LoggerFactory.getLogger(LobbyScheduler.class).error("Tick failed for {}", id, error); }
+        }
     }
 }
