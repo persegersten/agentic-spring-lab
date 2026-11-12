@@ -1,0 +1,151 @@
+# Revised Continuous Command Execution Migration
+
+## Summary and agreed rules
+
+Keep the existing React/HTTP → Spring application → domain → JPA architecture. Reuse movement, displacement, board-effect, authentication, and map-generation infrastructure.
+
+Retain all six milestones, with F1 first to validate queue interaction before completing the backend migration.
+
+- The objective remains capture CP1, CP2, CP3, then CP4. Register progress immediately after each qualifying movement, including forced movement. CP4 ends the match immediately.
+- Capture commands together at each server tick, then resolve sequentially in deterministic initiative order. Rotate initiative each tick. This is not true simultaneous movement.
+- Default tick interval: 2 seconds, configurable and fixed for a match once started.
+- Default playtest duration: 600 seconds, configurable independently of tick interval. Preserve existing checkpoint-progress/distance ranking at timeout.
+- All eight existing playable commands remain available in an unlimited palette, including Laser. Empty slots execute NOP.
+- Commands are immutable after acceptance. Append only to the first empty position among slots 4 and 5.
+- Preserve the previously selected next-tick respawn and crash queue-clearing behavior.
+- Preserve SHIELD as a once-per-match ability: activation starts next tick and protects for five ticks.
+- No automatic five-tick scoring cadence. Control-point scoring remains a separate, explicitly deferred decision and blocks final cutover.
+
+### Intentional startup delay
+
+All five slots start empty. The UI displays 5, 4, 3, 2, 1, with positions 1–3 locked.
+
+For a command accepted into slot 4 before tick 1:
+
+| Tick | Slot at execution time | Result |
+|---|---|---|
+| 1 | 4 | Slot 1 executes NOP; command shifts to 3 |
+| 2 | 3 | Slot 1 executes NOP; command shifts to 2 |
+| 3 | 2 | Slot 1 executes NOP; command shifts to 1 |
+| 4 | 1 | Command executes |
+
+At the default interval, the earliest execution is approximately eight seconds after match start. No startup prefill or bypass of locked positions is introduced. Board effects remain active during these initial NOP ticks.
+
+## Frontend milestones
+
+### F1 — Mock queue interaction and early gameplay review
+
+Implement first, using mocked HTTP snapshots and manually advanced ticks.
+
+- Build the unlimited palette and five-slot queue with explicit slot numbers.
+- Mark positions 1–3 locked; accepted commands in positions 4–5 also have no edit/remove controls.
+- Show the destination of the next append, queue-full state, countdown, and the initial three-NOP delay.
+- Submit one command per request; disable further submission while acceptance is uncertain. Display server-acknowledged queue contents.
+- Include SHIELD availability, pending activation, and remaining protected ticks.
+- Replace programming readiness and round controls in the prototype. Keep unresolved control-point behavior clearly outside this prototype’s claims.
+
+Acceptance criteria:
+
+- Mocked Playwright tests cover slot order, append into 4 then 5, full-queue rejection, shifting, locked positions, immutable accepted commands, and submission failures.
+- A scripted sequence demonstrates first execution on tick 4 and continued input during execution.
+- Gameplay review evaluates startup clarity, queue readability, and ability to plan continuously. F1 validates interaction; collision and match balance require the integrated game.
+
+### F2 — Live synchronization and tick animation
+
+- Poll running games every 500 ms initially; retain HTTP and existing credentials.
+- Apply only newer monotonic revisions. Polls and mutation responses share the same revision sequence.
+- Animate each tick at most once. On missed ticks or animation backlog, reconcile to the latest authoritative snapshot.
+- Derive countdowns from server timestamps; browsers never advance gameplay.
+- Preserve a pending command’s request ID across uncertain responses and page reloads. Reconnect restores the authoritative queue, shield state, checkpoint progress, and match deadline.
+
+Acceptance criteria:
+
+- Mocked tests cover out-of-order responses, duplicate snapshots, dropped append responses, reload retries, background tabs, slow animations, missed ticks, and reconnects.
+- Client animation never blocks server execution or command submission.
+- Frontend build and lint pass.
+
+### F3 — Integrated validation, documentation, and cutover
+
+- Replace round-centric acceptance scenarios with continuous-play scenarios while retaining lobby, authentication, map, collision, and results coverage.
+- Update game rules and architecture documentation, including the approved shield semantics and explicit persistence limitations.
+- Remove obsolete frontend programming/playback lifecycle components and backend round APIs only after replacement coverage passes.
+- Conduct playtests using the configurable ten-minute default; record CP4 completion times, crashes, startup feedback, and tick lateness.
+
+Acceptance criteria:
+
+- Two-browser tests demonstrate shared ticks, private future queues, reconnect recovery, and progress while all browsers are disconnected.
+- Tests demonstrate CP1–CP4 progression and immediate CP4 completion without waiting for a periodic score update.
+- Revised Playwright suite, relevant Maven tests, frontend build, and lint pass.
+- Final cutover remains blocked until control-point scoring has an approved rule and tests.
+
+## Backend milestones
+
+### B1 — Pure domain queues and single-tick resolution
+
+- Introduce fixed five-position queues independent of Spring, HTTP, and wall-clock access.
+- Resolve each tick in this order: respawn attempts; scheduled shield activation; capture slot-1 commands; initiative-based command execution; conveyors then rotators; queue shifting; shield expiration; initiative rotation.
+- Stop resolution immediately on CP4 completion. Ensure committed positions, checkpoint progress, and emitted events describe the same stopping point.
+- Preserve walls, push chains, pits, multi-step movement, Laser displacement, checkpoint scores, and crash penalties.
+- NOP skips a vehicle command, not board effects.
+- Crashed vehicles cannot append. Clear their queue on crash; retry occupied respawns on later ticks.
+- SHIELD is a separate ability request, not a queue command. Consume its once-per-match use when activation is accepted; activate at the next tick’s start, covering that tick and four following ticks. Preserve its existing displacement protections and self-movement behavior. Crashes do not refund or pause the duration.
+
+Acceptance criteria:
+
+- Deterministic unit tests cover startup tick 4, append order, NOP, shifting, full queues, crashes, respawns, shield activation/expiration, initiative rotation, and existing collision examples.
+- Checkpoint tests cover out-of-order capture rejection, forced movement, multi-step commands, and immediate CP4 termination.
+- Tests show that no periodic checkpoint or control-point score update was introduced.
+
+### B2 — Clock, atomic transactions, storage, and bots
+
+- Persist tick number, next deadline, match deadline, interval, queues, shield state, revision, and idempotency receipts.
+- Use new Flyway migrations; do not edit applied migrations.
+- Serialize append, ability activation, and tick operations under the existing per-game write lock. Commit each tick’s state, events, queue changes, and revision atomically.
+- Process games in separate transactions. Catch an individual failure without preventing other matches from advancing.
+- Process at most one overdue tick when servicing a game, then schedule the next deadline from processing time. Never burst through missed ticks.
+- Before accepting new input, reconcile an overdue tick under the same lock. At or after the match deadline, finish without executing another tick. Checkpoint completion in an earlier tick remains final.
+
+Precise bot behavior:
+
+- Fill bots once at match start, then once after each completed tick and queue shift.
+- For each active bot in stable player order, repeatedly call the same domain append operation until positions 4 and 5 are occupied: at most two appends per filling pass.
+- Use a deterministic repeating command sequence: FORWARD_1, FORWARD_1, TURN_RIGHT. Advance the bot’s persisted sequence cursor only on successful append.
+- Bots never target locked slots, replace commands, act while crashed, or refill from GET requests. They do not activate optional SHIELD automatically in this initial policy.
+- Persist bot fill state with the transaction so retries cannot fill twice.
+
+Acceptance criteria:
+
+- Clock-controlled and H2 integration tests cover exact deadlines, concurrent append/tick calls, multiple scheduler invocations, rollback, independent game failures, and queue/storage round trips.
+- Bot tests verify initial two-card fill, one free-slot refill after a normal shift, blocked/full/crashed behavior, deterministic choices, and rollback-safe cursors.
+- A disconnected game continues and finishes at its configured deadline.
+
+### B3 — API contracts and durable-within-match idempotency
+
+- Add authenticated POST /games/{gameId}/commands with {command, requestId}. The server chooses the slot.
+- Add an authenticated shield-activation endpoint with the same request-ID discipline.
+- Store successful receipts separately from queue entries, keyed by game, player, operation, and request ID. Retain them until the game is deleted, including after consumption, crash clearing, and match completion.
+- Authenticate and check existing receipts before rejecting a retry because the match finished or the queue is full. Reusing an ID with different input returns a conflict.
+- Return the original acceptance details plus the current authoritative player snapshot on duplicate success.
+- Snapshots expose revision, tick number, server time, next tick deadline, match deadline, interval, current state, and latest tick events. Only the authenticated owner sees their future queue.
+- Retire draft, program-lock, and client-driven next-round endpoints at cutover. Preserve lobby, map generation, authentication, and results.
+
+Acceptance criteria:
+
+- HTTP tests cover unauthorized access, queue privacy, invalid commands, lifecycle conflicts, and revisions.
+- Delayed retries after execution, crash clearing, reconnect, and match completion produce no additional append or shield activation.
+- Same-ID/different-input requests conflict; concurrent same-ID requests create one acceptance receipt.
+
+## Decisions, production verification, and risks
+
+Verified repository production configuration: compose.prod.yml selects in-memory; the Docker entrypoint also selects that profile. Its datasource is jdbc:h2:mem:wreckage.... Deployment documentation explicitly states that backend restarts, updates, and rollbacks discard game data. No live VPS or production secrets were accessed.
+
+- Database transactions provide atomicity and reconnect recovery while the backend process remains alive. They do not provide persistence across server restarts.
+- Queues and idempotency receipts survive command consumption in database records, but disappear with the game on restart. Return game-not-found for stale sessions; never recreate a game from a retry.
+- Persistent restart recovery would require a separate database/deployment change and is outside this migration.
+- Preserve Laser behavior. Historical loadout/ammunition/damage columns do not justify reintroducing obsolete combat mechanics.
+- Round-dependent decisions are explicit: SHIELD receives the approved five-tick duration; respawns move to next-tick attempts; initiative rotates each tick; match limits become elapsed duration. Control-point scoring remains unresolved and blocks cutover.
+- The existing push-crash reward discrepancy—documented rewards versus rewardPush=false in the resolver—must remain visible. Preserve current behavior during migration; changing it requires a separate rule decision.
+- Startup inactivity, next-tick respawn latency, five-tick shield duration, and ten-minute match length need playtesting. Monitor transaction duration and tick lateness at the current ten-game concurrency limit.
+- Ship backend and frontend together between matches. Do not translate unfinished old rounds into continuous queues or introduce a parallel legacy engine.
+
+This revision changes the proposed specification only. No application code has been modified, and no automated tests have been run during this review.
