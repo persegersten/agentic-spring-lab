@@ -40,7 +40,7 @@ export function ContinuousGame({view,session,onSnapshot}:{view:PlayerGame;sessio
     } catch (e) { setShieldError(e instanceof Error ? e.message : 'Skölden kunde inte bekräftas') }
     finally { setShieldBusy(false) }
   }
-  const destination = c?.queue[3] == null ? 4 : c.queue[4] == null ? 5 : null
+  const destination = c?.queue[2] == null ? 3 : c.queue[3] == null ? 4 : c.queue[4] == null ? 5 : null
   const crashed = view.vehicles.some(v => v.playerId === session.playerId && v.status === 'CRASHED')
   return <main className="game-page" data-testid="game-page">
       <div className="game-heading">
@@ -53,7 +53,7 @@ export function ContinuousGame({view,session,onSnapshot}:{view:PlayerGame;sessio
       </div>
     </section>
     <aside className="game-controls" aria-label="Spelkontroller">
-    <section className="panel queue-panel"><div className="queue-heading"><h2>Kommandokö</h2><span>4–5 öppna · 1–3 låsta</span></div>
+    <section className="panel queue-panel"><div className="queue-heading"><h2>Kommandokö</h2><span>3–5 öppna · 1–2 låsta</span></div>
       {c && <CommandQueue snapshot={c} crashed={crashed} />}
       <div className="command-pad">
         <p className="queue-destination">{destination ? `Mata in → ${destination}` : 'Kön är full'}</p>

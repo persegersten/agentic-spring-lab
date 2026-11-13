@@ -79,8 +79,10 @@ public record Board(String mapId, String mapName, int width, int height, Set<Wal
     public boolean hasWall(Position cell, Direction direction) {
         Objects.requireNonNull(cell);
         Objects.requireNonNull(direction);
-        return walls.contains(new Wall(cell, direction))
-                || walls.contains(new Wall(cell.move(direction), direction.reverse()));
+        Position adjacent = cell.move(direction);
+        return isWithinBounds(cell) != isWithinBounds(adjacent)
+                || walls.contains(new Wall(cell, direction))
+                || walls.contains(new Wall(adjacent, direction.reverse()));
     }
 
     public boolean isPit(Position position) { return pits.contains(position); }

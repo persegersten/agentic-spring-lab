@@ -33,14 +33,14 @@ export function CommandQueue({ snapshot, crashed }: { snapshot: Snapshot; crashe
     setFrame({ signature: nextSignature, tick: snapshot.tick, cargo, nextId, slide,
       pulse: advanced ? snapshot.lastExecutedCommand != null : frame.pulse })
   }
-  const destination = snapshot.queue[3] == null ? 4 : snapshot.queue[4] == null ? 5 : null
+  const destination = snapshot.queue[2] == null ? 3 : snapshot.queue[3] == null ? 4 : snapshot.queue[4] == null ? 5 : null
   const executed = snapshot.lastExecutedCommand
   return <section className={`command-machine ${frame.slide ? '' : 'queue-snap'}`} aria-label="Kommandokö">
     <div className="machine-header"><span className="machine-light" /> KÖ <span>↓</span></div>
     <div className="machine-track" data-testid="command-track">
       {[5, 4, 3, 2, 1].map(slot => {
         const command = snapshot.queue[slot - 1]
-        const open = slot >= 4
+        const open = slot >= 3
         return <div key={slot} data-testid={`slot-${slot}`} data-slot-state={open ? 'input' : 'locked'}
           className={`machine-slot ${open ? 'slot-input' : 'slot-locked'} ${destination === slot && !crashed ? 'slot-next' : ''}`}>
           <span className="slot-number">{slot.toString().padStart(2, '0')}</span>

@@ -73,7 +73,7 @@
 .slot-input .slot-state{color:#f5ce76}
 .slot-empty{position:absolute;left:25px;right:14px;top:50%;transform:translateY(-50%);color:#8fa195;font-size:10px}
 .slot-input .slot-empty{color:#c7b584}
-.machine-lock-gate{position:absolute;top:calc(2 * (100% + var(--feed-gap)) / 5 - var(--feed-gap) / 2 - 2px);left:0;right:0;height:4px;z-index:2;background:repeating-linear-gradient(135deg,#ba963c 0 5px,#202920 5px 10px);pointer-events:none}
+.machine-lock-gate{position:absolute;top:calc(3 * (100% + var(--feed-gap)) / 5 - var(--feed-gap) / 2 - 2px);left:0;right:0;height:4px;z-index:2;background:repeating-linear-gradient(135deg,#ba963c 0 5px,#202920 5px 10px);pointer-events:none}
 .machine-lock-gate span{display:none}
 .machine-cargo-layer{position:absolute;inset:0 2px;pointer-events:none}
 .queue-cargo{position:absolute;top:calc((var(--cargo-row) + .5) * (100% + var(--feed-gap)) / 5 - var(--feed-gap) / 2 - var(--cargo-height) / 2);left:25px;right:15px;height:var(--cargo-height);display:flex;align-items:center;justify-content:center;border:1px solid #8fa79a;border-radius:3px;background:linear-gradient(#496050,#2a3b30);color:#e5f3e8;box-shadow:0 2px 3px #0009;font-size:11px;font-weight:800;white-space:nowrap;transition:top .3s cubic-bezier(.35,0,.3,1)}

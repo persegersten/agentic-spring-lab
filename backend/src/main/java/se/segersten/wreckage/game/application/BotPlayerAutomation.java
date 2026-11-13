@@ -32,7 +32,7 @@ public class BotPlayerAutomation implements PlayerAutomation {
             if (!player.isAutomated() || game.getVehicleStates().stream()
                     .noneMatch(v -> v.vehicle().playerId().equals(player.getId()) && v.isActive())) continue;
             var queue = continuous.queues.get(player.getId());
-            for (int slot = 3; slot < 5; slot++) {
+            for (int slot = 2; slot < 5; slot++) {
                 if (queue.snapshot().get(slot) == null) {
                     continuous.append(player.getId(), UUID.randomUUID(), COMMANDS[random.nextInt(COMMANDS.length)]);
                 }

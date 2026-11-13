@@ -59,6 +59,13 @@ combat actions.
 
 ## Resolution and board effects
 
+`Board.hasWall` treats crossings of the board boundary as implicit walls in both
+directions, independently of map wall definitions. Movement, reversing, conveyors,
+ramming, push chains and Laser use that shared wall check. Attempting to cross
+an outer edge leaves the vehicle in place without a crash, score penalty or queue
+clear. Interior pits remain lethal. Existing map and historical state payloads
+are unchanged; the frontend's existing arena frame represents the boundary.
+
 `MovementEngine` applies vehicle commands one cell at a time. It enforces board
 edges and edge walls, resolves chains of rams and pushes, and emits movement,
 turn, ram, push, or crash events. Retired `FORWARD_2` and `FORWARD_3` remain readable in historical state and perform two or
@@ -207,8 +214,8 @@ results, respawning, and adding automated players from the lobby.
 
 ## Continuous command queue presentation
 
-The current UI presents a vertical command feed: slots 5 and 4 accept new
-commands above a locking gate; slots 3 through 1 are committed and feed the
+The current UI presents a vertical command feed: slots 5, 4 and 3 accept new
+commands above a locking gate; slots 2 and 1 are committed and feed the
 execution station. A confirmed tick animates one shift. Initial loads, skipped
 ticks and crash clears synchronize immediately without replaying fictional steps.
 The player-specific continuous snapshot includes nullable `lastExecutedCommand`,

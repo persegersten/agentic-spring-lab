@@ -59,7 +59,7 @@ class ContinuousSliceIntegrationTest {
         game.enableContinuous(now, 2000, 600000);
         var queue = game.getContinuous().queues.get(shooter.getId());
         queue.append(MovementOrder.LASER);
-        for (int i = 0; i < 3; i++) queue.shift();
+        for (int i = 0; i < 2; i++) queue.shift();
         game.getContinuous().nextTick = now.minusSeconds(1);
         new TransactionTemplate(transactions).executeWithoutResult(tx -> repository.save(game));
         var first = new java.util.concurrent.atomic.AtomicReference<java.util.List<RoundEvent>>();
@@ -111,8 +111,8 @@ class ContinuousSliceIntegrationTest {
         var bot = service.addBot(id, human.player().getId(), human.token());
         service.startGame(id, hosted.hostToken());
         var initial = service.getGame(id).getContinuous().queues.get(bot.getId()).snapshot();
-        assertThat(initial.subList(0, 3)).containsOnlyNulls();
-        assertThat(initial.subList(3, 5)).doesNotContainNull();
+        assertThat(initial.subList(0, 2)).containsOnlyNulls();
+        assertThat(initial.subList(2, 5)).doesNotContainNull();
         long revision = service.getGame(id).getContinuous().revision;
         service.getPlayerGame(id, human.player().getId(), human.token());
         assertThat(service.getGame(id).getContinuous().revision).isEqualTo(revision);
@@ -128,8 +128,8 @@ class ContinuousSliceIntegrationTest {
             var game = service.getGame(id);
             assertThat(game.getContinuous().tick).isEqualTo(tick);
             var queue = game.getContinuous().queues.get(bot.getId()).snapshot();
-            assertThat(queue.get(3 - tick)).isEqualTo(initial.get(3));
-            assertThat(queue.subList(3, 5)).allMatch(command -> command != null && command.isProgrammingCard());
+            assertThat(queue.get(2 - tick)).isEqualTo(initial.get(2));
+            assertThat(queue.subList(2, 5)).allMatch(command -> command != null && command.isProgrammingCard());
             long filledRevision = game.getContinuous().revision;
             service.advanceTick(id);
             assertThat(service.getGame(id).getContinuous().revision).isEqualTo(filledRevision);
@@ -146,13 +146,14 @@ class ContinuousSliceIntegrationTest {
                 .header("X-Player-Id",a.player().getId().toString()).header("X-Player-Token",a.token()).header("Content-Type","application/json")
                 .POST(java.net.http.HttpRequest.BodyPublishers.ofString("{\"command\":\"TURN_RIGHT\",\"requestId\":\""+request+"\"}")).build(),java.net.http.HttpResponse.BodyHandlers.ofString());
         assertThat(accepted.statusCode()).isEqualTo(200);
-        assertThat(json.readTree(accepted.body()).path("continuous").path("queue").get(3).asText()).isEqualTo("TURN_RIGHT");
+        assertThat(json.readTree(accepted.body()).path("continuous").path("queue").get(2).asText()).isEqualTo("TURN_RIGHT");
         var other=http.send(java.net.http.HttpRequest.newBuilder(java.net.URI.create("http://localhost:"+port+"/games/"+id+"/players/"+b.player().getId()))
                 .header("X-Player-Token",b.token()).GET().build(),java.net.http.HttpResponse.BodyHandlers.ofString());
         assertThat(other.statusCode()).isEqualTo(200);
-        assertThat(json.readTree(other.body()).path("continuous").path("queue").get(3).isNull()).isTrue();
+        assertThat(json.readTree(other.body()).path("continuous").path("queue").get(2).isNull()).isTrue();
         service.appendCommand(id,b.player().getId(),b.token(),MovementOrder.TURN_LEFT,UUID.randomUUID());
         service.appendCommand(id,a.player().getId(),a.token(),MovementOrder.FORWARD_1,UUID.randomUUID());
+        service.appendCommand(id,a.player().getId(),a.token(),MovementOrder.REVERSE_1,UUID.randomUUID());
         assertThatThrownBy(() -> service.appendCommand(id,a.player().getId(),a.token(),MovementOrder.LASER,UUID.randomUUID())).isInstanceOf(IllegalStateException.class);
         assertThatThrownBy(() -> service.saveProgramDraft(id,a.player().getId(),a.token(),java.util.List.of())).isInstanceOf(IllegalStateException.class);
         assertThatThrownBy(() -> service.appendCommand(id,a.player().getId(),"wrong",MovementOrder.LASER,UUID.randomUUID())).isInstanceOf(SecurityException.class);

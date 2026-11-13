@@ -199,16 +199,12 @@ class MovementEngineTest {
     }
 
     @Test
-    void openBoardEdgeCrashesTheMovingVehicleImmediately() {
-        VehicleState per = state(0, 6, Direction.NORTH);
-        var result = engine.resolveTurnWithEvents(
-                new Turn(List.of(order(per, MovementOrder.FORWARD_1))),
-                new GameState(board, List.of(per)));
-        assertThat(result.events()).extracting(event -> event.type())
-                .containsExactly(RoundEventType.CRASH);
-        assertThat(result.events().getFirst().newPosition()).isEqualTo(new Position(0, 7));
-        assertThat(result.state().vehicleStates()).singleElement()
-                .extracting(VehicleState::status).isEqualTo(VehicleStatus.CRASHED);
+    void outerBoundaryStopsTheMovingVehicleLikeAWall() {
+        VehicleState vehicle = state(0, 6, Direction.NORTH);
+        var result = engine.resolveTurnWithEvents(new Turn(List.of(order(vehicle, MovementOrder.FORWARD_1))),
+                new GameState(board, List.of(vehicle)));
+        assertThat(result.state().vehicleStates()).containsExactly(vehicle);
+        assertThat(result.events()).isEmpty();
     }
 
     @Test
@@ -266,14 +262,16 @@ class MovementEngineTest {
     }
 
     @Test
-    void forwardAndReverseCrashAtOpenBoardBoundary() {
-        VehicleState northAtTop = state(0, 6, Direction.NORTH);
-        VehicleState reversingSouthAtTop = state(1, 6, Direction.SOUTH);
-
-        assertThat(resolve(List.of(northAtTop), order(northAtTop, MovementOrder.FORWARD_1))
-                .vehicleStates().getFirst().status()).isEqualTo(VehicleStatus.CRASHED);
-        assertThat(resolve(List.of(reversingSouthAtTop), order(reversingSouthAtTop, MovementOrder.REVERSE_1))
-                .vehicleStates().getFirst().status()).isEqualTo(VehicleStatus.CRASHED);
+    void forwardAndReverseStopAtEveryBoardBoundary() {
+        var positions = List.of(new Position(3, 6), new Position(6, 3), new Position(3, 0), new Position(0, 3));
+        for (Direction direction : Direction.values()) {
+            Position edge = positions.get(direction.ordinal());
+            for (var command : List.of(MovementOrder.FORWARD_1, MovementOrder.REVERSE_1)) {
+                var facing = command == MovementOrder.FORWARD_1 ? direction : direction.reverse();
+                var vehicle = state(edge.x(), edge.y(), facing);
+                assertThat(resolve(List.of(vehicle), order(vehicle, command)).vehicleStates()).containsExactly(vehicle);
+            }
+        }
     }
 
     @Test

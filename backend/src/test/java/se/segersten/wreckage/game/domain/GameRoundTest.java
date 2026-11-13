@@ -348,7 +348,7 @@ class GameRoundTest {
         UUID playerId = UUID.randomUUID();
         Player player = Player.create(playerId, "Alice", "a");
         Round round = new Round(1, Map.of(playerId, locked(playerId, MovementOrder.FORWARD_1)),
-                List.of(playerId), new GameState(new Board(2, 2), List.of(state(playerId, 1, 1))));
+                List.of(playerId), new GameState(new Board(3, 3, java.util.Set.of(), java.util.Set.of(new Position(2, 1))), List.of(state(playerId, 1, 1))));
 
         round.resolve(new MovementEngine(), List.of(player), GameConfiguration.defaults());
 

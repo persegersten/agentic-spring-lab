@@ -65,6 +65,6 @@ test('a lobby bot executes commands while the human leaves their queue empty', a
     const bot = game.players.find(player => player.automated)
     return game.continuous.tick >= 4 && game.round.state.playback.some(event => event.playerId === bot.id)
   }, { timeout: 20000 }).toBe(true)
-  await expect(page.getByTestId('slot-4')).toContainText('Nästa')
+  await expect(page.getByTestId('slot-3')).toContainText('Nästa')
   await expect(page.getByTestId('slot-5')).toContainText('Ledig')
 })

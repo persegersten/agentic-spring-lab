@@ -7,7 +7,7 @@ public final class CommandQueue {
     private final MovementOrder[] slots = new MovementOrder[5];
     public int append(MovementOrder command) {
         if (command == null || !command.isAvailableCommand()) throw new IllegalArgumentException("Invalid command");
-        for (int i = 3; i < 5; i++) if (slots[i] == null) { slots[i] = command; return i + 1; }
+        for (int i = 2; i < 5; i++) if (slots[i] == null) { slots[i] = command; return i + 1; }
         throw new IllegalStateException("Queue is full");
     }
     public MovementOrder head() { return slots[0] == null ? MovementOrder.WAIT : slots[0]; }

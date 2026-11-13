@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 
-async function openQueue(page, { reducedMotion = false, tick = 0 } = {}) {
+async function openQueue(page, { reducedMotion = false, tick = 0, queue = [null, null, 'TURN_LEFT', 'FORWARD_1', 'FORWARD_1'] } = {}) {
   const gameId = '10000000-0000-0000-0000-000000000002'
   const playerId = '20000000-0000-0000-0000-000000000002'
   const state = {
@@ -11,7 +11,7 @@ async function openQueue(page, { reducedMotion = false, tick = 0 } = {}) {
     vehicles: [{ id: 'vehicle', playerId, x: 0, y: 0, direction: 'NORTH', status: 'ACTIVE' }],
     placements: [], round: null,
     continuous: { revision: 1, tick, serverTime: new Date().toISOString(), nextTick: new Date(Date.now() + 2000).toISOString(),
-      queue: [null, null, null, 'FORWARD_1', 'FORWARD_1'], lastExecutedCommand: tick ? 'LASER' : null },
+      queue, lastExecutedCommand: tick ? 'LASER' : null },
   }
   if (reducedMotion) await page.emulateMedia({ reducedMotion: 'reduce' })
   await page.setViewportSize({ width: 1366, height: 900 })
@@ -19,7 +19,7 @@ async function openQueue(page, { reducedMotion = false, tick = 0 } = {}) {
   await page.route(`**/games/${gameId}/players/${playerId}`, route => route.fulfill({ json: state }))
   await page.route(`**/games/${gameId}/commands`, async route => {
     const command = route.request().postDataJSON().command
-    const index = state.continuous.queue[3] == null ? 3 : 4
+    const index = state.continuous.queue.findIndex((command, index) => index >= 2 && command == null)
     state.continuous.queue[index] = command
     state.continuous.revision++
     await route.fulfill({ json: state })
@@ -40,11 +40,11 @@ async function openQueue(page, { reducedMotion = false, tick = 0 } = {}) {
 
 test('machine separates input and locked slots and moves identical commands without replacing them', async ({ page }) => {
   const game = await openQueue(page)
-  for (const slot of [4, 5]) {
+  for (const slot of [3, 4, 5]) {
     await expect(page.getByTestId(`slot-${slot}`)).toHaveAttribute('data-slot-state', 'input')
     await expect(page.getByTestId(`slot-${slot}`)).toContainText('INMATNING')
   }
-  for (const slot of [1, 2, 3]) {
+  for (const slot of [1, 2]) {
     await expect(page.getByTestId(`slot-${slot}`)).toHaveAttribute('data-slot-state', 'locked')
     await expect(page.getByTestId(`slot-${slot}`)).toContainText('LÅST')
   }
@@ -72,6 +72,34 @@ test('machine separates input and locked slots and moves identical commands with
   // An ordinary poll must not shift again or remount the existing bricks.
   game.state.continuous.revision++
   await expect(page.locator(`[data-cargo-id="${first}"]`)).toHaveAttribute('data-slot', '3')
+})
+
+test('empty queue accepts three commands in slots 3, 4 and 5', async ({ page }) => {
+  await openQueue(page, { queue: [null, null, null, null, null] })
+  await expect(page.locator('.queue-heading')).toContainText('3–5 öppna · 1–2 låsta')
+  for (const [slot, label, command] of [[3, 'Framåt', 'FORWARD_1'], [4, 'Laser', 'LASER'], [5, 'Framåt', 'FORWARD_1']]) {
+    await expect(page.getByTestId(`slot-${slot}`)).toContainText('Nästa')
+    await expect(page.locator('.queue-destination')).toHaveText(`Mata in → ${slot}`)
+    await page.getByRole('button', { name: label, exact: true }).click()
+    await expect(page.getByTestId(`slot-${slot}`)).toContainText(command)
+  }
+  await expect(page.locator('.queue-destination')).toHaveText('Kön är full')
+  await expect(page.getByRole('button', { name: 'Laser', exact: true })).toBeDisabled()
+  for (const slot of [1, 2]) await expect(page.getByTestId(`slot-${slot}`)).toContainText('NOP')
+  const gate = await page.locator('.machine-lock-gate').boundingBox()
+  const third = await page.getByTestId('slot-3').boundingBox()
+  const second = await page.getByTestId('slot-2').boundingBox()
+  expect(gate.y).toBeGreaterThanOrEqual(third.y + third.height)
+  expect(gate.y + gate.height).toBeLessThanOrEqual(second.y)
+})
+
+test('slot 3 remains available when slots 4 and 5 are occupied', async ({ page }) => {
+  await openQueue(page, { queue: [null, null, null, 'FORWARD_1', 'FORWARD_1'] })
+  await expect(page.getByTestId('slot-3')).toContainText('Nästa')
+  await page.getByRole('button', { name: 'Laser', exact: true }).click()
+  await expect(page.getByTestId('slot-3')).toContainText('LASER')
+  for (const slot of [4, 5]) await expect(page.getByTestId(`slot-${slot}`)).toContainText('FORWARD_1')
+  await expect(page.getByRole('button', { name: 'Laser', exact: true })).toBeDisabled()
 })
 
 test('execution uses the confirmed command, skipped ticks snap, and crashes clear the feed', async ({ page }) => {

@@ -19,14 +19,25 @@ class ContinuousExecutionTest {
     }
     @Test void appendOnlyUnlockedSlotsAndShift() {
         var q = new CommandQueue();
-        assertThat(q.append(MovementOrder.FORWARD_1)).isEqualTo(4);
-        assertThat(q.append(MovementOrder.TURN_LEFT)).isEqualTo(5);
-        assertThatThrownBy(() -> q.append(MovementOrder.LASER)).isInstanceOf(IllegalStateException.class);
-        for (int i=0;i<3;i++) { assertThat(q.head()).isEqualTo(MovementOrder.WAIT); q.shift(); }
+        assertThat(q.append(MovementOrder.FORWARD_1)).isEqualTo(3);
+        assertThat(q.append(MovementOrder.TURN_LEFT)).isEqualTo(4);
+        assertThat(q.append(MovementOrder.LASER)).isEqualTo(5);
+        assertThat(q.snapshot().subList(0, 2)).containsOnlyNulls();
+        assertThatThrownBy(() -> q.append(MovementOrder.REVERSE_1)).isInstanceOf(IllegalStateException.class);
+        for (int i=0;i<2;i++) { assertThat(q.head()).isEqualTo(MovementOrder.WAIT); q.shift(); }
         assertThat(q.head()).isEqualTo(MovementOrder.FORWARD_1);
         assertThatThrownBy(() -> q.snapshot().set(0, MovementOrder.LASER)).isInstanceOf(UnsupportedOperationException.class);
         q.shift(); assertThat(q.head()).isEqualTo(MovementOrder.TURN_LEFT);
+        q.shift(); assertThat(q.head()).isEqualTo(MovementOrder.LASER);
         q.shift(); assertThat(q.head()).isEqualTo(MovementOrder.WAIT);
+    }
+    @Test void appendUsesEmptySlotThreeWithoutChangingStoredCommands() {
+        var queue = CommandQueue.decode("TURN_LEFT,TURN_RIGHT,-,FORWARD_1,LASER");
+        assertThat(queue.append(MovementOrder.REVERSE_1)).isEqualTo(3);
+        assertThat(queue.snapshot()).containsExactly(MovementOrder.TURN_LEFT, MovementOrder.TURN_RIGHT,
+                MovementOrder.REVERSE_1, MovementOrder.FORWARD_1, MovementOrder.LASER);
+        assertThat(CommandQueue.decode(queue.encode()).snapshot()).isEqualTo(queue.snapshot());
+        assertThatThrownBy(() -> queue.append(MovementOrder.LASER)).isInstanceOf(IllegalStateException.class);
     }
     @Test void nopStillAppliesConveyorsAndSharedPushRulesWithoutControlPointScoring() {
         var spawns=List.of(new SpawnPoint(new Position(2,2),Direction.NORTH), new SpawnPoint(new Position(3,2),Direction.NORTH));
@@ -40,14 +51,16 @@ class ContinuousExecutionTest {
         assertThat(game.getPlayers()).allMatch(p -> p.getScore()==0);
     }
     @Test void crashClearsQueueAndNextTickRespawns() {
-        var game=new Game(UUID.randomUUID(),new Board(10,10));
+        var board = new Board(10, 10, Set.of(), Set.of(new Position(0, 0)), Set.of(), List.of(
+                new SpawnPoint(new Position(0, 1), Direction.SOUTH), new SpawnPoint(new Position(1, 1), Direction.SOUTH)));
+        var game=new Game(UUID.randomUUID(),board);
         var player=game.addPlayer("A");game.addPlayer("B");game.enableContinuous(Instant.EPOCH,2000,600000);
         var queue=game.getContinuous().queues.get(player.getId());
         queue.append(MovementOrder.FORWARD_1);queue.append(MovementOrder.LASER);
-        for(int i=1;i<=4;i++) game.tick(Instant.EPOCH.plusSeconds(i*2));
+        for(int i=1;i<=3;i++) game.tick(Instant.EPOCH.plusSeconds(i*2));
         assertThat(game.getVehicleStates().getFirst().status()).isEqualTo(VehicleStatus.CRASHED);
         assertThat(queue.snapshot()).containsOnlyNulls();
-        game.tick(Instant.EPOCH.plusSeconds(10));
+        game.tick(Instant.EPOCH.plusSeconds(8));
         assertThat(game.getVehicleStates().getFirst().status()).isEqualTo(VehicleStatus.ACTIVE);
     }
     @Test void receiptsSurviveConsumptionAndRoundTrip() {
@@ -60,19 +73,19 @@ class ContinuousExecutionTest {
         assertThatThrownBy(() -> restored.duplicate(player,request,MovementOrder.TURN_LEFT)).isInstanceOf(IllegalStateException.class);
         assertThat(c.nextTick).isEqualTo(Instant.EPOCH.plusSeconds(2));
     }
-    @Test void serverTickExecutesOnFourthTickAndNeverBursts() {
+    @Test void serverTickExecutesOnThirdTickAndNeverBursts() {
         var game = new Game(UUID.randomUUID(), new Board(10,10));
         var a=game.addPlayer("A"); game.addPlayer("B");
         game.enableContinuous(Instant.EPOCH,2000,600000);
         game.getContinuous().queues.get(a.getId()).append(MovementOrder.TURN_RIGHT);
         var initial=game.getVehicleStates().getFirst().orientation();
         game.tick(Instant.EPOCH.plusMillis(1999)); assertThat(game.getContinuous().tick).isZero();
-        for(int i=1;i<=3;i++) { game.tick(Instant.EPOCH.plusSeconds(i*2)); assertThat(game.getVehicleStates().getFirst().orientation()).isEqualTo(initial); }
-        game.tick(Instant.EPOCH.plusSeconds(8));
+        for(int i=1;i<=2;i++) { game.tick(Instant.EPOCH.plusSeconds(i*2)); assertThat(game.getVehicleStates().getFirst().orientation()).isEqualTo(initial); }
+        game.tick(Instant.EPOCH.plusSeconds(6));
         assertThat(game.getVehicleStates().getFirst().orientation()).isNotEqualTo(initial);
-        game.tick(Instant.EPOCH.plusSeconds(100)); assertThat(game.getContinuous().tick).isEqualTo(5);
-        game.tick(Instant.EPOCH.plusSeconds(100)); assertThat(game.getContinuous().tick).isEqualTo(5);
+        game.tick(Instant.EPOCH.plusSeconds(100)); assertThat(game.getContinuous().tick).isEqualTo(4);
+        game.tick(Instant.EPOCH.plusSeconds(100)); assertThat(game.getContinuous().tick).isEqualTo(4);
         game.tick(Instant.EPOCH.plusSeconds(600)); assertThat(game.getStatus()).isEqualTo(GameStatus.FINISHED);
-        assertThat(game.getContinuous().tick).isEqualTo(5);
+        assertThat(game.getContinuous().tick).isEqualTo(4);
     }
 }

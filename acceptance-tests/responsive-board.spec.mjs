@@ -29,7 +29,7 @@ async function openGame(page, viewport, width, height, playerCount) {
   let failNext = false
   await page.route(`**/games/${gameId}/commands`, async route => {
     if (failNext) { failNext = false; await route.fulfill({ status: 503, json: { message: 'A long server error explaining that the command needs to be retried safely.' } }); return }
-    const index = state.continuous.queue[3] == null ? 3 : 4
+    const index = state.continuous.queue.findIndex((command, index) => index >= 2 && command == null)
     state.continuous.queue[index] = route.request().postDataJSON().command
     state.continuous.revision++
     await route.fulfill({ json: state })
@@ -80,7 +80,9 @@ for (const [width, height] of [[10, 10], [20, 10], [10, 20]]) {
         const board = await page.getByTestId('game-board').boundingBox()
         expect(Math.abs(board.width - board.height * width / height)).toBeLessThan(1)
         await page.getByRole('button', { name: 'Framåt', exact: true }).click()
-        await expect(page.getByTestId('slot-4')).toContainText('FORWARD_1')
+        await expect(page.getByTestId('slot-3')).toContainText('FORWARD_1')
+        await page.getByRole('button', { name: 'Laser', exact: true }).click()
+        await expect(page.getByTestId('slot-4')).toContainText('LASER')
         await page.getByRole('button', { name: 'Laser', exact: true }).click()
         await expect(page.getByTestId('slot-5')).toContainText('LASER')
         await expect(page.getByRole('button', { name: 'Framåt', exact: true })).toBeDisabled()
@@ -104,7 +106,7 @@ test('retry, crash and final standings stay visible with ten players on the smal
   await expectFit(page, viewport, 10)
   await page.screenshot({ path: '/tmp/wreckage-fit-retry-320x568.png' })
   await page.getByRole('button', { name: 'Försök igen', exact: true }).click()
-  await expect(page.getByTestId('slot-4')).toContainText('FORWARD_1')
+  await expect(page.getByTestId('slot-3')).toContainText('FORWARD_1')
   game.state.vehicles[0].status = 'CRASHED'
   game.state.continuous.revision++
   await expect(page.getByTestId('queue-status')).toContainText('Kraschad')

@@ -8,8 +8,9 @@
 > and then spins the surviving, unshielded target to a server-chosen random cardinal
 > direction. The original direction is also a possible result. Each player may activate one immovable shield per match. In continuous play
 > it starts next tick and protects that tick plus four following ticks. Checkpoint, control-point, crash, and push scoring otherwise remains as
-> documented. Forced displacement stops at board boundaries; voluntary movement
-> through an open board edge still crashes.
+> documented. Every outer board edge is an implicit wall: voluntary movement, pushes and
+> conveyors cannot move vehicles off the board. Pits inside the board still crash
+> vehicles.
 
 This document is the authoritative rules specification for Wreckage v2.
 
@@ -44,7 +45,7 @@ The intended player experience is:
 
 Combat should reward predicting where vehicles will be after programmed
 movement, using walls and other vehicles as cover, and pushing opponents towards
-pits, open edges, conveyors and control areas. It uses no dice, random damage or
+pits, boundary walls, conveyors and control areas. It uses no dice, random damage or
 random weapon effects.
 
 ---
@@ -66,11 +67,17 @@ The lobby and shareable game-link concept remain part of the game.
 The authenticated creator may add bots while the lobby is open, within the same
 player capacity. Bots count as ordinary participants for spawning, movement,
 collisions, crashes, respawns, and winning. In continuous gameplay, the server
-fills each active bot's available queue slots 4 and 5 at match start and after
+fills each active bot's available queue slots 3, 4 and 5 at match start and after
 each completed tick. Each appended command is chosen uniformly from the six available
 programming commands, excluding WAIT. Bots obey the same queue restrictions as
 humans, do not append while crashed or after the match finishes, and do not
 automatically activate shields.
+
+In continuous play, the queue has five slots. Only slots 1 and 2 are locked
+for input; new commands enter the first empty slot among 3, 4 and 5. Accepted
+commands cannot be changed or removed. Each tick executes slot 1 (empty means
+NOP), applies board effects, then shifts the queue toward slot 1. A command
+accepted into slot 3 before the first tick executes on the third tick.
 
 In continuous play, SHIELD is a separate authenticated ability request and never
 occupies a command slot. Accepting activation consumes the once-per-match use;
@@ -149,8 +156,14 @@ A | B
 
 A vehicle in A cannot move into B and a vehicle in B cannot move into A.
 
-An outer board edge may also contain a wall. If an outer edge does not contain a
-wall, moving beyond that edge causes a crash.
+Every outer board edge is always a wall, even if it is absent from the map's
+explicit wall list. Driving, reversing, forced movement, push chains and conveyors
+cannot cross it. A blocked movement attempt leaves position and crash status
+unchanged, causes no crash penalty, and does not clear the command queue. Driving
+and reversing also preserve orientation; the separate Laser hit turn still applies
+as specified below. Later commands continue normally. Laser rays also stop at
+the boundary. Existing saved
+maps need no additional wall definitions.
 
 ### 3.2 Pits
 
@@ -504,7 +517,7 @@ They inspect cells one at a time in a straight cardinal line. A shot stops at:
 The first active vehicle in the line is the only possible target, so vehicles
 provide cover for vehicles behind them. Weapons never fire diagonally. A wall
 on the edge out of the firing vehicle's cell blocks the first inspected cell;
-an open board boundary ends the shot without causing the firing vehicle to
+an outer boundary wall ends the shot without causing the firing vehicle to
 move or crash.
 
 ### 12.2 Weapon damage
@@ -527,7 +540,7 @@ does not remove commands, create malfunction cards, reduce `programSize`, or
 permanently eliminate a player.
 
 Shield may prevent damage as described in section 14.1. Repulsor deals no
-damage. Environmental crashes from pits, open edges and board effects do not
+damage. Environmental crashes from pits and board effects do not
 depend on the damage value.
 
 ---
@@ -560,8 +573,8 @@ from the firing vehicle.
 
 The displacement uses the existing push-chain rules: it may push other
 vehicles as a chain, any required wall crossing or anchored vehicle blocks the
-complete push atomically, and pits or open edges are lethal destinations rather
-than blockers. Orientations do not change. A Repulsor push can therefore be
+complete push atomically. Pits are lethal destinations rather than blockers;
+the outer boundary is always a blocking wall. Orientations do not change. A Repulsor push can therefore be
 more dangerous than a damage weapon.
 
 ### 13.3 Rocket
@@ -610,14 +623,13 @@ push rules.
 
 If an anchored vehicle is anywhere in a required push chain, the entire push
 is blocked atomically. Anchor does not prevent weapon damage, the anchored
-vehicle's own movement, or a crash caused when its own movement enters a pit or
-leaves an open board edge.
+vehicle's own movement, or a crash caused when its own movement enters a pit.
 
 ### 14.3 Turbo
 
 `TURBO` is a post-movement action that performs one additional forward movement
 step. The step uses all normal movement rules, including walls, pushes, pits,
-open edges, checkpoints and crashes. It uses the vehicle's position and
+outer walls, checkpoints and crashes. It uses the vehicle's position and
 orientation when the action resolves.
 
 ### 14.4 Side Step
@@ -626,7 +638,7 @@ orientation when the action resolves.
 to move the vehicle exactly one cell to the corresponding side relative to its
 current orientation. The vehicle's orientation does not change.
 
-Side Step respects edge walls, may enter a pit or leave an open edge and crash,
+Side Step respects edge walls and the outer boundary, may enter a pit and crash,
 and may trigger a checkpoint. It never pushes. If the destination cell contains
 another active vehicle, the action is blocked and neither vehicle moves.
 
@@ -766,9 +778,9 @@ and tick/round number so transaction retries are reproducible. Playback never
 chooses directions or changes the authoritative result. Laser does not deal
 damage or directly award points; normal checkpoint and crash scoring still apply.
 
-Pits are lethal destinations for pushes. The existing displacement boundary policy
-is retained: forced movement beyond the board boundary is blocked. Voluntary
-movement through an open board edge still causes a crash.
+Pits inside the board are lethal destinations for pushes. Every outer edge is
+a wall and blocks both voluntary and forced movement. A Laser hit blocked by
+that wall still applies its normal random turn unless the target is shielded.
 
 ---
 
@@ -779,7 +791,6 @@ A vehicle crashes when it:
 - reaches `damage >= 3` from weapon damage,
 - enters a pit,
 - is pushed into a pit,
-- moves beyond an open board edge,
 - is affected by another board element explicitly defined as lethal.
 
 A crash has the following effects:
@@ -921,7 +932,7 @@ A conveyor has a position and direction.
 A vehicle on a conveyor is moved one cell in the conveyor direction when
 conveyors activate.
 
-Conveyor movement uses the same wall, push, pit and open-edge rules as normal
+Conveyor movement uses the same wall, push, pit and outer-boundary rules as normal
 movement.
 
 Conveyors are resolved in a deterministic map-defined order.
@@ -1199,7 +1210,7 @@ eight-card private hands
 rotating initiative
 edge walls
 push chains
-pits and open-edge crashes
+pit crashes and blocking outer walls
 respawn
 checkpoints
 score

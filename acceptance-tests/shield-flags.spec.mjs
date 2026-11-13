@@ -16,7 +16,7 @@ async function setup(page) {
     vehicles: [{ id: 'own-vehicle', playerId, x: 1, y: 2, direction: 'EAST', status: 'ACTIVE' }],
     placements: [], round: null,
     continuous: { revision: 1, tick: 3, serverTime: new Date().toISOString(), nextTick: new Date(Date.now() + 2000).toISOString(),
-      intervalMillis: 2000, queue: [null, null, null, 'FORWARD_1', 'LASER'], lastExecutedCommand: 'WAIT',
+      intervalMillis: 2000, queue: [null, null, 'TURN_LEFT', 'FORWARD_1', 'LASER'], lastExecutedCommand: 'WAIT',
       shieldPending: false, shieldTicksRemaining: 0, activeShieldPlayerIds: [] },
   }
   await page.setViewportSize({ width: 320, height: 568 })

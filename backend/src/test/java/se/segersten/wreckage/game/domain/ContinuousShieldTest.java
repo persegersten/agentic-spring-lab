@@ -85,6 +85,6 @@ class ContinuousShieldTest {
     private void head(Game game, UUID player, MovementOrder command) {
         var queue = game.getContinuous().queues.get(player);
         queue.clear(); queue.append(command);
-        for (int i = 0; i < 3; i++) queue.shift();
+        for (int i = 0; i < 2; i++) queue.shift();
     }
 }
