@@ -170,7 +170,12 @@ state.
 
 Dependencies point inward. `Game` is the aggregate root and owns player, vehicle,
 round, scoring, respawn, and completion invariants. `PlayerAutomation` is an
-application-layer seam that locks programs for automated players. The authenticated
+application-layer seam for automated players. In continuous games it fills open
+bot queue slots at match start and after each completed tick, including overdue
+ticks reconciled before human input. Commands are selected uniformly using an
+injectable random source and appended through the same continuous queue operation
+as human commands, inside the existing game transaction and write lock. GET
+requests never fill bot queues. Legacy round automation remains available. The authenticated
 creator adds bots on demand through the lobby; bots otherwise use the same
 aggregate membership, vehicles, cards, round lifecycle, and persistence as humans.
 

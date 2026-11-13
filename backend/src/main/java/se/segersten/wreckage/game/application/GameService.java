@@ -211,6 +211,7 @@ public class GameService {
                 selectedBoard.conveyors(), selectedBoard.rotators(), selectedBoard.controlPoints().stream().toList());
         game.start(clock.instant(), effective, dealHands(game));
         game.enableContinuous(clock.instant(), tickIntervalMillis, matchDurationMillis);
+        playerAutomation.fillBotQueues(game);
         return gameRepository.save(game);
     }
 
@@ -235,15 +236,22 @@ public class GameService {
     }
     public void advanceTick(UUID id) {
         Game game = findGameForUpdate(id);
-        game.tick(clock.instant());
+        tickAndFillBots(game);
         gameRepository.save(game);
+    }
+
+    private void tickAndFillBots(Game game) {
+        long previousTick = game.getContinuous() == null ? -1 : game.getContinuous().tick;
+        game.tick(clock.instant());
+        if (game.getContinuous() != null && game.getContinuous().tick != previousTick)
+            playerAutomation.fillBotQueues(game);
     }
     public Game appendCommand(UUID id, UUID player, String token, MovementOrder command, UUID requestId) {
         Game game = authenticatedGameForUpdate(id, player, token);
         var c = game.getContinuous();
         if (c == null) throw new IllegalStateException("Match has not started");
         if (c.duplicate(player, requestId, command)) return game;
-        game.tick(clock.instant());
+        tickAndFillBots(game);
         if (game.getStatus() != GameStatus.RUNNING) throw new IllegalStateException("Match is finished");
         if (game.getVehicleStates().stream().anyMatch(v -> v.vehicle().playerId().equals(player) && !v.isActive()))
             throw new IllegalStateException("Crashed vehicles cannot append");

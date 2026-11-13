@@ -393,14 +393,18 @@ class GameServiceTest {
     }
 
     @Test
-    void prototypeDoesNotFillBotQueues() {
+    void continuousStartFillsOnlyBotQueues() {
         var repository=new InMemoryGameRepository();var service=new GameService(repository);
         var hosted=service.createHostedGame();var id=hosted.game().getId();
         var host=service.addPlayer(id,"Bot 1",hosted.hostToken());
         service.addBot(id,host.player().getId(),host.token());
         var game=service.startGame(id,hosted.hostToken());
         assertThat(game.getPlayers()).extracting(Player::getName).containsExactly("Bot 1","Bot 2");
-        assertThat(game.getContinuous().queues.values()).allSatisfy(q -> assertThat(q.snapshot()).containsOnlyNulls());
+        assertThat(game.getContinuous().queues.get(host.player().getId()).snapshot()).containsOnlyNulls();
+        var bot = game.getPlayers().get(1);
+        assertThat(game.getContinuous().queues.get(bot.getId()).snapshot().subList(0, 3)).containsOnlyNulls();
+        assertThat(game.getContinuous().queues.get(bot.getId()).snapshot().subList(3, 5))
+                .allMatch(command -> command != null && command.isProgrammingCard());
     }
 
     @Test

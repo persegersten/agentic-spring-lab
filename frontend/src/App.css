@@ -24,3 +24,29 @@
 @media(max-width:800px){.game-identity{justify-items:start}}
 .laser-shot{position:absolute;z-index:6;height:4px;background:#ff2e2e;box-shadow:0 0 5px #fff,0 0 12px #ff2e2e;transform-origin:left center;pointer-events:none}
 .vehicle.shield-effect{border-radius:50%;box-shadow:0 0 0 3px #62d8ff,0 0 14px #62d8ff}.ability-badge{position:absolute;z-index:3;top:-8px;padding:2px 5px;border-radius:8px;background:#102622;color:#dff;font-size:9px;font-weight:800}
+
+.game-page{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:24px;padding:0}
+.game-viewport{height:100vh;height:100dvh;min-width:0;display:flex;flex-direction:column;gap:12px;padding:16px 0}
+.game-heading h1{font-size:clamp(1.25rem,3vw,2.5rem);line-height:1.15;margin:0;overflow-wrap:anywhere;text-shadow:2px 2px #6f281e}
+.game-heading p{margin:6px 0 0;font-variant-numeric:tabular-nums}
+.board-stage{flex:1;min-height:0;min-width:0;display:grid;place-items:center;container-type:size}
+/* The 26px accounts for the frame's padding and border on both sides. */
+.board-stage .board-wrap{width:min(100cqw,calc((100cqh - 26px) * var(--board-ratio) + 26px))}
+.board-stage .board{container-type:inline-size}
+.board-stage .vehicle-direction{width:min(60%,30px);height:auto;aspect-ratio:10/13;max-height:75%}
+.board-stage .vehicle small{max-width:100%;overflow:hidden;text-overflow:ellipsis;font-size:clamp(5px,1cqw,10px)}
+.board-stage .checkpoint span{font-size:clamp(6px,2cqw,14px)}
+.board-stage .conveyor,.board-stage .rotator{font-size:clamp(6px,2cqw,16px)}
+.board-stage .checkpoint-progress{top:4px;right:4px;padding:3px 5px;font-size:clamp(6px,1.5cqw,13px)}
+.game-controls{height:100vh;height:100dvh;overflow-y:auto;min-width:0;display:grid;align-content:start;gap:16px;padding:16px 0;overflow-wrap:anywhere}
+.game-controls h2{margin-top:0}
+.queue-slots{display:flex;gap:12px;flex-wrap:wrap}
+.queue-slots>div{min-width:0;max-width:100%}
+.queue-commands{display:flex;gap:8px;flex-wrap:wrap}
+.queue-commands button{min-width:0;max-width:100%;overflow-wrap:anywhere}
+.game-controls .score-table{overflow-x:auto}
+@media(max-width:1050px){
+  .game-page{display:block}
+  .game-viewport{padding:12px 0}
+  .game-controls{height:auto;overflow:visible;padding:0 0 24px}
+}

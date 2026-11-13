@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { fillProgram, joinGame, startGame, withPlayerPages } from './player-pages.mjs'
+import { joinGame, startGame, withPlayerPages } from './player-pages.mjs'
 
 test('a player adds bots and every connected lobby sees them', async ({ browser }) => {
   await withPlayerPages(browser, ['alice', 'bob'], async ({ alice, bob }) => {
@@ -46,20 +46,25 @@ test('a full mixed lobby disables bot addition for the host', async ({ page }) =
   await expect(addBot).toBeDisabled()
 })
 
-test('one browser can play successive rounds against a lobby bot', async ({ page }) => {
+test('a lobby bot executes commands while the human leaves their queue empty', async ({ page }) => {
   await page.goto('/')
   await page.getByRole('button', { name: 'Bjud in till nytt spel', exact: true }).click()
   await joinGame(page, 'Alice')
   await page.getByRole('button', { name: 'Add Bot', exact: true }).click()
-  await expect(page.getByRole('listitem').filter({ hasText: 'Bot 1' })).toContainText('(Bot)')
+  const gameLink = await page.getByLabel('Spellänk', { exact: true }).inputValue()
+  const gameId = gameLink.split('/').at(-2)
+  const session = await page.evaluate(id => JSON.parse(localStorage.getItem(`wreckage-session:${id}`)), gameId)
   await startGame(page)
-
-  await expect(page.getByRole('heading', { name: 'Planering', exact: true })).toBeVisible()
-  await expect(page.getByTestId('player-ready-state').filter({ hasText: 'Bot 1' })).toContainText('Redo')
+  await expect(page.getByRole('heading', { name: 'Your queue → execution', exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Add Bot', exact: true })).not.toBeVisible()
-
-  await fillProgram(page)
-  await expect(page.getByRole('heading', { name: 'Uppspelning', exact: true }).first()).toBeVisible()
-  await expect(page.getByTestId('round-number')).toHaveText('Round 2', { timeout: 30_000 })
-  await expect(page.getByTestId('player-ready-state').filter({ hasText: 'Bot 1' })).toContainText('Redo')
+  await expect.poll(async () => {
+    const response = await page.request.get(`/games/${gameId}/players/${session.playerId}`, {
+      headers: { 'X-Player-Token': session.token },
+    })
+    const game = await response.json()
+    const bot = game.players.find(player => player.automated)
+    return game.continuous.tick >= 4 && game.round.state.playback.some(event => event.playerId === bot.id)
+  }, { timeout: 20000 }).toBe(true)
+  await expect(page.getByTestId('slot-4')).toContainText('NOP')
+  await expect(page.getByTestId('slot-5')).toContainText('NOP')
 })

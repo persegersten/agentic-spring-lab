@@ -109,14 +109,14 @@ Precise bot behavior:
 
 - Fill bots once at match start, then once after each completed tick and queue shift.
 - For each active bot in stable player order, repeatedly call the same domain append operation until positions 4 and 5 are occupied: at most two appends per filling pass.
-- Use a deterministic repeating command sequence: FORWARD_1, FORWARD_1, TURN_RIGHT. Advance the bot’s persisted sequence cursor only on successful append.
+- Choose each command uniformly at random from the eight valid programming commands, excluding WAIT. Use an injectable random source for repeatable tests.
 - Bots never target locked slots, replace commands, act while crashed, or refill from GET requests. They do not activate optional SHIELD automatically in this initial policy.
-- Persist bot fill state with the transaction so retries cannot fill twice.
+- Persist appended bot commands with the tick transaction so repeated scheduler calls cannot fill twice.
 
 Acceptance criteria:
 
 - Clock-controlled and H2 integration tests cover exact deadlines, concurrent append/tick calls, multiple scheduler invocations, rollback, independent game failures, and queue/storage round trips.
-- Bot tests verify initial two-card fill, one free-slot refill after a normal shift, blocked/full/crashed behavior, deterministic choices, and rollback-safe cursors.
+- Bot tests verify initial two-card fill, one free-slot refill after a normal shift, blocked/full/crashed behavior, controlled random choices, and transactional persistence.
 - A disconnected game continues and finishes at its configured deadline.
 
 ### B3 — API contracts and durable-within-match idempotency

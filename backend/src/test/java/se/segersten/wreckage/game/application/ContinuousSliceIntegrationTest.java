@@ -18,6 +18,60 @@ class ContinuousSliceIntegrationTest {
     @Autowired GameRepository repository;
     @Autowired PlatformTransactionManager transactions;
 
+    @Test void rolledBackTickRestoresBotQueuesAndRevision() {
+        var hosted = service.createHostedGame();
+        var id = hosted.game().getId();
+        var host = service.addPlayer(id, "Host", hosted.hostToken());
+        var bot = service.addBot(id, host.player().getId(), host.token());
+        var started = service.startGame(id, hosted.hostToken());
+        var initialQueue = started.getContinuous().queues.get(bot.getId()).snapshot();
+        long revision = started.getContinuous().revision;
+        new TransactionTemplate(transactions).executeWithoutResult(tx -> {
+            var game = repository.findByIdForUpdate(id).orElseThrow();
+            game.getContinuous().nextTick = Instant.EPOCH;
+            repository.save(game);
+            service.advanceTick(id);
+            assertThat(service.getGame(id).getContinuous().tick).isEqualTo(1);
+            tx.setRollbackOnly();
+        });
+        var restored = service.getGame(id);
+        assertThat(restored.getContinuous().tick).isZero();
+        assertThat(restored.getContinuous().revision).isEqualTo(revision);
+        assertThat(restored.getContinuous().queues.get(bot.getId()).snapshot()).isEqualTo(initialQueue);
+    }
+
+    @Test void botQueuesPersistAndRefillThroughBothTickPaths() {
+        var hosted = service.createHostedGame();
+        var id = hosted.game().getId();
+        var human = service.addPlayer(id, "Host", hosted.hostToken());
+        var bot = service.addBot(id, human.player().getId(), human.token());
+        service.startGame(id, hosted.hostToken());
+        var initial = service.getGame(id).getContinuous().queues.get(bot.getId()).snapshot();
+        assertThat(initial.subList(0, 3)).containsOnlyNulls();
+        assertThat(initial.subList(3, 5)).doesNotContainNull();
+        long revision = service.getGame(id).getContinuous().revision;
+        service.getPlayerGame(id, human.player().getId(), human.token());
+        assertThat(service.getGame(id).getContinuous().revision).isEqualTo(revision);
+
+        for (int tick = 1; tick <= 2; tick++) {
+            new TransactionTemplate(transactions).executeWithoutResult(tx -> {
+                var game = repository.findByIdForUpdate(id).orElseThrow();
+                game.getContinuous().nextTick = Instant.EPOCH;
+                repository.save(game);
+            });
+            if (tick == 1) service.advanceTick(id);
+            else service.appendCommand(id, human.player().getId(), human.token(), MovementOrder.TURN_LEFT, UUID.randomUUID());
+            var game = service.getGame(id);
+            assertThat(game.getContinuous().tick).isEqualTo(tick);
+            var queue = game.getContinuous().queues.get(bot.getId()).snapshot();
+            assertThat(queue.get(3 - tick)).isEqualTo(initial.get(3));
+            assertThat(queue.subList(3, 5)).allMatch(command -> command != null && command.isProgrammingCard());
+            long filledRevision = game.getContinuous().revision;
+            service.advanceTick(id);
+            assertThat(service.getGame(id).getContinuous().revision).isEqualTo(filledRevision);
+        }
+    }
+
     @Test void twoHumansSharePersistedTicksAndImmutableQueues() throws Exception {
         var hosted = service.createHostedGame(); var id = hosted.game().getId();
         var a = service.addPlayer(id,"A",hosted.hostToken()); var b = service.addPlayer(id,"B");

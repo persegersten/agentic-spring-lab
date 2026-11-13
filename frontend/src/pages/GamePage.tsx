@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { addPlayer, createGame, getGame, getPlayerGame, startGame } from '../api/games'
+import { addBot, addPlayer, createGame, getGame, getPlayerGame, startGame } from '../api/games'
 import { ContinuousGame } from '../components/ContinuousGame'
 import type { Game, PlayerGame, PlayerSession } from '../types/game'
 
@@ -143,6 +143,10 @@ export function GamePage() {
         <h3>Spelare anslutna</h3>
         {lobby.players.length ? <ul>{lobby.players.map(player => <li key={player.id}>{player.name} <span data-testid="player-kind">({player.automated ? 'Bot' : 'Human'})</span></li>)}</ul> : <p>Bli den första spelaren</p>}
         <p>{lobby.players.length} / {lobby.configuration.maxPlayers} spelare</p>
+        {session && lobby.hostPlayerId === session.playerId && <button
+          disabled={working || lobby.players.length >= lobby.configuration.maxPlayers}
+          onClick={() => void run(async () => { await addBot(session); await refresh() })}
+        >Add Bot</button>}
         {!session && <>
           <input aria-label="Spelarnamn" placeholder="Ditt namn" value={name} onChange={e => setName(e.target.value)} />
           <button disabled={working || !name.trim() || lobby.players.length >= lobby.configuration.maxPlayers} onClick={() => void join()}>Gå med</button>

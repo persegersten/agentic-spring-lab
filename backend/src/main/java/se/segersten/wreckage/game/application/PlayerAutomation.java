@@ -4,4 +4,6 @@ import se.segersten.wreckage.game.domain.Game;
 
 public interface PlayerAutomation {
     void lockBotPrograms(Game game);
+
+    default void fillBotQueues(Game game) {}
 }

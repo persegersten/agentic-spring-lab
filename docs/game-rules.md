@@ -61,6 +61,15 @@ the game explicitly starts it. Starting closes the lobby permanently.
 
 The lobby and shareable game-link concept remain part of the game.
 
+The authenticated creator may add bots while the lobby is open, within the same
+player capacity. Bots count as ordinary participants for spawning, movement,
+collisions, crashes, respawns, and winning. In continuous gameplay, the server
+fills each active bot's available queue slots 4 and 5 at match start and after
+each completed tick. Each appended command is chosen uniformly from the eight
+programming commands, excluding WAIT. Bots obey the same queue restrictions as
+humans, do not append while crashed or after the match finishes, and do not
+automatically activate shields.
+
 ---
 
 ## 3. Board

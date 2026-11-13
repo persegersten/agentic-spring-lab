@@ -11,6 +11,22 @@ import static org.assertj.core.api.Assertions.assertThat;
 class ContinuousSchedulerIntegrationTest {
     @Autowired GameService service;
 
+    @Test void schedulerExecutesBotCommandsWithoutBrowserRequests() throws Exception {
+        var hosted = service.createHostedGame();
+        var id = hosted.game().getId();
+        var host = service.addPlayer(id, "Host", hosted.hostToken());
+        var bot = service.addBot(id, host.player().getId(), host.token());
+        service.startGame(id, hosted.hostToken());
+        Thread.sleep(10500);
+        var game = service.getGame(id);
+        assertThat(game.getContinuous().tick).isGreaterThanOrEqualTo(4);
+        var botPlayer = game.getPlayers().stream().filter(p -> p.getId().equals(bot.getId())).findFirst().orElseThrow();
+        // A bot that crashed on tick 4 may already be respawning with an empty head on tick 5.
+        assertThat(botPlayer.getCrashes() > 0 || game.getRound().programs().get(bot.getId()).commands()
+                .stream().allMatch(MovementOrder::isProgrammingCard)).isTrue();
+        assertThat(game.getContinuous().queues.get(host.player().getId()).snapshot()).containsOnlyNulls();
+    }
+
     @Test void defaultClockExecutesCommandsWithNoBrowserRequests() throws Exception {
         var hosted=service.createHostedGame();var id=hosted.game().getId();
         var a=service.addPlayer(id,"A");service.addPlayer(id,"B");

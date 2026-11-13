@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type CSSProperties } from 'react'
 import type { Board, Direction, Player, RoundEvent, Vehicle } from '../types/game'
 const angles: Record<Direction, number> = { NORTH: 0, EAST: 90, SOUTH: 180, WEST: 270 }
 function VehicleDirection({direction}: {direction: Direction}) {
@@ -19,7 +19,7 @@ export function GameBoard({board,vehicles,players,currentPlayerId,playbackEvent}
  const laserDistance=laser?Math.hypot(laser.newPosition.x-laser.oldPosition.x,laser.newPosition.y-laser.oldPosition.y):0
  const laserAngle=laserDistance?Math.atan2(-(laser!.newPosition.y-laser!.oldPosition.y),laser!.newPosition.x-laser!.oldPosition.x)*180/Math.PI:angles[laser?.oldDirection??'NORTH']-90
  const laserStyle=laser?{left:`${(laser.oldPosition.x+.5)/board.width*100}%`,top:`${(board.height-laser.oldPosition.y-.5)/board.height*100}%`,width:`${Math.max(laserDistance,.45)/board.width*100}%`,transform:`rotate(${laserAngle}deg)`}:undefined
- return <div className="board-wrap"><div className="board" role="grid" aria-label="Spelplan" data-testid="game-board" data-width={board.width} data-height={board.height} style={{gridTemplateColumns:`repeat(${board.width}, 1fr)`,aspectRatio:`${board.width}/${board.height}`}}>
+ return <div className="board-wrap" style={{'--board-ratio':board.width/board.height} as CSSProperties}><div className="board" role="grid" aria-label="Spelplan" data-testid="game-board" data-width={board.width} data-height={board.height} style={{gridTemplateColumns:`repeat(${board.width}, 1fr)`,aspectRatio:`${board.width}/${board.height}`,backgroundSize:`${100/board.width}% ${100/board.height}%`}}>
   {board.walls.map(w=><div className={`wall wall-${w.direction.toLowerCase()}`} data-testid="board-wall" data-x={w.cell.x} data-y={w.cell.y} data-direction={w.direction} key={`${w.cell.x}-${w.cell.y}-${w.direction}`} style={{left:`${w.cell.x/board.width*100}%`,top:`${(board.height-1-w.cell.y)/board.height*100}%`,width:`${100/board.width}%`,height:`${100/board.height}%`}} />)}
   {board.pits.map(p=><div className="pit" data-testid="board-pit" data-x={p.x} data-y={p.y} key={`${p.x}-${p.y}`} style={{left:`${p.x/board.width*100}%`,top:`${(board.height-1-p.y)/board.height*100}%`,width:`${100/board.width}%`,height:`${100/board.height}%`}} />)}
   {(board.obstacles??[]).map(p=><div className="obstacle" data-testid="board-obstacle" data-x={p.x} data-y={p.y} key={`${p.x}-${p.y}`} style={{left:`${p.x/board.width*100}%`,top:`${(board.height-1-p.y)/board.height*100}%`,width:`${100/board.width}%`,height:`${100/board.height}%`}} />)}

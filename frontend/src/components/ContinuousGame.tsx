@@ -24,17 +24,25 @@ export function ContinuousGame({view,session,onSnapshot}:{view:PlayerGame;sessio
   const destination = c?.queue[3] == null ? 4 : c.queue[4] == null ? 5 : null
   const crashed = view.vehicles.some(v => v.playerId === session.playerId && v.status === 'CRASHED')
   return <main className="game-page" data-testid="game-page">
-    <h1>WRECKAGE — {view.status}</h1>
-    <p>Tick {c?.tick ?? 0} · Next tick in {c ? Math.max(0,(Date.parse(c.nextTick)-now+offset)/1000).toFixed(1) : '…'}s</p>
-    <p>All slots start empty. A command in slot 4 executes after four ticks (about 8 seconds). Empty slots execute NOP. Commands cannot be edited or removed.</p>
+    <section className="game-viewport" aria-label="Spelöversikt">
+      <div className="game-heading">
+        <h1>WRECKAGE — {view.status}</h1>
+        <p>Tick {c?.tick ?? 0} · Next tick in {c ? Math.max(0,(Date.parse(c.nextTick)-now+offset)/1000).toFixed(1) : '…'}s</p>
+      </div>
+      <div className="board-stage">
+        <GameBoard board={view.board} vehicles={view.vehicles.filter(v => v.status === 'ACTIVE')} players={view.players} currentPlayerId={view.playerId}/>
+      </div>
+    </section>
+    <aside className="game-controls" aria-label="Spelkontroller">
     <section className="panel"><h2>Your queue → execution</h2>
-      <div style={{display:'flex',gap:16}}>{[5,4,3,2,1].map(slot => <div key={slot} data-testid={`slot-${slot}`}><strong>Slot {slot} {slot <= 3 ? '🔒' : ''}</strong><p>{c?.queue[slot-1] ?? 'NOP'}</p></div>)}</div>
+      <p>All slots start empty. A command in slot 4 executes after four ticks (about 8 seconds). Empty slots execute NOP. Commands cannot be edited or removed.</p>
+      <div className="queue-slots">{[5,4,3,2,1].map(slot => <div key={slot} data-testid={`slot-${slot}`}><strong>Slot {slot} {slot <= 3 ? '🔒' : ''}</strong><p>{c?.queue[slot-1] ?? 'NOP'}</p></div>)}</div>
       <p>{destination ? `Next append: slot ${destination}` : 'Queue full'}</p>
-      {commands.map(command => <button key={command} disabled={!c || !destination || !!pending || busy || crashed || view.status !== 'RUNNING'} onClick={() => void send({command,requestId:crypto.randomUUID()})}>{command}</button>)}
+      <div className="queue-commands">{commands.map(command => <button key={command} disabled={!c || !destination || !!pending || busy || crashed || view.status !== 'RUNNING'} onClick={() => void send({command,requestId:crypto.randomUUID()})}>{command}</button>)}</div>
       {pending && <p>Unconfirmed command: {pending.command}. <button disabled={busy} onClick={() => void send(pending)}>Retry same request</button></p>}
       {error && <p role="alert">{error}</p>}{crashed && <p>Crashed — respawn attempted next tick.</p>}
     </section>
-    <GameBoard board={view.board} vehicles={view.vehicles.filter(v => v.status === 'ACTIVE')} players={view.players} currentPlayerId={view.playerId}/>
     <ScoreTable players={view.players} placements={view.placements}/>
+    </aside>
   </main>
 }
