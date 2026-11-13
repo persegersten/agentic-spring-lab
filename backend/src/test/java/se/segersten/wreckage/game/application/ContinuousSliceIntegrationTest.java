@@ -18,6 +18,37 @@ class ContinuousSliceIntegrationTest {
     @Autowired GameRepository repository;
     @Autowired PlatformTransactionManager transactions;
 
+    @Test void shieldRollbackAndConcurrentRequestsConsumeExactlyOneUse() throws Exception {
+        var hosted = service.createHostedGame();
+        var id = hosted.game().getId();
+        var host = service.addPlayer(id, "Host", hosted.hostToken());
+        service.addPlayer(id, "Other");
+        service.startGame(id, hosted.hostToken());
+        var rolledBack = UUID.randomUUID();
+        new TransactionTemplate(transactions).executeWithoutResult(tx -> {
+            service.activateShield(id, host.player().getId(), host.token(), rolledBack);
+            tx.setRollbackOnly();
+        });
+        assertThat(service.getGame(id).isShieldAvailable(host.player().getId())).isTrue();
+        assertThat(service.getGame(id).getContinuous().shieldPending(host.player().getId())).isFalse();
+        var start = new java.util.concurrent.CountDownLatch(1);
+        try (var executor = java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor()) {
+            var tasks = new java.util.ArrayList<java.util.concurrent.Future<Boolean>>();
+            for (int i = 0; i < 2; i++) tasks.add(executor.submit(() -> {
+                start.await();
+                try { service.activateShield(id, host.player().getId(), host.token(), UUID.randomUUID()); return true; }
+                catch (IllegalStateException expected) { return false; }
+            }));
+            start.countDown();
+            int accepted = 0;
+            for (var task : tasks) if (task.get(10, java.util.concurrent.TimeUnit.SECONDS)) accepted++;
+            assertThat(accepted).isEqualTo(1);
+        }
+        var restored = service.getGame(id);
+        assertThat(restored.isShieldAvailable(host.player().getId())).isFalse();
+        assertThat(restored.getContinuous().shieldTicksRemaining(host.player().getId())).isEqualTo(5);
+    }
+
     @Test void laserTickPersistsSpinAndRollbackRetryUsesTheSameRandomResult() {
         var now = Instant.now();
         var board = new Board(7, 7, java.util.Set.of(), java.util.Set.of(), java.util.Set.of(), java.util.List.of(

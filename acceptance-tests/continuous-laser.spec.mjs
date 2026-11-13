@@ -42,8 +42,15 @@ async function setup(page, { reducedMotion = false, mobile = false } = {}) {
   await page.evaluate(() => {
     window.maxLaserCount = 0
     window.laserAppearances = 0
+    window.laserPaths = []
     new MutationObserver(records => {
       window.maxLaserCount = Math.max(window.maxLaserCount, document.querySelectorAll('[data-testid="laser-shot"]').length)
+      for (const shot of document.querySelectorAll('[data-testid="laser-shot"]')) {
+        if (!window.laserPaths.some(path => path.sequence === shot.dataset.sequence)) {
+          window.laserPaths.push({ sequence: shot.dataset.sequence, startX: shot.dataset.startX,
+            strokeWidth: getComputedStyle(shot.querySelector('.laser-beam')).strokeWidth })
+        }
+      }
       for (const record of records) for (const node of record.addedNodes) {
         if (node.nodeType === 1) {
           if (node.matches('[data-testid="laser-shot"]')) window.laserAppearances++
@@ -68,9 +75,8 @@ for (const mobile of [false, true]) {
   test(`continuous laser shows beams, a one-step push and full spins (${mobile ? 'mobile' : 'desktop'})`, async ({ page }) => {
     const game = await setup(page, { mobile })
     game.fire()
-    await expect(page.getByTestId('laser-shot').first()).toBeVisible()
-    await expect(page.locator('.laser-beam').first()).toHaveCSS('stroke-width', '6px')
-    await expect(page.getByTestId('laser-shot').first()).toHaveAttribute('data-start-x', '1')
+    // Inspect the captured appearance; the first beam may expire while a later one is still visible.
+    await expect.poll(() => page.evaluate(() => window.laserPaths)).toContainEqual({ sequence: '1', startX: '1', strokeWidth: '6px' })
     await page.screenshot({ path: `/tmp/wreckage-laser-${mobile ? 'mobile' : 'desktop'}.png` })
     await expect.poll(() => page.evaluate(() => window.maxLaserCount)).toBe(2)
     for (const [id, x, direction] of [['target-c', '4', 'EAST'], ['target-d', '3', 'SOUTH']]) {

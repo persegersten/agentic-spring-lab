@@ -150,6 +150,7 @@ The principal endpoints are:
 - `POST /games/{gameId}/players`
 - `POST /games/{gameId}/bots`
 - `POST /games/{gameId}/start`
+- `POST /games/{gameId}/shield`
 - `GET /games/{gameId}`
 - `GET /games/{gameId}/players/{playerId}`
 - `PUT /games/{gameId}/players/{playerId}/loadout`
@@ -237,3 +238,31 @@ hit flashes; Laser-tagged turns add complete visual revolutions without affectin
 server orientation. Polls never restart the timeline. Initial loads and skipped
 ticks show the latest state directly, and a new tick cancels older timers. Reduced
 motion retains visible shot/hit markers while disabling spin animation.
+
+## Continuous shield and flag standings
+
+`POST /games/{gameId}/shield` uses the usual player headers and a UUID
+`requestId`. The application reconciles an overdue tick under the game write lock
+before accepting activation. The aggregate consumes shield availability and
+schedules five protected ticks beginning with the next tick. Round resolution
+passes active shields into the existing register effects without occupying a
+command queue slot; SHIELD_ACTIVATED is recorded only when protection starts.
+Crashes do not pause or refund duration. The serialized continuous payload adds
+`S|playerId|requestId|startTick` rows; old payloads remain readable. Activation
+receipts survive expiration and make accepted-request retries harmless even after
+match completion. Request IDs cannot be reused across command and shield actions.
+No database migration is needed.
+
+The authenticated continuous snapshot adds `shieldPending`,
+`shieldTicksRemaining` (future protected ticks, excluding the resolved tick), and
+`activeShieldPlayerIds` for public protection rings. Pending activation reports
+five remaining ticks; after the first protected tick there are four, and after
+the fifth the shield is inactive. The browser keeps uncertain activation request
+IDs in local storage, independently of pending commands. The shield control
+remains visible even when the queue is full and shares the viewport budget with
+all command buttons and standings.
+
+Standings display authoritative `capturedCheckpoints` as flags, rather than the
+internal score. Running ties retain join order; final standings retain server
+placements and winner markers. Scores remain in persistence and responses for
+compatibility but are not shown in standings, including their tooltips.

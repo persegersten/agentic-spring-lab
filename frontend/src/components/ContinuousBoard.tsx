@@ -34,7 +34,7 @@ function TickBoard({ view, animate }: { view: PlayerGame; animate: boolean }) {
     spins[event.vehicleId] = (spins[event.vehicleId] ?? 0) + 1
   }
   return <GameBoard board={view.board} vehicles={vehicles} players={view.players} currentPlayerId={view.playerId}
-    laserEvents={frame.effects} laserSpins={spins} />
+    laserEvents={frame.effects} laserSpins={spins} activeShieldPlayerIds={view.continuous?.activeShieldPlayerIds ?? []} />
 }
 
 export function ContinuousBoard({ view }: { view: PlayerGame }) {

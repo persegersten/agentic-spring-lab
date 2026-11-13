@@ -15,3 +15,5 @@ export async function saveProgramDraft(session:PlayerSession,orders:MovementOrde
 export async function submitProgram(session:PlayerSession,orders:MovementOrder[],shieldSelected:boolean):Promise<PlayerGame>{return json(await fetch(`/games/${session.gameId}/rounds/current/program`,{method:'POST',headers:{...auth(session),'Content-Type':'application/json'},body:JSON.stringify({orders,shieldSelected})}),'Kunde inte spara planen')}
 
 export async function appendCommand(session:PlayerSession,command:MovementOrder,requestId:string):Promise<PlayerGame>{return json(await fetch(`/games/${session.gameId}/commands`,{method:'POST',headers:{...auth(session),'Content-Type':'application/json'},body:JSON.stringify({command,requestId})}),'Command rejected')}
+
+export async function activateShield(session:PlayerSession,requestId:string):Promise<PlayerGame>{return json(await fetch(`/games/${session.gameId}/shield`,{method:'POST',headers:{...auth(session),'Content-Type':'application/json'},body:JSON.stringify({requestId})}),'Skölden kunde inte aktiveras')}

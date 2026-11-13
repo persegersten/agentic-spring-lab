@@ -14,14 +14,28 @@ public record PlayerGameResponse(UUID id, UUID playerId, UUID hostPlayerId, Game
                 game.getPlayers().stream().map(player -> PlayerResponse.from(player, game.getBoard())).toList(),
                 BoardResponse.from(game.getBoard()), game.getVehicleStates().stream().map(VehicleResponse::from).toList(), round,
                 game.isShieldAvailable(playerId),
-                game.getPlacements(), game.getContinuous() == null ? null : new ContinuousSnapshot(game.getContinuous().revision, game.getContinuous().tick, java.time.Instant.now(), game.getContinuous().nextTick, game.getContinuous().deadline, game.getContinuous().intervalMillis, game.getContinuous().queues.get(playerId).snapshot(), lastExecutedCommand(game, playerId)));
+                game.getPlacements(), snapshot(game, playerId));
     }
     private static MovementOrder lastExecutedCommand(Game game, UUID playerId) {
         if (game.getContinuous().tick == 0 || game.getRound() == null) return null;
         var program = game.getRound().programs().get(playerId);
         return program == null || program.commands().isEmpty() ? null : program.commands().getFirst();
     }
-    public record ContinuousSnapshot(long revision, long tick, java.time.Instant serverTime, java.time.Instant nextTick, java.time.Instant deadline, long intervalMillis, List<MovementOrder> queue, MovementOrder lastExecutedCommand) {}
+    private static ContinuousSnapshot snapshot(Game game, UUID playerId) {
+        var c = game.getContinuous();
+        if (c == null) return null;
+        boolean running = game.getStatus() == GameStatus.RUNNING;
+        var active = running ? game.getPlayers().stream().map(Player::getId)
+                .filter(id -> c.shieldedPlayersAt(c.tick).contains(id) && c.shieldTicksRemaining(id) > 0)
+                .filter(id -> game.getVehicleStates().stream().anyMatch(v -> v.vehicle().playerId().equals(id) && v.isActive()))
+                .toList() : List.<UUID>of();
+        return new ContinuousSnapshot(c.revision, c.tick, java.time.Instant.now(), c.nextTick, c.deadline,
+                c.intervalMillis, c.queues.get(playerId).snapshot(), lastExecutedCommand(game, playerId),
+                running && c.shieldPending(playerId), running ? c.shieldTicksRemaining(playerId) : 0, active);
+    }
+    public record ContinuousSnapshot(long revision, long tick, java.time.Instant serverTime, java.time.Instant nextTick,
+            java.time.Instant deadline, long intervalMillis, List<MovementOrder> queue, MovementOrder lastExecutedCommand,
+            boolean shieldPending, int shieldTicksRemaining, List<UUID> activeShieldPlayerIds) {}
     public record PlayerRoundResponse(PublicRoundResponse state, List<MovementOrder> hand, List<MovementOrder> program,
                                       boolean shieldSelected) {}
 }

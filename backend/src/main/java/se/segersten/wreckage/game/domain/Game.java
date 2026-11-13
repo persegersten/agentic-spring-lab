@@ -43,7 +43,10 @@ public class Game {
             players.stream().collect(java.util.stream.Collectors.toMap(Player::getId, Player::getScore)), startEvents);
         if (!programs.isEmpty()) {
             var engine = se.segersten.wreckage.game.engine.MovementEngine.forResolution(id, round.number());
-            round.resolve(engine, new se.segersten.wreckage.game.engine.BoardEffectEngine(engine), players, configuration, true);
+            var shielded = continuous.shieldedPlayersAt(continuous.tick + 1);
+            var starting = shielded.stream().filter(p -> continuous.shieldStartsAt(p, continuous.tick + 1))
+                    .collect(java.util.stream.Collectors.toSet());
+            round.resolve(engine, new se.segersten.wreckage.game.engine.BoardEffectEngine(engine), players, configuration, true, shielded, starting);
             round.finalVehicleStates().forEach(v -> vehicles.put(v.vehicle().playerId(), v));
         }
         continuous.queues.forEach((id,q) -> { if (vehicles.get(id).isActive()) q.shift(); else q.clear(); });
@@ -106,6 +109,16 @@ public class Game {
         VehicleState state = vehicles.get(playerId);
         if (state == null) throw new IllegalArgumentException("Player has no vehicle");
         vehicles.put(playerId, state.consumeShield());
+    }
+    public void activateContinuousShield(UUID playerId, UUID requestId) {
+        requirePlayer(playerId);
+        if (continuous == null) throw new IllegalStateException("Match has not started");
+        if (continuous.duplicateShield(playerId, requestId)) return;
+        if (status != GameStatus.RUNNING) throw new IllegalStateException("Match is finished");
+        if (!vehicles.get(playerId).isActive()) throw new IllegalStateException("Crashed vehicles cannot activate shield");
+        if (!isShieldAvailable(playerId)) throw new IllegalStateException("Shield has already been consumed");
+        continuous.scheduleShield(playerId, requestId);
+        consumeShield(playerId);
     }
 
     public Player addPlayer(String name) { return addPlayer(name, "legacy", Instant.now()); }

@@ -14,14 +14,14 @@ async function openGame(page, viewport, width, height, playerCount) {
     id: gameId, playerId, status: 'RUNNING', roundLimit: 7,
     configuration: { maxPlayers: 10, programSize: 5 },
     players: Array.from({ length: playerCount }, (_, index) => ({ id: index ? `player-${index}` : playerId,
-      name: `PlayerWithAVeryLongUnbrokenName${index}`, score: index - 1, crashes: 0 })),
+      name: `PlayerWithAVeryLongUnbrokenName${index}`, score: 1000 - index, capturedCheckpoints: index % 4, crashes: 0 })),
     board: { width, height, walls: [], pits: [], obstacles: [],
       checkpoints: [{ id: 'CP1', order: 1, position: { x: width - 1, y: height - 1 } }],
       spawnPoints: [], conveyors: [], rotators: [], controlPoints: [] },
     vehicles: [{ id: 'vehicle', playerId, x: 0, y: 0, direction: 'NORTH', status: 'ACTIVE' }],
-    placements: [], round: null,
+    placements: [], round: null, shieldAvailable: true,
     continuous: { revision: 1, tick: 1, serverTime: new Date().toISOString(),
-      nextTick: new Date(Date.now() + 2000).toISOString(), queue: [null, null, null, null, null], lastExecutedCommand: 'WAIT' },
+      nextTick: new Date(Date.now() + 2000).toISOString(), queue: [null, null, null, null, null], lastExecutedCommand: 'WAIT', shieldPending: false, shieldTicksRemaining: 0, activeShieldPlayerIds: [] },
   }
   await page.setViewportSize(viewport)
   await page.addInitScript(session => localStorage.setItem(`wreckage-session:${session.gameId}`, JSON.stringify(session)), { gameId, playerId, token: 'test-token' })
@@ -40,7 +40,7 @@ async function openGame(page, viewport, width, height, playerCount) {
 }
 
 async function expectFit(page, viewport, playerCount) {
-  const essential = page.locator('.game-heading, .board-wrap, .command-machine, .machine-slot, .queue-cargo, .machine-execution, .execution-command, .queue-commands button, .compact-scores, .compact-score-list li, .queue-status')
+  const essential = page.locator('.game-heading, .board-wrap, .command-machine, .machine-slot, .queue-cargo, .machine-execution, .execution-command, .queue-commands button, .shield-ability, .shield-ability button, .compact-scores, .compact-score-list li, .queue-status')
   await expect(async () => {
     for (const element of await essential.all()) {
       const box = await element.boundingBox()

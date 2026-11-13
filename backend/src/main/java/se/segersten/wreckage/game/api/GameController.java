@@ -123,6 +123,13 @@ public class GameController {
     }
     public record CommandRequest(MovementOrder command, UUID requestId) {}
 
+    @PostMapping("/{gameId}/shield")
+    public PlayerGameResponse activateShield(@PathVariable UUID gameId, @RequestHeader("X-Player-Id") UUID playerId,
+            @RequestHeader(value = "X-Player-Token", required = false) String token, @RequestBody ShieldRequest request) {
+        return PlayerGameResponse.from(gameService.activateShield(gameId, playerId, token, request.requestId()), playerId);
+    }
+    public record ShieldRequest(UUID requestId) {}
+
     @PostMapping("/{gameId}/rounds")
     @ResponseStatus(HttpStatus.CREATED)
     public PlayerGameResponse startRound(@PathVariable UUID gameId,

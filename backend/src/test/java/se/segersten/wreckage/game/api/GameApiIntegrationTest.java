@@ -53,6 +53,9 @@ class GameApiIntegrationTest {
     private GameRepository gameRepository;
 
     @Autowired
+    private se.segersten.wreckage.game.application.GameService gameService;
+
+    @Autowired
     private PlatformTransactionManager transactionManager;
 
     @Test
@@ -369,6 +372,41 @@ class GameApiIntegrationTest {
         assertThat(json(accepted).path("continuous").path("queue").get(3).asText()).isEqualTo("LASER");
         assertThat(json(getPlayerGame(gameId,b)).path("continuous").path("queue").get(3).isNull()).isTrue();
         assertThat(json(get("/games/"+gameId)).has("continuous")).isFalse();
+    }
+
+    @Test
+    void shieldActivationIsAuthenticatedIdempotentAndPersistsThroughFiveTicks() throws Exception {
+        var created = post("/games", null);
+        String gameId = json(created).path("id").asText();
+        var player = json(post("/games/" + gameId + "/players", "{\"name\":\"A\"}"));
+        post("/games/" + gameId + "/players", "{\"name\":\"B\"}");
+        postHost(gameId, json(created).path("hostToken").asText());
+        String path = "/games/" + gameId + "/shield";
+        String body = "{\"requestId\":\"" + UUID.randomUUID() + "\"}";
+        assertThat(post(path, body).statusCode()).isEqualTo(400);
+        assertThat(postPlayer(path, player, "{}").statusCode()).isEqualTo(400);
+        var accepted = postPlayer(path, player, body);
+        assertThat(accepted.statusCode()).isEqualTo(200);
+        assertThat(json(accepted).path("shieldAvailable").asBoolean()).isFalse();
+        assertThat(json(accepted).path("continuous").path("shieldPending").asBoolean()).isTrue();
+        assertThat(json(accepted).path("continuous").path("shieldTicksRemaining").asInt()).isEqualTo(5);
+        long revision = json(accepted).path("continuous").path("revision").asLong();
+        assertThat(json(postPlayer(path, player, body)).path("continuous").path("revision").asLong()).isEqualTo(revision);
+        assertThat(postPlayer(path, player, "{\"requestId\":\"" + UUID.randomUUID() + "\"}").statusCode()).isEqualTo(409);
+        for (int tick = 1; tick <= 5; tick++) {
+            new TransactionTemplate(transactionManager).executeWithoutResult(tx -> {
+                var game = gameRepository.findByIdForUpdate(UUID.fromString(gameId)).orElseThrow();
+                game.getContinuous().nextTick = java.time.Instant.EPOCH;
+                gameRepository.save(game);
+            });
+            gameService.advanceTick(UUID.fromString(gameId));
+            var view = json(getPlayerGame(gameId, player));
+            assertThat(view.path("continuous").path("shieldTicksRemaining").asInt()).isEqualTo(5 - tick);
+            assertThat(view.path("continuous").path("shieldPending").asBoolean()).isFalse();
+            assertThat(view.path("continuous").path("activeShieldPlayerIds").valueStream().map(JsonNode::asText))
+                    .hasSize(tick < 5 ? 1 : 0);
+        }
+        assertThat(postPlayer(path, player, body).statusCode()).isEqualTo(200);
     }
 
     @Test

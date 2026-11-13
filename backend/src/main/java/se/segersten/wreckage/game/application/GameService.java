@@ -258,6 +258,15 @@ public class GameService {
         c.append(player, requestId, command);
         return gameRepository.save(game);
     }
+    public Game activateShield(UUID id, UUID player, String token, UUID requestId) {
+        Game game = authenticatedGameForUpdate(id, player, token);
+        var continuous = game.getContinuous();
+        if (continuous == null) throw new IllegalStateException("Match has not started");
+        if (continuous.duplicateShield(player, requestId)) return game;
+        tickAndFillBots(game);
+        game.activateContinuousShield(player, requestId);
+        return gameRepository.save(game);
+    }
     public void completeExpiredPlanning() {
         Instant now = clock.instant();
         for (Game game : gameRepository.findAllByStatusForUpdate(GameStatus.RUNNING)) {

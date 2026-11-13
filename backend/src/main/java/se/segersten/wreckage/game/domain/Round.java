@@ -90,6 +90,9 @@ public final class Round {
     }
 
     public void resolve(se.segersten.wreckage.game.engine.MovementEngine engine, se.segersten.wreckage.game.engine.BoardEffectEngine effects, List<Player> players, GameConfiguration configuration, boolean continuous) {
+        resolve(engine, effects, players, configuration, continuous, java.util.Set.of(), java.util.Set.of());
+    }
+    public void resolve(se.segersten.wreckage.game.engine.MovementEngine engine, se.segersten.wreckage.game.engine.BoardEffectEngine effects, List<Player> players, GameConfiguration configuration, boolean continuous, java.util.Set<UUID> shieldedPlayers, java.util.Set<UUID> startingShields) {
         if (!allReady()) throw new IllegalStateException("Not all players are ready");
         phase = RoundPhase.RESOLVING;
         GameState state = initialState;
@@ -99,10 +102,12 @@ public final class Round {
         boolean checkpointVictory = false;
         var registerEffects = new se.segersten.wreckage.game.engine.RegisterEffects();
         for (UUID playerId : initiative) {
-            if (!programs.get(playerId).shieldSelected()) continue;
+            boolean selected = programs.get(playerId).shieldSelected();
+            if (!selected && !shieldedPlayers.contains(playerId)) continue;
             VehicleState vehicle = activeVehicle(state, playerId);
             if (vehicle == null) continue;
             registerEffects.shield(vehicle.vehicle().id());
+            if (!selected && !startingShields.contains(playerId)) continue;
             events.add(new RoundEvent(0, RoundEventType.SHIELD_ACTIVATED, playerId, vehicle.vehicle().id(),
                     vehicle.position(), vehicle.position(), vehicle.orientation(), vehicle.orientation())
                     .withSequence(events.size() + 1));

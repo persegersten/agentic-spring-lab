@@ -6,8 +6,8 @@
 > Turbo, Side Step, or weapon-crash scores. `MovementOrder.LASER` remains a
 > programming card that attempts one tile of displacement away from the shooter
 > and then spins the surviving, unshielded target to a server-chosen random cardinal
-> direction. The original direction is also a possible result. Each player may select one round-long immovable shield once per
-> match. Checkpoint, control-point, crash, and push scoring otherwise remains as
+> direction. The original direction is also a possible result. Each player may activate one immovable shield per match. In continuous play
+> it starts next tick and protects that tick plus four following ticks. Checkpoint, control-point, crash, and push scoring otherwise remains as
 > documented. Forced displacement stops at board boundaries; voluntary movement
 > through an open board edge still crashes.
 
@@ -71,6 +71,19 @@ each completed tick. Each appended command is chosen uniformly from the six avai
 programming commands, excluding WAIT. Bots obey the same queue restrictions as
 humans, do not append while crashed or after the match finishes, and do not
 automatically activate shields.
+
+In continuous play, SHIELD is a separate authenticated ability request and never
+occupies a command slot. Accepting activation consumes the once-per-match use;
+it begins at the next tick's start before movement and board effects. It protects
+for five consecutive ticks. It prevents forced displacement and Laser hit turns,
+but not the owner's voluntary movement or crashes caused by that movement.
+Crashes neither refund the use nor pause its duration. A crashed robot cannot
+request activation. Repeating an accepted request ID never consumes another use.
+
+The player-facing standings show only the number of captured flags (ordered
+checkpoints), including in the final standings. Internal scores and crash counts
+are not displayed there. This presentation change does not alter checkpoint
+ordering, match completion or the existing placement and tie-break rules.
 
 ---
 

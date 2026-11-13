@@ -34,6 +34,30 @@ import se.segersten.wreckage.game.domain.Wall;
 import se.segersten.wreckage.game.domain.Checkpoint;
 
 class GameServiceTest {
+    @Test
+    void shieldReconcilesAnOverdueTickAndRetryAfterMatchEndDoesNotReactivateIt() {
+        var now = Instant.parse("2099-01-01T00:00:00Z");
+        var repository = new InMemoryGameRepository();
+        var creator = new GameService(repository, Clock.fixed(now, ZoneOffset.UTC));
+        var hosted = creator.createHostedGame();
+        var id = hosted.game().getId();
+        var host = creator.addPlayer(id, "Host", hosted.hostToken());
+        creator.addPlayer(id, "Other");
+        creator.startGame(id, hosted.hostToken());
+        var request = UUID.randomUUID();
+        var later = new GameService(repository, Clock.fixed(now.plusSeconds(3), ZoneOffset.UTC));
+        var game = later.activateShield(id, host.player().getId(), host.token(), request);
+        assertThat(game.getContinuous().tick).isEqualTo(1);
+        assertThat(game.getContinuous().shieldedPlayersAt(1)).isEmpty();
+        assertThat(game.getContinuous().shieldedPlayersAt(2)).containsExactly(host.player().getId());
+        var ended = new GameService(repository, Clock.fixed(now.plusSeconds(601), ZoneOffset.UTC));
+        ended.advanceTick(id);
+        long revision = game.getContinuous().revision;
+        assertThat(ended.activateShield(id, host.player().getId(), host.token(), request).getStatus()).isEqualTo(GameStatus.FINISHED);
+        assertThat(game.getContinuous().revision).isEqualTo(revision);
+        assertThatThrownBy(() -> ended.activateShield(id, host.player().getId(), host.token(), UUID.randomUUID())).isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> later.activateShield(id, host.player().getId(), "wrong", request)).isInstanceOf(SecurityException.class);
+    }
 
     @Test
     void rejectsCreationWhenWaitingAndRunningGamesReachTheConfiguredLimit() {
