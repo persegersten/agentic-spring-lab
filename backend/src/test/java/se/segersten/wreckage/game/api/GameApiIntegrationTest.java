@@ -64,6 +64,9 @@ class GameApiIntegrationTest {
         assertThat(game.path("id").asText()).isNotBlank();
         assertThat(game.path("players").isEmpty()).isTrue();
         assertThat(game.path("status").asText()).isEqualTo("WAITING_FOR_PLAYERS");
+        GameStatus persistedStatus = new TransactionTemplate(transactionManager).execute(transaction ->
+                gameRepository.findById(UUID.fromString(game.path("id").asText())).orElseThrow().getStatus());
+        assertThat(persistedStatus).isEqualTo(GameStatus.WAITING_FOR_PLAYERS);
         assertThat(game.path("configuration").path("maxPlayers").asInt()).isEqualTo(9);
         assertThat(game.path("configuration").path("programSize").asInt()).isEqualTo(5);
         assertThat(game.path("configuration").path("roundLimit").asInt()).isEqualTo(6);
