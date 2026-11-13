@@ -1,12 +1,13 @@
 import { useEffect, useEffectEvent, useState } from 'react'
 import type { Board, Player, PublicRound, RoundEvent, Vehicle } from '../types/game'
 import { RoundEventDebugView } from './RoundEventDebugView'
+import { playbackVehicles } from './playbackVehicles'
 
 function describeEvent(event: RoundEvent, players: Player[]) {
   const name = players.find(player => player.id === event.playerId)?.name ?? 'Fordonet'
   switch (event.type) {
     case 'MOVE': return `${name} kör`
-    case 'TURN': return `${name} svänger`
+    case 'TURN': return event.actionType === 'LASER' ? `${name} snurrar efter laserträffen` : `${name} svänger`
     case 'RAM': return `${name} rammar`
     case 'PUSH': return `${name} knuffas${event.actionType === 'LASER' ? ' av Laser' : ''}`
     case 'PUSH_BLOCKED': return `${name} kan inte knuffas`
@@ -38,17 +39,9 @@ export function RoundPlayback({board,round,players,onVehicles,onScores,onCurrent
   }, [])
 
   useEffect(() => {
-    const vehicles = timeline.initialVehicles.map(vehicle => ({...vehicle}))
+    const vehicles = playbackVehicles(timeline.initialVehicles, timeline.playback.slice(0, eventIndex))
     const scores = { ...(timeline.initialScores ?? Object.fromEntries(players.map(player => [player.id, player.score ?? 0]))) }
     for (const event of timeline.playback.slice(0, eventIndex)) {
-      const vehicleIndex = vehicles.findIndex(candidate => candidate.id === event.vehicleId)
-      const vehicle = vehicles[vehicleIndex]
-      if(vehicle&&['MOVE','TURN','RAM','PUSH','CONVEYOR_MOVE','CONVEYOR_RAM','CONVEYOR_PUSH','ROTATOR_TURN'].includes(event.type)){
-        vehicle.x = event.newPosition.x
-        vehicle.y = event.newPosition.y
-        vehicle.direction = event.newDirection
-      }
-      if(vehicle&&['CRASH','CONVEYOR_CRASH'].includes(event.type))vehicles.splice(vehicleIndex,1)
       if (event.type === 'SCORE_CHANGED' && event.newScore !== undefined) scores[event.playerId] = event.newScore
     }
     onVehicles(vehicles)

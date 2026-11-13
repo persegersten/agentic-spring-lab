@@ -10,7 +10,7 @@ Retain all six milestones, with F1 first to validate queue interaction before co
 - Capture commands together at each server tick, then resolve sequentially in deterministic initiative order. Rotate initiative each tick. This is not true simultaneous movement.
 - Default tick interval: 2 seconds, configurable and fixed for a match once started.
 - Default playtest duration: 600 seconds, configurable independently of tick interval. Preserve existing checkpoint-progress/distance ranking at timeout.
-- All eight existing playable commands remain available in an unlimited palette, including Laser. Empty slots execute NOP.
+- Six commands are available in an unlimited palette: FORWARD_1, REVERSE_1, TURN_LEFT, TURN_RIGHT, U_TURN and LASER. FORWARD_2 and FORWARD_3 are retired for new input. Empty slots execute NOP.
 - Commands are immutable after acceptance. Append only to the first empty position among slots 4 and 5.
 - Preserve the previously selected next-tick respawn and crash queue-clearing behavior.
 - Preserve SHIELD as a once-per-match ability: activation starts next tick and protects for five ticks.
@@ -109,7 +109,7 @@ Precise bot behavior:
 
 - Fill bots once at match start, then once after each completed tick and queue shift.
 - For each active bot in stable player order, repeatedly call the same domain append operation until positions 4 and 5 are occupied: at most two appends per filling pass.
-- Choose each command uniformly at random from the eight valid programming commands, excluding WAIT. Use an injectable random source for repeatable tests.
+- Choose each command uniformly at random from the six available programming commands, excluding WAIT. Use an injectable random source for repeatable tests.
 - Bots never target locked slots, replace commands, act while crashed, or refill from GET requests. They do not activate optional SHIELD automatically in this initial policy.
 - Persist appended bot commands with the tick transaction so repeated scheduler calls cannot fill twice.
 

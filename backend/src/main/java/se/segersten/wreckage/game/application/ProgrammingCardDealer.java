@@ -18,7 +18,7 @@ public final class ProgrammingCardDealer {
     public ProgrammingCardDealer(Map<MovementOrder, Integer> weights, RandomGenerator random) {
         this.weights = new LinkedHashMap<>(Objects.requireNonNull(weights));
         this.random = Objects.requireNonNull(random);
-        if (this.weights.isEmpty() || this.weights.keySet().stream().anyMatch(card -> !card.isProgrammingCard())
+        if (this.weights.isEmpty() || this.weights.keySet().stream().anyMatch(card -> !card.isAvailableCommand())
                 || this.weights.values().stream().anyMatch(weight -> weight == null || weight <= 0)) {
             throw new IllegalArgumentException("Programming card weights must be positive and dealable");
         }

@@ -6,6 +6,17 @@ import java.util.*;
 import static org.assertj.core.api.Assertions.*;
 
 class ContinuousExecutionTest {
+    @Test void rejectsRetiredCommandsButReadsPreviouslyStoredQueues() {
+        var queue = new CommandQueue();
+        for (var command : List.of(MovementOrder.FORWARD_2, MovementOrder.FORWARD_3, MovementOrder.WAIT)) {
+            assertThatThrownBy(() -> queue.append(command)).isInstanceOf(IllegalArgumentException.class);
+        }
+        assertThat(queue.snapshot()).containsOnlyNulls();
+        var restored = CommandQueue.decode("FORWARD_2,FORWARD_3,-,-,-");
+        assertThat(restored.head()).isEqualTo(MovementOrder.FORWARD_2);
+        restored.shift();
+        assertThat(restored.head()).isEqualTo(MovementOrder.FORWARD_3);
+    }
     @Test void appendOnlyUnlockedSlotsAndShift() {
         var q = new CommandQueue();
         assertThat(q.append(MovementOrder.FORWARD_1)).isEqualTo(4);

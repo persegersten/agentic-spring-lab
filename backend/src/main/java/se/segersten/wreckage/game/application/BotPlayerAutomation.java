@@ -12,7 +12,7 @@ import se.segersten.wreckage.game.domain.MovementOrder;
 @Component
 public class BotPlayerAutomation implements PlayerAutomation {
     private static final MovementOrder[] COMMANDS = Arrays.stream(MovementOrder.values())
-            .filter(MovementOrder::isProgrammingCard).toArray(MovementOrder[]::new);
+            .filter(MovementOrder::isAvailableCommand).toArray(MovementOrder[]::new);
     private final RandomGenerator random;
 
     public BotPlayerAutomation() {

@@ -351,7 +351,7 @@ public class GameService {
     private void resolveIfReady(Game game) {
         Round round = game.getRound();
         if (round != null && round.phase() == se.segersten.wreckage.game.domain.RoundPhase.PLANNING
-                &&round.allReady()){var movement=new MovementEngine();round.resolve(movement,new se.segersten.wreckage.game.engine.BoardEffectEngine(movement),game.getPlayers(),game.getConfiguration());}
+                &&round.allReady()){var movement=MovementEngine.forResolution(game.getId(),round.number());round.resolve(movement,new se.segersten.wreckage.game.engine.BoardEffectEngine(movement),game.getPlayers(),game.getConfiguration());}
         game.completeRound();
     }
 
@@ -419,8 +419,7 @@ public class GameService {
 
     private static ProgrammingCardDealer defaultDealer() {
         var weights = new java.util.LinkedHashMap<MovementOrder, Integer>();
-        weights.put(MovementOrder.FORWARD_1, 20); weights.put(MovementOrder.FORWARD_2, 15);
-        weights.put(MovementOrder.FORWARD_3, 10); weights.put(MovementOrder.REVERSE_1, 10);
+        weights.put(MovementOrder.FORWARD_1, 20); weights.put(MovementOrder.REVERSE_1, 10);
         weights.put(MovementOrder.TURN_LEFT, 15); weights.put(MovementOrder.TURN_RIGHT, 15);
         weights.put(MovementOrder.U_TURN, 5); weights.put(MovementOrder.LASER, 10);
         return new ProgrammingCardDealer(weights, java.util.random.RandomGenerator.getDefault());

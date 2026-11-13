@@ -14,9 +14,14 @@ public record PlayerGameResponse(UUID id, UUID playerId, UUID hostPlayerId, Game
                 game.getPlayers().stream().map(player -> PlayerResponse.from(player, game.getBoard())).toList(),
                 BoardResponse.from(game.getBoard()), game.getVehicleStates().stream().map(VehicleResponse::from).toList(), round,
                 game.isShieldAvailable(playerId),
-                game.getPlacements(), game.getContinuous() == null ? null : new ContinuousSnapshot(game.getContinuous().revision, game.getContinuous().tick, java.time.Instant.now(), game.getContinuous().nextTick, game.getContinuous().deadline, game.getContinuous().intervalMillis, game.getContinuous().queues.get(playerId).snapshot()));
+                game.getPlacements(), game.getContinuous() == null ? null : new ContinuousSnapshot(game.getContinuous().revision, game.getContinuous().tick, java.time.Instant.now(), game.getContinuous().nextTick, game.getContinuous().deadline, game.getContinuous().intervalMillis, game.getContinuous().queues.get(playerId).snapshot(), lastExecutedCommand(game, playerId)));
     }
-    public record ContinuousSnapshot(long revision, long tick, java.time.Instant serverTime, java.time.Instant nextTick, java.time.Instant deadline, long intervalMillis, List<MovementOrder> queue) {}
+    private static MovementOrder lastExecutedCommand(Game game, UUID playerId) {
+        if (game.getContinuous().tick == 0 || game.getRound() == null) return null;
+        var program = game.getRound().programs().get(playerId);
+        return program == null || program.commands().isEmpty() ? null : program.commands().getFirst();
+    }
+    public record ContinuousSnapshot(long revision, long tick, java.time.Instant serverTime, java.time.Instant nextTick, java.time.Instant deadline, long intervalMillis, List<MovementOrder> queue, MovementOrder lastExecutedCommand) {}
     public record PlayerRoundResponse(PublicRoundResponse state, List<MovementOrder> hand, List<MovementOrder> program,
                                       boolean shieldSelected) {}
 }

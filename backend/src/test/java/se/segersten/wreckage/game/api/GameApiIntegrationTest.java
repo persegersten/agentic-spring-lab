@@ -372,6 +372,22 @@ class GameApiIntegrationTest {
     }
 
     @Test
+    void rejectsRetiredCommandsWithoutChangingTheQueue() throws Exception {
+        var created = post("/games", null);
+        var gameId = json(created).path("id").asText();
+        var player = json(post("/games/" + gameId + "/players", "{\"name\":\"A\"}"));
+        post("/games/" + gameId + "/players", "{\"name\":\"B\"}");
+        postHost(gameId, json(created).path("hostToken").asText());
+        for (String command : List.of("FORWARD_2", "FORWARD_3")) {
+            var rejected = postPlayer("/games/" + gameId + "/commands", player,
+                    "{\"command\":\"" + command + "\",\"requestId\":\"" + UUID.randomUUID() + "\"}");
+            assertThat(rejected.statusCode()).isEqualTo(400);
+        }
+        var queue = json(getPlayerGame(gameId, player)).path("continuous").path("queue");
+        assertThat(queue.valueStream()).allMatch(JsonNode::isNull);
+    }
+
+    @Test
     void persistsAndReturnsLaserProgrammingCardsToTheirOwnerOnly() throws Exception {
         HttpResponse<String> created = post("/games", """
                 {"maxPlayers":2,"joinTimeoutSeconds":90,"programSize":5,"planningTimeoutSeconds":45}

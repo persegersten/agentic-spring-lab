@@ -18,6 +18,39 @@ class ContinuousSliceIntegrationTest {
     @Autowired GameRepository repository;
     @Autowired PlatformTransactionManager transactions;
 
+    @Test void laserTickPersistsSpinAndRollbackRetryUsesTheSameRandomResult() {
+        var now = Instant.now();
+        var board = new Board(7, 7, java.util.Set.of(), java.util.Set.of(), java.util.Set.of(), java.util.List.of(
+                new SpawnPoint(new Position(1, 3), Direction.EAST), new SpawnPoint(new Position(3, 3), Direction.NORTH)));
+        var game = new Game(UUID.randomUUID(), board);
+        var shooter = game.addPlayer("Shooter");
+        var target = game.addPlayer("Target");
+        game.enableContinuous(now, 2000, 600000);
+        var queue = game.getContinuous().queues.get(shooter.getId());
+        queue.append(MovementOrder.LASER);
+        for (int i = 0; i < 3; i++) queue.shift();
+        game.getContinuous().nextTick = now.minusSeconds(1);
+        new TransactionTemplate(transactions).executeWithoutResult(tx -> repository.save(game));
+        var first = new java.util.concurrent.atomic.AtomicReference<java.util.List<RoundEvent>>();
+        new TransactionTemplate(transactions).executeWithoutResult(tx -> {
+            service.advanceTick(game.getId());
+            first.set(service.getGame(game.getId()).getRound().playback());
+            tx.setRollbackOnly();
+        });
+        assertThat(service.getGame(game.getId()).getContinuous().tick).isZero();
+        service.advanceTick(game.getId());
+        var restored = service.getGame(game.getId());
+        assertThat(restored.getRound().playback()).isEqualTo(first.get());
+        var turn = restored.getRound().playback().stream().filter(e -> e.type() == RoundEventType.TURN).findFirst().orElseThrow();
+        assertThat(turn.actionType()).isEqualTo(ActionType.LASER);
+        assertThat(turn.sourcePlayerId()).isEqualTo(shooter.getId());
+        assertThat(restored.getVehicleStates()).filteredOn(v -> v.vehicle().playerId().equals(target.getId()))
+                .singleElement().satisfies(v -> {
+                    assertThat(v.position()).isEqualTo(new Position(4, 3));
+                    assertThat(v.orientation()).isEqualTo(turn.newDirection());
+                });
+    }
+
     @Test void rolledBackTickRestoresBotQueuesAndRevision() {
         var hosted = service.createHostedGame();
         var id = hosted.game().getId();

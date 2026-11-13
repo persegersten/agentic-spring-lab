@@ -55,7 +55,7 @@ test('a lobby bot executes commands while the human leaves their queue empty', a
   const gameId = gameLink.split('/').at(-2)
   const session = await page.evaluate(id => JSON.parse(localStorage.getItem(`wreckage-session:${id}`)), gameId)
   await startGame(page)
-  await expect(page.getByRole('heading', { name: 'Your queue → execution', exact: true })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Kommandokö', exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Add Bot', exact: true })).not.toBeVisible()
   await expect.poll(async () => {
     const response = await page.request.get(`/games/${gameId}/players/${session.playerId}`, {
@@ -65,6 +65,6 @@ test('a lobby bot executes commands while the human leaves their queue empty', a
     const bot = game.players.find(player => player.automated)
     return game.continuous.tick >= 4 && game.round.state.playback.some(event => event.playerId === bot.id)
   }, { timeout: 20000 }).toBe(true)
-  await expect(page.getByTestId('slot-4')).toContainText('NOP')
-  await expect(page.getByTestId('slot-5')).toContainText('NOP')
+  await expect(page.getByTestId('slot-4')).toContainText('Nästa')
+  await expect(page.getByTestId('slot-5')).toContainText('Ledig')
 })

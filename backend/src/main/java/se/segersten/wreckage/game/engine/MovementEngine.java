@@ -19,6 +19,20 @@ import se.segersten.wreckage.game.domain.VehicleStatus;
 import se.segersten.wreckage.game.domain.VehicleTurn;
 
 public class MovementEngine {
+    private final java.util.random.RandomGenerator laserRandom;
+
+    public MovementEngine() {
+        this(new java.util.Random(0));
+    }
+
+    public MovementEngine(java.util.random.RandomGenerator laserRandom) {
+        this.laserRandom = Objects.requireNonNull(laserRandom);
+    }
+
+    public static MovementEngine forResolution(UUID gameId, long roundNumber) {
+        return new MovementEngine(new java.util.Random(gameId.getMostSignificantBits()
+                ^ Long.rotateLeft(gameId.getLeastSignificantBits(), 17) ^ Long.rotateLeft(roundNumber, 32)));
+    }
 
     public GameState resolveTurn(Turn turn, GameState gameState) {
         return resolveTurnWithEvents(turn, gameState).state();
@@ -88,15 +102,23 @@ public class MovementEngine {
         if (target == null) return new MovementResult(gameState, List.copyOf(events));
 
         events.add(withAction(event(RoundEventType.WEAPON_HIT, shooter, target, target), ActionType.LASER));
-        GameState current = gameState;
-        for (int distance = 0; distance < 2; distance++) {
-            MovementResult pushed = applyWeaponPush(current, target.vehicle().id(), shooter.orientation(),
-                    shooter, effects);
-            current = pushed.state();
-            events.addAll(pushed.events().stream()
-                    .map(event -> event.actionType() == null ? withAction(event, ActionType.LASER) : event)
-                    .toList());
-            if (pushed.events().stream().anyMatch(event -> event.type() == RoundEventType.PUSH_BLOCKED)) break;
+        if (effects.isShielded(target.vehicle().id())) {
+            events.add(withAction(event(RoundEventType.PUSH_BLOCKED, shooter, target, target), ActionType.LASER));
+            return new MovementResult(gameState, List.copyOf(events));
+        }
+        MovementResult pushed = applyWeaponPush(gameState, target.vehicle().id(), shooter.orientation(), shooter, effects);
+        GameState current = pushed.state();
+        events.addAll(pushed.events().stream().map(e -> withAction(e, ActionType.LASER)).toList());
+        int targetIndex = indexOf(current.vehicleStates(), target.vehicle());
+        VehicleState beforeSpin = current.vehicleStates().get(targetIndex);
+        if (beforeSpin.isActive()) {
+            Direction direction = Direction.values()[laserRandom.nextInt(Direction.values().length)];
+            VehicleState afterSpin = new VehicleState(beforeSpin.vehicle(), beforeSpin.position(), direction,
+                    beforeSpin.status(), beforeSpin.shieldAvailable());
+            var states = new ArrayList<>(current.vehicleStates());
+            states.set(targetIndex, afterSpin);
+            current = new GameState(current.board(), List.copyOf(states));
+            events.add(withAction(event(RoundEventType.TURN, shooter, beforeSpin, afterSpin), ActionType.LASER));
         }
         return new MovementResult(current, List.copyOf(events));
     }

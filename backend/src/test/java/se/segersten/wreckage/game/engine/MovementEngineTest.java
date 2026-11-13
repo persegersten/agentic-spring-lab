@@ -122,7 +122,7 @@ class MovementEngineTest {
     }
 
     @Test
-    void laserUsesCurrentDirectionHitsOnlyFirstRobotAndPushesTwoTiles() {
+    void laserUsesCurrentDirectionHitsOnlyFirstRobotAndPushesOneTile() {
         for (Direction direction : Direction.values()) {
             Board roomyBoard = new Board(11, 11);
             VehicleState shooter = state(5, 5, direction);
@@ -130,18 +130,17 @@ class MovementEngineTest {
             VehicleState first = new VehicleState(new Vehicle(), firstPosition, Direction.WEST);
             VehicleState behind = new VehicleState(new Vehicle(), firstPosition.move(direction), Direction.SOUTH);
 
-            var result = engine.resolveTurnWithEvents(new Turn(List.of(order(shooter, MovementOrder.LASER))),
+            var result = new MovementEngine(new java.util.Random(0)).resolveTurnWithEvents(new Turn(List.of(order(shooter, MovementOrder.LASER))),
                     new GameState(roomyBoard, List.of(shooter, first, behind)));
 
             assertThat(result.events()).extracting(event -> event.type()).containsExactly(
                     RoundEventType.WEAPON_FIRED, RoundEventType.WEAPON_HIT,
-                    RoundEventType.PUSH, RoundEventType.PUSH,
-                    RoundEventType.PUSH, RoundEventType.PUSH);
+                    RoundEventType.PUSH, RoundEventType.PUSH, RoundEventType.TURN);
             assertThat(result.state().vehicleStates().get(0)).isEqualTo(shooter);
             assertThat(result.state().vehicleStates()).filteredOn(v -> v.vehicle().id().equals(first.vehicle().id()))
                     .singleElement().satisfies(v -> {
-                        assertThat(v.position()).isEqualTo(firstPosition.move(direction).move(direction));
-                        assertThat(v.orientation()).isEqualTo(Direction.WEST);
+                        assertThat(v.position()).isEqualTo(firstPosition.move(direction));
+                        assertThat(v.orientation()).isEqualTo(Direction.SOUTH);
                     });
             assertThat(result.state().vehicleStates()).filteredOn(v -> v.vehicle().id().equals(behind.vehicle().id()))
                     .singleElement().extracting(VehicleState::orientation).isEqualTo(Direction.SOUTH);
@@ -174,18 +173,19 @@ class MovementEngineTest {
         GameState initial = new GameState(longBoard, List.of(shooter, target));
         Turn laser = new Turn(List.of(order(shooter, MovementOrder.LASER)));
 
-        var first = engine.resolveTurnWithEvents(laser, initial);
-        var second = engine.resolveTurnWithEvents(laser, initial);
+        var gameId = java.util.UUID.randomUUID();
+        var first = MovementEngine.forResolution(gameId, 7).resolveTurnWithEvents(laser, initial);
+        var second = MovementEngine.forResolution(gameId, 7).resolveTurnWithEvents(laser, initial);
 
         assertThat(first).isEqualTo(second);
         assertThat(first.events()).extracting(event -> event.type()).containsExactly(
                 RoundEventType.WEAPON_FIRED, RoundEventType.WEAPON_HIT,
-                RoundEventType.PUSH, RoundEventType.PUSH);
-        assertThat(first.state().vehicleStates().get(1).position()).isEqualTo(new Position(11, 1));
+                RoundEventType.PUSH, RoundEventType.TURN);
+        assertThat(first.state().vehicleStates().get(1).position()).isEqualTo(new Position(10, 1));
     }
 
     @Test
-    void laserKeepsFirstPushWhenSecondIsBlockedByBoundary() {
+    void laserOnlyPushesOnceNearTheBoundary() {
         VehicleState shooter = state(2, 2, Direction.EAST);
         VehicleState target = state(5, 2, Direction.NORTH);
 
@@ -195,7 +195,7 @@ class MovementEngineTest {
         assertThat(result.state().vehicleStates().get(1).position()).isEqualTo(new Position(6, 2));
         assertThat(result.events()).extracting(event -> event.type()).containsExactly(
                 RoundEventType.WEAPON_FIRED, RoundEventType.WEAPON_HIT,
-                RoundEventType.PUSH, RoundEventType.PUSH_BLOCKED);
+                RoundEventType.PUSH, RoundEventType.TURN);
     }
 
     @Test
@@ -602,7 +602,7 @@ class MovementEngineTest {
         assertThat(result.events()).extracting(event -> event.type()).containsExactly(RoundEventType.MOVE_BLOCKED);
     }
 
-    @Test void shieldBlocksBothLaserDisplacementAttempts() {
+    @Test void shieldBlocksLaserPushAndSpin() {
         VehicleState shooter = state(1, 2, Direction.EAST);
         VehicleState shielded = state(3, 2, Direction.NORTH);
         RegisterEffects effects = new RegisterEffects();

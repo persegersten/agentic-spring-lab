@@ -11,9 +11,16 @@ import org.junit.jupiter.api.Test;
 import se.segersten.wreckage.game.domain.MovementOrder;
 
 class ProgrammingCardDealerTest {
+    @Test void retiredCommandsCannotBeDealt() {
+        for (var command : java.util.List.of(MovementOrder.FORWARD_2, MovementOrder.FORWARD_3)) {
+            org.assertj.core.api.Assertions.assertThatThrownBy(() ->
+                    new ProgrammingCardDealer(Map.of(command, 10), new Random(17)))
+                    .isInstanceOf(IllegalArgumentException.class);
+        }
+    }
     @Test void dealsEightCardsDeterministicallyAndAllowsDuplicates() {
-        var dealer = new ProgrammingCardDealer(Map.of(MovementOrder.FORWARD_3, 10), new Random(17));
-        assertThat(dealer.deal()).hasSize(8).containsOnly(MovementOrder.FORWARD_3);
+        var dealer = new ProgrammingCardDealer(Map.of(MovementOrder.FORWARD_1, 10), new Random(17));
+        assertThat(dealer.deal()).hasSize(8).containsOnly(MovementOrder.FORWARD_1);
     }
 
     @Test void usesRelativeConfigurableWeights() {

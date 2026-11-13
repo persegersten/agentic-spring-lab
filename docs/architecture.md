@@ -47,7 +47,7 @@ Each round moves through three externally visible phases:
 At round start the application uses an injectable random source and configurable
 relative weights to deal eight server-owned programming cards per active player.
 Players submit five cards, validated as a multiset against their persisted hand.
-The dealable set is `FORWARD_1`, `FORWARD_2`, `FORWARD_3`, `REVERSE_1`,
+The dealable set is `FORWARD_1`, `REVERSE_1`,
 `TURN_LEFT`, `TURN_RIGHT`, `U_TURN`, and `LASER`; `WAIT` remains an internal legacy value.
 Only the authenticated owner receives a hand through the player-specific API.
 
@@ -61,15 +61,19 @@ combat actions.
 
 `MovementEngine` applies vehicle commands one cell at a time. It enforces board
 edges and edge walls, resolves chains of rams and pushes, and emits movement,
-turn, ram, push, or crash events. `FORWARD_2` and `FORWARD_3` perform two or
+turn, ram, push, or crash events. Retired `FORWARD_2` and `FORWARD_3` remain readable in historical state and perform two or
 three complete one-cell steps, so any step can interact with another vehicle or
 board boundary.
 
 The same one-cell chain resolver powers ramming and programming-card Laser.
-Laser traces to the first vehicle in its current direction and makes at most two
-successive displacement attempts, emitting authoritative fire, hit, and push
-events. It does not invoke damage, ammunition, or combat-score effects. Every
-successful forced-movement event participates in checkpoint capture before
+Laser traces to the first vehicle in its current direction and attempts one
+displacement step, emitting authoritative fire, hit, push/blocked, and turn events.
+A surviving unshielded target turns to one of the four cardinal directions,
+including its original direction, with equal probability. Its shield prevents
+both effects; other blockers prevent only the displacement. Only the original
+target turns. An injected random source is seeded from match UUID and resolution
+number, making a transaction retry reproduce the same directions. It does not
+invoke damage, ammunition, or combat-score effects. Every successful forced-movement event participates in checkpoint capture before
 resolution continues.
 
 `RegisterEffects` now carries only the active round shield set into the shared
@@ -199,3 +203,37 @@ mapping, authentication, and JSON responses. The in-memory integration test
 covers the H2 profile. Playwright starts the H2-backed backend and Vite frontend
 to test planning, resolution, board effects, scoring, playback, reconnects,
 results, respawning, and adding automated players from the lobby.
+
+## Continuous command queue presentation
+
+The current UI presents a vertical command feed: slots 5 and 4 accept new
+commands above a locking gate; slots 3 through 1 are committed and feed the
+execution station. A confirmed tick animates one shift. Initial loads, skipped
+ticks and crash clears synchronize immediately without replaying fictional steps.
+The player-specific continuous snapshot includes nullable `lastExecutedCommand`,
+derived from that player's program in the latest resolved tick: `WAIT` means NOP,
+and null means no command was executed. The existing tick identifies execution.
+Animations are presentation only and respect reduced-motion preferences.
+
+New queue input, bot choices and card deals exclude `FORWARD_2` and `FORWARD_3`.
+Their serialized names and engine behavior remain supported for existing state.
+
+The continuous match view uses one `100dvh` grid for the board, command feed,
+command buttons and scores. Portrait screens place the feed beside the buttons
+below a proportionally sized board; short landscape screens use separate columns
+for board, controls and scores. All six buttons and all participants' scores stay
+visible without document or panel scrolling, including ten-player matches. The
+compact score variant shows names and scores, preserves standings and winner
+markers, and highlights the current player. Full statistics remain in the regular
+score table. Queue cargo positions are calculated from the track's actual height
+so animated shifts remain aligned when the viewport changes. A reserved status
+row holds errors and retry controls without moving the other regions.
+
+Continuous board playback freezes each confirmed tick's persisted initial vehicles
+and event sequence. A short automatic timeline applies the same vehicle-event
+helper used by legacy round playback, then reconciles with the server's final
+vehicles. Board-local SVG overlays retain multiple bright Laser beams, muzzle and
+hit flashes; Laser-tagged turns add complete visual revolutions without affecting
+server orientation. Polls never restart the timeline. Initial loads and skipped
+ticks show the latest state directly, and a new tick cancels older timers. Reduced
+motion retains visible shot/hit markers while disabling spin animation.

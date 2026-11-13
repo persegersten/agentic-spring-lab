@@ -313,7 +313,7 @@ class GameRoundTest {
         assertThat(shooter.getScore()).isZero();
         assertThat(round.playback()).extracting(RoundEvent::type).containsExactly(
                 RoundEventType.WEAPON_FIRED, RoundEventType.WEAPON_HIT,
-                RoundEventType.PUSH, RoundEventType.SCORE_CHANGED, RoundEventType.PUSH);
+                RoundEventType.PUSH, RoundEventType.SCORE_CHANGED, RoundEventType.TURN);
     }
 
     @Test

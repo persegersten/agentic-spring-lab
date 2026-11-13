@@ -4,10 +4,12 @@
 > action rules documented later in this file are obsolete. There are no
 > selectable weapons, rockets, ammunition, damage attacks, Repulsor, Anchor,
 > Turbo, Side Step, or weapon-crash scores. `MovementOrder.LASER` remains a
-> programming card that displaces a target by up to two tiles through the shared
-> push rules. Each player may select one round-long immovable shield once per
+> programming card that attempts one tile of displacement away from the shooter
+> and then spins the surviving, unshielded target to a server-chosen random cardinal
+> direction. The original direction is also a possible result. Each player may select one round-long immovable shield once per
 > match. Checkpoint, control-point, crash, and push scoring otherwise remains as
-> documented.
+> documented. Forced displacement stops at board boundaries; voluntary movement
+> through an open board edge still crashes.
 
 This document is the authoritative rules specification for Wreckage v2.
 
@@ -32,7 +34,7 @@ Wreckage v2 is built around five ideas:
 
 1. **Simultaneous planning** — all players choose their programs at the same time.
 2. **Programmed movement** — each player commits several commands before seeing how opponents move.
-3. **Deterministic resolution** — interaction comes from pushing, walls, pits, board elements and initiative; only the server-side programming-card deal is random.
+3. **Deterministic resolution** — interaction comes from pushing, walls, pits, board elements and initiative; card deals, bot choices and Laser hit directions are chosen on the server; Laser resolution uses reproducible seeded randomness.
 4. **Short fixed matches** — no player is permanently eliminated and the game ends after a configured number of rounds.
 5. **Positional combat** — weapons and abilities change positions, future moves and access to board features more often than they merely accumulate damage.
 
@@ -65,7 +67,7 @@ The authenticated creator may add bots while the lobby is open, within the same
 player capacity. Bots count as ordinary participants for spawning, movement,
 collisions, crashes, respawns, and winning. In continuous gameplay, the server
 fills each active bot's available queue slots 4 and 5 at match start and after
-each completed tick. Each appended command is chosen uniformly from the eight
+each completed tick. Each appended command is chosen uniformly from the six available
 programming commands, excluding WAIT. Bots obey the same queue restrictions as
 humans, do not append while crashed or after the match finishes, and do not
 automatically activate shields.
@@ -235,7 +237,7 @@ The normal and default programming mode uses exactly five registers.
 
 At the start of every round the server deals each active player eight cards. A
 hand is sampled with replacement, so duplicates are allowed, from these relative
-weights: `FORWARD_1=20`, `FORWARD_2=15`, `FORWARD_3=10`, `REVERSE_1=10`,
+weights: `FORWARD_1=20`, `REVERSE_1=10`,
 `TURN_LEFT=15`, `TURN_RIGHT=15`, `U_TURN=5`, and `LASER=10`. The player submits exactly five
 of those cards in register order. Unused cards are discarded after the round.
 Hands and unfinished programs are private and are persisted for reconnection.
@@ -311,12 +313,10 @@ Playback must never influence game results.
 
 Every active player receives a private, server-owned hand of eight cards.
 
-The core commands are:
+The commands available for new input are:
 
 ```text
 FORWARD_1
-FORWARD_2
-FORWARD_3
 REVERSE_1
 TURN_LEFT
 TURN_RIGHT
@@ -334,7 +334,7 @@ the required multiplicity.
 Example program:
 
 ```text
-FORWARD_2
+FORWARD_1
 TURN_RIGHT
 FORWARD_1
 ```
@@ -651,7 +651,9 @@ Rotation does not change position.
 
 `REVERSE_1` performs one backward movement step without changing orientation.
 
-`FORWARD_2` performs **two consecutive forward movement steps**.
+`FORWARD_2` and `FORWARD_3` are retired: they cannot be newly queued, dealt or chosen by bots. Existing saved commands retain their original movement behavior.
+
+For historical programs, `FORWARD_2` performs **two consecutive forward movement steps**.
 
 It must not teleport two cells.
 
@@ -724,7 +726,7 @@ becomes:
 . A B C
 ```
 
-The orientation of pushed vehicles does not change.
+The orientation of pushed vehicles does not change, except for the original target of a programming-card Laser hit as specified below.
 
 A push chain is one atomic movement step. It either resolves to a valid result
 or, when blocked by a wall, obstacle, board boundary, or an immovable vehicle,
@@ -733,14 +735,27 @@ does not move any vehicle.
 Ramming and programming-card Laser displacement use the same one-cell push-chain
 resolution. Ramming pushes one cell and moves the initiating vehicle into the
 vacated cell only after the push succeeds. Programming-card Laser fires in the
-vehicle's current direction with board-limited unlimited range, stops at the
-first wall, obstacle, or vehicle, and pushes the first vehicle hit through up to
-two successive one-cell attempts. A successful first Laser displacement remains
-applied if the second is blocked. Neither mechanic changes orientation, deals
-damage, or directly awards points.
+vehicle's current direction with board-limited unlimited range and stops at the
+first wall, obstacle, or active vehicle. It attempts exactly one displacement
+step away from the shooter. A chain moves at most one cell per hit.
 
-Pits and open board edges are not blockers. They are lethal destinations and are
-resolved as crashes.
+After the attempt, the original target, if still active and unshielded, receives
+one of NORTH, EAST, SOUTH or WEST with equal probability. The previous direction
+is allowed. This turn applies even if a wall, obstacle, board boundary or another
+immovable vehicle blocked the displacement. Only the originally hit robot turns;
+other robots in a pushed chain keep their direction. A shield on the original
+target prevents both displacement and the random turn. A target that crashes
+into a pit does not turn. Subsequent commands use the resulting direction.
+
+The turn is recorded as a Laser-tagged TURN event, including when the selected
+direction equals the old one. The server seeds each resolution from match identity
+and tick/round number so transaction retries are reproducible. Playback never
+chooses directions or changes the authoritative result. Laser does not deal
+damage or directly award points; normal checkpoint and crash scoring still apply.
+
+Pits are lethal destinations for pushes. The existing displacement boundary policy
+is retained: forced movement beyond the board boundary is blocked. Voluntary
+movement through an open board edge still causes a crash.
 
 ---
 
@@ -752,7 +767,6 @@ A vehicle crashes when it:
 - enters a pit,
 - is pushed into a pit,
 - moves beyond an open board edge,
-- is pushed beyond an open board edge,
 - is affected by another board element explicitly defined as lethal.
 
 A crash has the following effects:
@@ -1164,8 +1178,6 @@ The minimum playable v2 slice is:
 square grid
 programSize = 5 by default
 FORWARD_1
-FORWARD_2
-FORWARD_3
 REVERSE_1
 TURN_LEFT
 TURN_RIGHT

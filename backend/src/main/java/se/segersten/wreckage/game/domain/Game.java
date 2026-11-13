@@ -42,7 +42,7 @@ public class Game {
             new GameState(board, getVehicleStates()), List.of(), continuous.nextTick,
             players.stream().collect(java.util.stream.Collectors.toMap(Player::getId, Player::getScore)), startEvents);
         if (!programs.isEmpty()) {
-            var engine = new se.segersten.wreckage.game.engine.MovementEngine();
+            var engine = se.segersten.wreckage.game.engine.MovementEngine.forResolution(id, round.number());
             round.resolve(engine, new se.segersten.wreckage.game.engine.BoardEffectEngine(engine), players, configuration, true);
             round.finalVehicleStates().forEach(v -> vehicles.put(v.vehicle().playerId(), v));
         }

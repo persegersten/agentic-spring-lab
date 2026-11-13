@@ -14,7 +14,7 @@ class BotPlayerAutomationTest {
         game.enableContinuous(Instant.EPOCH, 2000, 600000);
         var automation = new BotPlayerAutomation(new Random(42));
         var expectedRandom = new Random(42);
-        var commands = Arrays.stream(MovementOrder.values()).filter(MovementOrder::isProgrammingCard).toList();
+        var commands = Arrays.stream(MovementOrder.values()).filter(MovementOrder::isAvailableCommand).toList();
         var queue = game.getContinuous().queues.get(bot.getId());
         var seen = EnumSet.noneOf(MovementOrder.class);
         for (int pass = 0; pass < 50; pass++) {

@@ -14,4 +14,9 @@ public enum MovementOrder {
     public boolean isProgrammingCard() {
         return this != WAIT;
     }
+
+    /** Available for new input; retired cards remain readable in persisted programs. */
+    public boolean isAvailableCommand() {
+        return isProgrammingCard() && this != FORWARD_2 && this != FORWARD_3;
+    }
 }
