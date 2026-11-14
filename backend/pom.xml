@@ -28,6 +28,7 @@
 	</scm>
 	<properties>
 		<java.version>25</java.version>
+		<h2.version>2.5.250</h2.version>
 		<springdoc-openapi.version>3.1.0</springdoc-openapi.version>
 	</properties>
 	<dependencies>
