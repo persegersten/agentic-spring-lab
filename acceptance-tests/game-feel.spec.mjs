@@ -138,7 +138,7 @@ test('new ticks cancel stale effects and confirmed checkpoints have distinct fee
 test('the shared scheduler dispatches audio once and suppresses reconnect, skipped and duplicate snapshots',async({page})=>{
   await page.addInitScript(()=>{window.audioDispatches=[]})
   await page.route('**/src/presentation/audio.ts',route=>route.fulfill({contentType:'application/javascript',body:`
-    export const gameAudio={configure(){},unlock(){},stop(){},
+    export const gameAudio={configure(){},prepare(){},unlock(){},stop(){},dispose(){},
       play(cue,id){window.audioDispatches.push({cue,id})},
       event(event,id){window.audioDispatches.push({cue:event.type,id})}}
   `}))
@@ -312,4 +312,196 @@ test('M1: enabling reduced motion stops an active robot and conveyor tween immed
   await expect.poll(async()=>Math.abs((await cargo.boundingBox()).x-(await page.getByTestId('slot-2').boundingBox()).x-2)).toBeLessThan(1)
   await page.emulateMedia({reducedMotion:'no-preference'})
   await expect(page.getByTestId('player-vehicle')).toHaveAttribute('data-x','7')
+})
+
+async function mockM2Audio(page) {
+  await page.addInitScript(()=>{window.m2Cues=[];window.m2Stopped=[]})
+  await page.route('**/src/presentation/audio.ts',route=>route.fulfill({contentType:'application/javascript',body:`
+    import {createAudioController} from '/src/presentation/audioController.ts'
+    const controller=createAudioController({ready:()=>true,play(cue,volume,ended){
+      window.m2Cues.push({cue,volume});const timer=setTimeout(ended,cue==='submit'?120:8)
+      return {stop(){window.m2Stopped.push(cue);clearTimeout(timer)},setVolume(value){window.m2Cues.push({volume:value})}}
+    }})
+    export const gameAudio={...controller,prepare(){},unlock(){},dispose(){controller.stop()}}
+  `}))
+}
+
+async function acceptMockCommand(page,game,{loseFirst=false,rejectFirst=false,advanceTick=false}={}) {
+  const requests=[]
+  await page.route('**/games/*/commands',async route=>{
+    const body=route.request().postDataJSON();requests.push(body)
+    if(requests.length===1&&rejectFirst)return route.fulfill({status:503,json:{message:'Try again'}})
+    if(!game.state.continuous.queue.includes(body.command)){
+      game.state.continuous.queue[2]=body.command;game.state.continuous.revision++
+    }
+    if(requests.length===1&&advanceTick)game.next([])
+    if(requests.length===1&&loseFirst)return route.abort('failed')
+    return route.fulfill({json:game.state})
+  })
+  return requests
+}
+
+test('M2: rejected submissions stay silent and confirmed retries sound once per request ID',async({page})=>{
+  await mockM2Audio(page)
+  const game=await setup(page),requests=await acceptMockCommand(page,game,{rejectFirst:true})
+  await page.getByRole('button',{name:'Framåt',exact:true}).click()
+  await expect(page.getByRole('button',{name:'Försök igen',exact:true})).toBeVisible()
+  expect(await page.evaluate(()=>window.m2Cues.filter(c=>c.cue==='submit'))).toHaveLength(0)
+  await page.getByRole('button',{name:'Försök igen',exact:true}).click()
+  await expect.poll(()=>page.evaluate(()=>window.m2Cues.filter(c=>c.cue==='submit').length)).toBe(1)
+  expect(requests[0].requestId).toBe(requests[1].requestId)
+  game.state.continuous.revision++;await page.waitForTimeout(650)
+  expect(await page.evaluate(()=>window.m2Cues.filter(c=>c.cue==='submit'))).toHaveLength(1)
+})
+
+test('M2: a lost submission acknowledgement stays silent until confirmed after reload',async({page})=>{
+  await mockM2Audio(page)
+  const game=await setup(page),requests=await acceptMockCommand(page,game,{loseFirst:true})
+  await page.getByRole('button',{name:'Framåt',exact:true}).click()
+  await expect(page.getByRole('button',{name:'Försök igen',exact:true})).toBeVisible()
+  expect(await page.evaluate(()=>window.m2Cues.filter(c=>c.cue==='submit'))).toHaveLength(0)
+  await page.reload()
+  await page.getByRole('button',{name:'Försök igen',exact:true}).click()
+  await expect.poll(()=>page.evaluate(()=>window.m2Cues.filter(c=>c.cue==='submit').length)).toBe(1)
+  expect(requests[0].requestId).toBe(requests[1].requestId)
+})
+
+test('M2: authoritative combat, respawn, capture and victory cues dispatch once',async({page})=>{
+  await mockM2Audio(page)
+  const game=await setup(page)
+  game.next(['MOVE','TURN','RAM','MOVE_BLOCKED','WEAPON_FIRED','WEAPON_HIT','CRASH'].map((type,i)=>game.event(type,i+1,
+    {newPosition:{x:1,y:1},...(['WEAPON_FIRED','WEAPON_HIT'].includes(type)?{actionType:'LASER'}:{})})))
+  game.state.vehicles[0].status='CRASHED'
+  await expect.poll(()=>page.evaluate(()=>window.m2Cues.filter(c=>c.cue).map(c=>c.cue))).toEqual(['tick','move','turn','impact','blocked','laser','hit','crash'])
+  await expect(page.locator('.tick-board')).toHaveClass(/timeline-snap/)
+  game.state.vehicles[0].status='ACTIVE'
+  game.next([game.event('SCORE_CHANGED',1,{scoreReason:'CHECKPOINT',checkpointId:'CP1'})],[game.event('VEHICLE_RESPAWNED')])
+  await expect.poll(()=>page.evaluate(()=>window.m2Cues.filter(c=>c.cue).map(c=>c.cue).slice(-3))).toEqual(['tick','respawn','capture'])
+  await expect(page.locator('.tick-board')).toHaveClass(/timeline-snap/)
+  game.state.status='FINISHED';game.state.placements=[{playerId:'local',placement:1,winner:true}];game.state.continuous.revision++
+  await expect.poll(()=>page.evaluate(()=>window.m2Cues.filter(c=>c.cue==='victory').length)).toBe(1)
+  game.state.continuous.revision++;await page.waitForTimeout(650)
+  expect(await page.evaluate(()=>window.m2Cues.filter(c=>c.cue==='victory'))).toHaveLength(1)
+  await page.reload();await expect(page.getByTestId('game-board')).toBeVisible()
+  expect(await page.evaluate(()=>window.m2Cues.filter(c=>c.cue))).toHaveLength(0)
+})
+
+test('M2: late tick callbacks do not release a stale execution sound',async({page})=>{
+  await mockM2Audio(page)
+  const game=await setup(page)
+  await page.evaluate(()=>{
+    const frame=window.requestAnimationFrame.bind(window)
+    window.requestAnimationFrame=callback=>frame(time=>setTimeout(()=>callback(time),190))
+  })
+  game.next([game.event('MOVE')])
+  await expect(page.locator('.tick-board')).toHaveClass(/timeline-snap/)
+  await expect(page.getByTestId('executed-command')).toHaveAttribute('data-execution-tick','2')
+  await page.waitForTimeout(400)
+  expect(await page.evaluate(()=>window.m2Cues.filter(c=>c.cue))).toHaveLength(0)
+})
+
+test('M2: unavailable preference storage leaves mute and volume controls usable',async({page})=>{
+  await page.addInitScript(()=>{
+    const get=Storage.prototype.getItem,set=Storage.prototype.setItem
+    Storage.prototype.getItem=function(key){if(key==='wreckage-audio')throw new Error('Unavailable');return get.call(this,key)}
+    Storage.prototype.setItem=function(key,value){if(key==='wreckage-audio')throw new Error('Unavailable');return set.call(this,key,value)}
+  })
+  const errors=[];page.on('pageerror',error=>errors.push(error.message))
+  await setup(page)
+  await expect(page.getByRole('slider',{name:'Ljudvolym'})).toHaveValue('50')
+  await page.getByRole('button',{name:'Stäng av ljud'}).click()
+  await page.getByRole('slider',{name:'Ljudvolym'}).fill('12')
+  await expect(page.getByRole('button',{name:'Slå på ljud'})).toHaveAttribute('aria-pressed','true')
+  await expect(page.getByRole('slider',{name:'Ljudvolym'})).toHaveValue('12')
+  expect(errors).toEqual([])
+})
+
+async function observeNativeAudio(page) {
+  await page.addInitScript(()=>{
+    window.nativeAudioStarts=[]
+    const start=AudioBufferSourceNode.prototype.start
+    AudioBufferSourceNode.prototype.start=function(...args){
+      if(this.buffer&&this.buffer.length>1)window.nativeAudioStarts.push(this.buffer.duration)
+      return start.apply(this,args)
+    }
+  })
+}
+
+test('M2: real Howler preloads silently and plays only after a trusted action',async({page})=>{
+  const errors=[];page.on('pageerror',error=>errors.push(error.message))
+  await observeNativeAudio(page)
+  const game=await setup(page)
+  await acceptMockCommand(page,game)
+  await page.evaluate(()=>{
+    window.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true}))
+    document.body.dispatchEvent(new MouseEvent('click',{bubbles:true}))
+  })
+  game.next([game.event('MOVE')])
+  await expect(page.locator('.tick-board')).toHaveClass(/timeline-snap/)
+  await expect(page.getByTestId('executed-command')).toHaveAttribute('data-execution-tick','2')
+  expect(await page.evaluate(()=>window.nativeAudioStarts)).toHaveLength(0)
+  await page.getByRole('button',{name:'Framåt',exact:true}).click()
+  await expect.poll(()=>page.evaluate(()=>window.nativeAudioStarts.length)).toBe(1)
+  await page.getByRole('button',{name:'Stäng av ljud'}).click()
+  game.next([game.event('WEAPON_FIRED',1,{actionType:'LASER'})])
+  await expect(page.getByTestId('executed-command')).toHaveAttribute('data-execution-tick','3')
+  await expect(page.locator('.tick-board')).toHaveClass(/timeline-snap/)
+  await page.getByRole('button',{name:'Slå på ljud'}).click()
+  expect(await page.evaluate(()=>window.nativeAudioStarts)).toHaveLength(1)
+  expect(errors).toEqual([])
+})
+
+test('M2: failed sound decoding cannot prevent command submission or other cues',async({page})=>{
+  const errors=[];page.on('pageerror',error=>errors.push(error.message))
+  await observeNativeAudio(page)
+  await page.route('**/audio/laser.wav',route=>route.fulfill({contentType:'audio/wav',body:'not a sound'}))
+  const game=await setup(page)
+  await acceptMockCommand(page,game)
+  await page.getByRole('button',{name:'Framåt',exact:true}).click()
+  await expect(page.getByTestId('slot-3')).toContainText('FORWARD_1')
+  await expect.poll(()=>page.evaluate(()=>window.nativeAudioStarts.length)).toBe(1)
+  game.next([game.event('WEAPON_FIRED',1,{actionType:'LASER'})])
+  await expect(page.getByTestId('executed-command')).toHaveAttribute('data-execution-tick','2')
+  await expect(page.locator('.tick-board')).toHaveClass(/timeline-snap/)
+  // Only the execution tick sounds; the invalid laser cannot start a source.
+  expect(await page.evaluate(()=>window.nativeAudioStarts)).toHaveLength(2)
+  expect(errors).toEqual([])
+})
+
+test('M2: real HTML5 fallback unlocks silently and honors mute without Web Audio',async({page})=>{
+  const errors=[];page.on('pageerror',error=>errors.push(error.message))
+  await page.addInitScript(()=>{
+    window.AudioContext=undefined;window.webkitAudioContext=undefined;window.html5Volumes=[]
+    const volume=Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype,'volume')
+    Object.defineProperty(HTMLMediaElement.prototype,'volume',{configurable:true,get:volume.get,set(value){
+      if(value>0)window.html5Volumes.push({source:this.currentSrc||this.src,value})
+      volume.set.call(this,value)
+    }})
+  })
+  const game=await setup(page)
+  await acceptMockCommand(page,game)
+  expect(await page.evaluate(()=>window.html5Volumes)).toHaveLength(0)
+  // Both mute controls are genuine gestures; silent priming must not create audible starts.
+  await page.getByRole('button',{name:'Stäng av ljud'}).click()
+  await page.getByRole('button',{name:'Slå på ljud'}).click()
+  await page.getByRole('button',{name:'Framåt',exact:true}).click()
+  await expect.poll(()=>page.evaluate(()=>window.html5Volumes.filter(entry=>entry.source.endsWith('/audio/submit.wav')).length)).toBeGreaterThan(0)
+  await page.getByRole('button',{name:'Stäng av ljud'}).click()
+  const previous=await page.evaluate(()=>window.html5Volumes.length)
+  game.next([game.event('WEAPON_FIRED',1,{actionType:'LASER'})])
+  await expect(page.getByTestId('executed-command')).toHaveAttribute('data-execution-tick','2')
+  await expect(page.locator('.tick-board')).toHaveClass(/timeline-snap/)
+  expect(await page.evaluate(()=>window.html5Volumes.length)).toBe(previous)
+  expect(errors).toEqual([])
+})
+
+test('M2: a command acknowledgement that advances the tick keeps its submission cue audible',async({page})=>{
+  await mockM2Audio(page)
+  const game=await setup(page)
+  await acceptMockCommand(page,game,{advanceTick:true})
+  await page.getByRole('button',{name:'Framåt',exact:true}).click()
+  await expect(page.getByTestId('executed-command')).toHaveAttribute('data-execution-tick','2')
+  await expect.poll(()=>page.evaluate(()=>window.m2Cues.filter(c=>c.cue==='submit').length)).toBe(1)
+  await page.waitForTimeout(180)
+  expect(await page.evaluate(()=>window.m2Stopped.filter(c=>c==='submit'))).toHaveLength(0)
 })

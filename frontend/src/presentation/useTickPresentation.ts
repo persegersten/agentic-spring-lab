@@ -46,7 +46,7 @@ export function useTickPresentation(view: PlayerGame, recoveryEpoch = 0) {
       const time = performance.now() - started
       if (!document.hidden) {
         const tickId = `${schedule.key}:tick`
-        if (!consumed.current.has(tickId)) { consumed.current.add(tickId); gameAudio.play('tick', tickId) }
+        if (!consumed.current.has(tickId)) { consumed.current.add(tickId); if (time < 150) gameAudio.play('tick', tickId) }
         for (const item of schedule.events) if (item.at <= time && !consumed.current.has(item.id)) {
           consumed.current.add(item.id)
           if (time - item.at < 150) gameAudio.event(item.event, item.id, view.playerId)
@@ -57,7 +57,7 @@ export function useTickPresentation(view: PlayerGame, recoveryEpoch = 0) {
       if (time < schedule.duration) timer = requestAnimationFrame(update)
     }
     timer = requestAnimationFrame(update)
-    return () => { cancelAnimationFrame(timer); gameAudio.stop() }
+    return () => { cancelAnimationFrame(timer); gameAudio.stop(`${schedule.key}:`) }
   }, [animate, schedule, view.playerId, executionDuration])
   useEffect(() => {
     if (!timeline.animate && timeline.view.status === 'FINISHED') lastStatus.current = 'FINISHED'

@@ -1,5 +1,35 @@
 # Game-feel verification
 
+## M2 sound refinement — 2026-11-16
+
+- Frontend TypeScript/Vite production build, oxlint and `git diff --check`: passed.
+- Focused sound, M1 animation, model, responsive and shield regression suite:
+  **110 passed**, including the existing 49 responsive scenarios.
+- Real Chromium checks exercise Web Audio and forced HTML5 fallback, silent
+  preloading, trusted-action unlocking, mute, failed decoding and continued
+  command submission. A final native-audio subset was rerun after adding trusted
+  click support. Automated tests do not replace listening or Safari/mobile review.
+- Policy/adapter tests cover all cue mappings, eight total / two motor voice
+  limits, cooldowns, per-vehicle/tick coalescing, live master-volume changes,
+  asynchronous failures, pending-start expiry, cleanup and audio-context recovery.
+- Integration tests cover rejected/lost submission acknowledgements, duplicate
+  snapshots, scoped cancellation during an acknowledgement that advances a tick,
+  respawn, checkpoint capture, victory and silence when loading a finished game.
+- WAV header/duration/peak checks and SHA-256 manifest checks pass for every cue.
+  Assets are locally bundled original CC0 recordings, reproducible from the
+  generator. All three official Kenney archive downloads returned HTTP 403, so
+  the approved original-synthesis fallback was used.
+
+Run the focused command below with `audio-policy responsive-board shield-flags`
+also included. This run used the same temporary local Maven/Playwright setup;
+server rules, mechanics, API contracts and deployment configuration were unchanged.
+The older full-suite limitations below were not addressed or reported as passing.
+No deployment, commit or push was performed.
+
+Manual listening, fatigue/timbre assessment, and Firefox/Safari/mobile audio
+unlocking checks were **not performed**. Browser-boundary tests use Chromium,
+including its HTML5 fallback; they do not establish Safari hardware behavior.
+
 ## M1 Motion refinement — 2026-11-16
 
 - TypeScript/Vite production build, oxlint and `git diff --check`: passed.

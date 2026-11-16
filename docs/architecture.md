@@ -268,6 +268,18 @@ bursts are limited to eight groups of six fragments and expire within 650 ms.
 Board shake is local to confirmed local rams/crashes. Sound uses a bounded,
 deduplicated Howler adapter; settings and asset provenance are in `docs/assets.md`.
 
+M2 separates audio policy from browser playback. `audioController` consumes cue
+IDs even when suppressed, caps audible voices at eight and motor voices at two,
+coalesces motors per vehicle/cue/tick, and applies remote cue cooldowns. Master
+volume updates active voice gains; mute stops them without creating a backlog.
+The Howler adapter preloads without playing, checks actual context readiness,
+and silently primes HTML5 elements only during trusted gestures. Failed or
+pending starts are unloaded rather than queued for later unlocking. Tick
+cancellation stops only that tick's voices, preserving a separately acknowledged
+submission cue when the response also advances the tick. Page exit unloads the
+game's Howls and clears its playback listeners and watchdogs. No sound callback
+changes game state or server timing.
+
 ## Continuous shield and flag standings
 
 `POST /games/{gameId}/shield` uses the usual player headers and a UUID

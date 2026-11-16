@@ -30,7 +30,7 @@ function audioFixture() {
   const controller = createAudioController({ ready:() => ready, play(cue, volume, ended) {
     const voice = {cue, volume, ended:() => { active.delete(voice); ended() }}
     calls.push(voice); active.add(voice)
-    return () => active.delete(voice)
+    return {stop:() => active.delete(voice),setVolume:value => {voice.volume=value}}
   } })
   return { controller, calls, active, setReady(value) { ready = value } }
 }
@@ -46,7 +46,9 @@ test('audio consumes muted and locked cues without replaying them after unlock',
 
 test('voices remain bounded and important local feedback replaces remote motors', () => {
   const {controller,calls,active} = audioFixture()
-  for (let index=0;index<20;index++) controller.play('move',`move:${index}`,false)
+  controller.play('move','move:0',false)
+  controller.play('turn','turn:0',false)
+  for (let index=0;index<6;index++) controller.play('impact',`impact:${index}`)
   expect(active.size).toBe(8)
   controller.play('crash','crash')
   expect(active.size).toBe(8)

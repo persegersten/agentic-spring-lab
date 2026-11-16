@@ -1,0 +1,105 @@
+{
+  "source": "Original Wreckage synthesis (no third-party samples)",
+  "license": "CC0-1.0",
+  "generator": "scripts/local-dev/generate-audio.py",
+  "files": [
+    {
+      "file": "submit.wav",
+      "sourceFile": "original-synthesis:submit",
+      "durationMs": 120,
+      "sha256": "b80a97bfb6a1afb521a1051cd14afea2ba7769d30a56a0bb90bbf7942533a51e",
+      "modifications": "Fixed-seed synthesis, 25 ms tail fade, peak normalized to 0.7"
+    },
+    {
+      "file": "tick.wav",
+      "sourceFile": "original-synthesis:tick",
+      "durationMs": 100,
+      "sha256": "ac4092dede4e7834a1f47082d8926b9190aab90056cb6c813a8d9a7ff16880ed",
+      "modifications": "Fixed-seed synthesis, 25 ms tail fade, peak normalized to 0.7"
+    },
+    {
+      "file": "move.wav",
+      "sourceFile": "original-synthesis:move",
+      "durationMs": 180,
+      "sha256": "316a0214d725942a2b00b2bb70e787e27b2599ee69e15ffe64dfc20f17a25eb4",
+      "modifications": "Fixed-seed synthesis, 25 ms tail fade, peak normalized to 0.7"
+    },
+    {
+      "file": "turn.wav",
+      "sourceFile": "original-synthesis:turn",
+      "durationMs": 160,
+      "sha256": "9bfb1a765d6857b544833b8c0dbf1ce283aa9b39cd94e7ef679daac4dcd23c1b",
+      "modifications": "Fixed-seed synthesis, 25 ms tail fade, peak normalized to 0.7"
+    },
+    {
+      "file": "impact.wav",
+      "sourceFile": "original-synthesis:impact",
+      "durationMs": 240,
+      "sha256": "afd7310dd6e20f7ab0c8a023e501c6d0934055a03c7e76bb0d73eaf7b845e093",
+      "modifications": "Fixed-seed synthesis, 25 ms tail fade, peak normalized to 0.7"
+    },
+    {
+      "file": "blocked.wav",
+      "sourceFile": "original-synthesis:blocked",
+      "durationMs": 100,
+      "sha256": "15a0aa3f548d86c4461de49bc2d7c731369cabae02cdcc87b455a46b16f680a0",
+      "modifications": "Fixed-seed synthesis, 25 ms tail fade, peak normalized to 0.7"
+    },
+    {
+      "file": "laser.wav",
+      "sourceFile": "original-synthesis:laser",
+      "durationMs": 180,
+      "sha256": "1322de5f732cc2be9257e21a364faf06a35d91c7dcccc788d22c5e61aa2c52df",
+      "modifications": "Fixed-seed synthesis, 25 ms tail fade, peak normalized to 0.7"
+    },
+    {
+      "file": "hit.wav",
+      "sourceFile": "original-synthesis:hit",
+      "durationMs": 200,
+      "sha256": "fc20840fdfca2d24712757762f225668cf5b02432d1f52203dc96e4abf10ddf6",
+      "modifications": "Fixed-seed synthesis, 25 ms tail fade, peak normalized to 0.7"
+    },
+    {
+      "file": "crash.wav",
+      "sourceFile": "original-synthesis:crash",
+      "durationMs": 480,
+      "sha256": "166e1cfc0297e0457e6ab073a437c23a26c7e683ece34bac9cff5d4ddcdf0365",
+      "modifications": "Fixed-seed synthesis, 25 ms tail fade, peak normalized to 0.7"
+    },
+    {
+      "file": "respawn.wav",
+      "sourceFile": "original-synthesis:respawn",
+      "durationMs": 380,
+      "sha256": "f4ad117e5e753593404767353e543145580b96c4e02bb43a207ad8260012e109",
+      "modifications": "Fixed-seed synthesis, 25 ms tail fade, peak normalized to 0.7"
+    },
+    {
+      "file": "capture.wav",
+      "sourceFile": "original-synthesis:capture",
+      "durationMs": 360,
+      "sha256": "d2a5a3a69050fc82dbea61b1919b98a43fe58472d7f511e6024b26e034fbc432",
+      "modifications": "Fixed-seed synthesis, 25 ms tail fade, peak normalized to 0.7"
+    },
+    {
+      "file": "victory.wav",
+      "sourceFile": "original-synthesis:victory",
+      "durationMs": 650,
+      "sha256": "ae68c7fcb76f364ee45b7ae659d234e7923984c20f8501b35c6f097a462d5cf9",
+      "modifications": "Fixed-seed synthesis, 25 ms tail fade, peak normalized to 0.7"
+    },
+    {
+      "file": "complete.wav",
+      "sourceFile": "original-synthesis:complete",
+      "durationMs": 400,
+      "sha256": "5ba8526ac6efb71240d56e5dc8375286ebb6b064457be4b9e49d9f8537608a39",
+      "modifications": "Fixed-seed synthesis, 25 ms tail fade, peak normalized to 0.7"
+    },
+    {
+      "file": "shield.wav",
+      "sourceFile": "original-synthesis:shield",
+      "durationMs": 280,
+      "sha256": "316e6148c77de6e2466ec7d1b89f3322952ae018bd5533e04606adbbdade36a7",
+      "modifications": "Fixed-seed synthesis, 25 ms tail fade, peak normalized to 0.7"
+    }
+  ]
+}
