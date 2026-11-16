@@ -99,7 +99,7 @@ for (const mobile of [false, true]) {
   })
 }
 
-test('blocked shots show protection, and reduced motion disables spins while retaining the beam', async ({ page }) => {
+test('blocked shots show a block marker, and reduced motion disables spins while retaining the beam', async ({ page }) => {
   const game = await setup(page, { reducedMotion: true })
   game.events.splice(2)
   game.events.push({ ...game.events[1], sequence: 3, type: 'PUSH_BLOCKED' })

@@ -1,3 +1,4 @@
+import { Icon } from './Icon'
 import type { Placement, Player } from '../types/game'
 
 export function ScoreTable({ players, placements = [], compact = false, currentPlayerId }: { players: Player[]; scores?: Record<string, number>; placements?: Placement[]; compact?: boolean; currentPlayerId?: string }) {
@@ -15,7 +16,7 @@ export function ScoreTable({ players, placements = [], compact = false, currentP
       data-testid={placements.length ? 'final-standing-row' : 'score-row'} data-player-id={player.id}
       title={`${player.name} · ${player.flags} flaggor`}>
       {placementByPlayer[player.id] && <span data-testid="player-placement">{placementByPlayer[player.id].placement}</span>}
-      {placementByPlayer[player.id]?.winner && <span aria-label="Vinnare">★</span>}
+      {placementByPlayer[player.id]?.winner && <span aria-label="Vinnare"><Icon name="winner"/></span>}
       <span className="score-player-name">{player.name}</span><strong data-testid="player-score">{player.flags}</strong>
     </li>)}</ol>
   </section>

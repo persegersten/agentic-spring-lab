@@ -43,7 +43,7 @@ export function GamePage() {
   const [error, setError] = useState<string | null>(null)
   const [working, setWorking] = useState(false)
   const apply = useCallback((next: PlayerGame) => setView(old =>
-    old?.continuous && (!next.continuous || old.continuous.revision >= next.continuous.revision) ? old : next), [])
+    old?.id === next.id && old?.continuous && (!next.continuous || old.continuous.revision >= next.continuous.revision) ? old : next), [])
 
   const refresh = useCallback(async () => {
     if (!session) return

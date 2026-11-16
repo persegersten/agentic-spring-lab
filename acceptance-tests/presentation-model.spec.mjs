@@ -1,0 +1,67 @@
+import { expect, test } from '@playwright/test'
+import { createTimeline, shouldAnimate } from '../frontend/src/presentation/timeline.ts'
+import { createAudioController, cueForEvent } from '../frontend/src/presentation/audioController.ts'
+
+const event = (type, sequence = 1, extra = {}) => ({ type, sequence, playerId:'local', sourcePlayerId:'other', vehicleId:'robot', ...extra })
+const snapshot = (tick = 1, gameId = 'game') => ({ id:gameId, continuous:{ tick, intervalMillis:2000 }, round:{ state:{
+  startEvents:[event('VEHICLE_RESPAWNED')], playback:[event('MOVE'), event('WEAPON_FIRED',2)],
+} } })
+
+test('timeline namespaces respawn and playback IDs and stays inside the tick budget', () => {
+  const schedule = createTimeline(snapshot())
+  expect(new Set(schedule.events.map(item => item.id)).size).toBe(3)
+  expect(schedule.events.map(item => item.stream)).toEqual(['start','playback','playback'])
+  expect(schedule.events.map(item => item.at)).toEqual([0,0,450])
+  expect(schedule.duration).toBeLessThan(2000)
+  expect(createTimeline(snapshot(2)).events[0].id).not.toBe(schedule.events[0].id)
+})
+
+test('only visible consecutive ticks animate', () => {
+  const previous = snapshot(2)
+  expect(shouldAnimate(previous,snapshot(3),true)).toBe(true)
+  for (const [next, visible] of [[snapshot(2),true],[snapshot(4),true],[snapshot(1),true],[snapshot(3,'different'),true],[snapshot(3),false]]) {
+    expect(shouldAnimate(previous,next,visible)).toBe(false)
+  }
+})
+
+function audioFixture() {
+  let ready = true
+  const calls = [], active = new Set()
+  const controller = createAudioController({ ready:() => ready, play(cue, volume, ended) {
+    const voice = {cue, volume, ended:() => { active.delete(voice); ended() }}
+    calls.push(voice); active.add(voice)
+    return () => active.delete(voice)
+  } })
+  return { controller, calls, active, setReady(value) { ready = value } }
+}
+
+test('audio consumes muted and locked cues without replaying them after unlock', () => {
+  const {controller,calls,setReady} = audioFixture()
+  setReady(false); controller.play('tick','locked'); setReady(true); controller.play('tick','locked')
+  controller.configure({muted:true,volume:.5}); controller.play('impact','muted')
+  controller.configure({muted:false,volume:.5}); controller.play('impact','muted')
+  controller.play('submit','request-id'); controller.play('submit','request-id')
+  expect(calls.map(call => call.cue)).toEqual(['submit'])
+})
+
+test('voices remain bounded and important local feedback replaces remote motors', () => {
+  const {controller,calls,active} = audioFixture()
+  for (let index=0;index<20;index++) controller.play('move',`move:${index}`,false)
+  expect(active.size).toBe(8)
+  controller.play('crash','crash')
+  expect(active.size).toBe(8)
+  expect(calls.at(-1).cue).toBe('crash')
+  calls.at(-1).ended()
+  expect(active.size).toBe(7)
+  controller.configure({muted:true,volume:.5})
+  expect(active.size).toBe(0)
+})
+
+test('event cues preserve semantics and suppress secondary laser collisions', () => {
+  expect(cueForEvent(event('SCORE_CHANGED',1,{scoreReason:'CONTROL_POINT'}))).toBe(null)
+  expect(cueForEvent(event('SCORE_CHANGED',1,{scoreReason:'CHECKPOINT'}))).toBe('capture')
+  expect(cueForEvent(event('PUSH_BLOCKED',1,{actionType:'LASER'}))).toBe(null)
+  expect(cueForEvent(event('TURN',1,{actionType:'LASER'}))).toBe(null)
+  expect(cueForEvent(event('WEAPON_HIT'))).toBe('hit')
+  expect(cueForEvent(event('VEHICLE_RESPAWNED'))).toBe('respawn')
+})

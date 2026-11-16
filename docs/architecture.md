@@ -214,14 +214,13 @@ results, respawning, and adding automated players from the lobby.
 
 ## Continuous command queue presentation
 
-The current UI presents a vertical command feed: slots 5, 4 and 3 accept new
-commands above a locking gate; slots 2 and 1 are committed and feed the
-execution station. A confirmed tick animates one shift. Initial loads, skipped
-ticks and crash clears synchronize immediately without replaying fictional steps.
-The player-specific continuous snapshot includes nullable `lastExecutedCommand`,
-derived from that player's program in the latest resolved tick: `WAIT` means NOP,
-and null means no command was executed. The existing tick identifies execution.
-Animations are presentation only and respect reduced-motion preferences.
+The continuous UI presents a horizontal mechanical conveyor, left to right as
+5, 4, 3, 2, 1, with a locking gate between slots 3 and 2 and the execution
+station after slot 1. Slots 3–5 retain their existing input eligibility. Confirmed
+consecutive ticks move commands one slot right. Initial loads, skipped ticks and
+crash clears snap to the authoritative snapshot without fictional intermediate
+steps. `lastExecutedCommand` is derived from the latest resolved program; WAIT
+means NOP, while null means no command executed.
 
 New queue input, bot choices and card deals exclude `FORWARD_2` and `FORWARD_3`.
 Their serialized names and engine behavior remain supported for existing state.
@@ -237,14 +236,23 @@ score table. Queue cargo positions are calculated from the track's actual height
 so animated shifts remain aligned when the viewport changes. A reserved status
 row holds errors and retry controls without moving the other regions.
 
-Continuous board playback freezes each confirmed tick's persisted initial vehicles
-and event sequence. A short automatic timeline applies the same vehicle-event
-helper used by legacy round playback, then reconciles with the server's final
-vehicles. Board-local SVG overlays retain multiple bright Laser beams, muzzle and
-hit flashes; Laser-tagged turns add complete visual revolutions without affecting
-server orientation. Polls never restart the timeline. Initial loads and skipped
-ticks show the latest state directly, and a new tick cancels older timers. Reduced
-motion retains visible shot/hit markers while disabling spin animation.
+Continuous presentation freezes each accepted tick's initial vehicles, start events
+and playback events. `useTickPresentation` supplies one cancellable monotonic
+schedule to board feedback and sound; queue advancement starts on acceptance of
+the same tick. Event identity is game id + tick + stream (start/playback) +
+sequence, because sequences are local to their stream. Respawn start events add
+cues at their already-authoritative initial positions. Same-tick revisions update
+live queue, shields and status without restarting playback. The board keeps robot
+DOM identity across ticks, applies confirmed events, and reconciles to final
+server vehicles. Static geometry is memoized separately.
+
+Initial loads, skipped ticks and return from hidden tabs establish a silent
+baseline; obsolete animation frames are cancelled. Reduced motion disables
+travel, spins, recoil and shake while retaining short visible event markers.
+Laser beams use server endpoints; hit bursts require hit events. Decorative SVG
+bursts are limited to eight groups of six fragments and expire within 650 ms.
+Board shake is local to confirmed local rams/crashes. Sound uses a bounded,
+deduplicated Howler adapter; settings and asset provenance are in `docs/assets.md`.
 
 ## Continuous shield and flag standings
 

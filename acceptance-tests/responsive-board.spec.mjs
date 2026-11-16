@@ -40,35 +40,34 @@ async function openGame(page, viewport, width, height, playerCount) {
 }
 
 async function expectFit(page, viewport, playerCount) {
-  const essential = page.locator('.game-heading, .board-wrap, .command-machine, .machine-slot, .queue-cargo, .machine-execution, .execution-command, .queue-commands button, .shield-ability, .shield-ability button, .compact-scores, .compact-score-list li, .queue-status')
-  await expect(async () => {
-    for (const element of await essential.all()) {
-      const box = await element.boundingBox()
-      expect(box).not.toBeNull()
-      expect(box.x).toBeGreaterThanOrEqual(-1)
-      expect(box.y).toBeGreaterThanOrEqual(-1)
-      expect(box.width).toBeGreaterThan(0)
-      expect(box.height).toBeGreaterThan(0)
-      expect(box.x + box.width).toBeLessThanOrEqual(viewport.width + 1)
-      expect(box.y + box.height).toBeLessThanOrEqual(viewport.height + 1)
+  await expect.poll(async () => {
+    // Measure one layout frame in one browser call, so assertions cannot straddle a resize.
+    const measured = await page.evaluate(() => {
+      const rect = element => { const box = element.getBoundingClientRect(); return { x: box.x, y: box.y, width: box.width, height: box.height } }
+      return {
+        essential: [...document.querySelectorAll('.game-heading, .audio-controls button, .audio-controls input, .board-wrap, .command-machine, .machine-slot, .queue-cargo, .machine-execution, .execution-command, .queue-commands button, .shield-ability, .shield-ability button, .compact-scores, .compact-score-list li, .queue-status')].map(rect),
+        players: document.querySelectorAll('.compact-score-list li').length,
+        width: document.documentElement.scrollWidth, height: document.documentElement.scrollHeight,
+        scrollPanels: [...document.querySelectorAll('.game-page, .game-controls, .queue-panel, .command-pad, .compact-scores')]
+          .filter(el => el.scrollHeight > el.clientHeight + 1 || el.scrollWidth > el.clientWidth + 1).map(el => el.className),
+        regions: ['.board-wrap', '.game-controls', '.compact-scores'].map(selector => rect(document.querySelector(selector))),
+        buttons: [...document.querySelectorAll('.queue-commands button')].map(rect),
+      }
+    })
+    const errors = []
+    for (const [index, box] of measured.essential.entries()) {
+      if (box.x < -1 || box.y < -1 || box.width <= 0 || box.height <= 0 || box.x + box.width > viewport.width + 1 || box.y + box.height > viewport.height + 1) errors.push(`Element ${index} outside viewport: ${JSON.stringify(box)}`)
     }
-    expect(await page.locator('.compact-score-list li').count()).toBe(playerCount)
-    const dimensions = await page.evaluate(() => ({
-      width: document.documentElement.scrollWidth, height: document.documentElement.scrollHeight,
-      scrollPanels: [...document.querySelectorAll('.game-page, .game-controls, .queue-panel, .command-pad, .compact-scores')]
-        .filter(el => el.scrollHeight > el.clientHeight + 1 || el.scrollWidth > el.clientWidth + 1).map(el => el.className),
-    }))
-    expect(dimensions.width).toBeLessThanOrEqual(viewport.width)
-    expect(dimensions.height).toBeLessThanOrEqual(viewport.height)
-    expect(dimensions.scrollPanels).toEqual([])
-    const board = await page.locator('.board-wrap').boundingBox()
-    const controls = await page.locator('.game-controls').boundingBox()
-    const scores = await page.locator('.compact-scores').boundingBox()
+    if (measured.players !== playerCount) errors.push(`Player count ${measured.players}`)
+    if (measured.width > viewport.width || measured.height > viewport.height) errors.push(`Document ${measured.width}x${measured.height}`)
+    if (measured.scrollPanels.length) errors.push(`Scrolling: ${measured.scrollPanels.join(', ')}`)
+    const [board, controls, scores] = measured.regions
     for (const [a, b] of [[board, controls], [board, scores], [controls, scores]]) {
-      expect(a.x + a.width <= b.x + 1 || b.x + b.width <= a.x + 1 || a.y + a.height <= b.y + 1 || b.y + b.height <= a.y + 1).toBe(true)
+      if (!(a.x + a.width <= b.x + 1 || b.x + b.width <= a.x + 1 || a.y + a.height <= b.y + 1 || b.y + b.height <= a.y + 1)) errors.push(`Overlapping regions: ${JSON.stringify([a,b])}`)
     }
-    for (const button of await page.locator('.queue-commands button').all()) expect((await button.boundingBox()).height).toBeGreaterThanOrEqual(44)
-  }).toPass()
+    if (measured.buttons.length !== 6 || measured.buttons.some(button => button.height < 44)) errors.push('Command buttons must have six 44px targets')
+    return errors
+  }, { timeout: 5000 }).toEqual([])
 }
 
 for (const [width, height] of [[10, 10], [20, 10], [10, 20]]) {

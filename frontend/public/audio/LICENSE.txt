@@ -1,0 +1,10 @@
+Original Wreckage synthesized sound effects
+
+The WAV files in this directory are dedicated to the public domain under
+CC0 1.0 Universal. To the extent possible under law, all copyright and related
+or neighboring rights in these original sound effects are waived.
+
+CC0 legal code: https://creativecommons.org/publicdomain/zero/1.0/legalcode
+
+These recordings contain no third-party samples. They are reproducible using
+scripts/local-dev/generate-audio.py in the Wreckage repository.

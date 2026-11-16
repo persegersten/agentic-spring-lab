@@ -50,6 +50,8 @@ test('machine separates input and locked slots and moves identical commands with
   }
   for (const command of ['FORWARD_2', 'FORWARD_3']) await expect(page.getByRole('button', { name: command, exact: true })).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Laser', exact: true })).toBeDisabled()
+  const boxes = await Promise.all([5,4,3,2,1].map(slot => page.getByTestId(`slot-${slot}`).boundingBox()))
+  for (let index = 1; index < boxes.length; index++) expect(boxes[index].x).toBeGreaterThan(boxes[index - 1].x)
   const cargo = page.getByTestId('queue-cargo')
   const first = await cargo.and(page.locator('[data-command="FORWARD_1"]')).first().getAttribute('data-cargo-id')
   const second = await cargo.last().getAttribute('data-cargo-id')
@@ -62,7 +64,7 @@ test('machine separates input and locked slots and moves identical commands with
   await game.tick([null, null, 'FORWARD_1', 'FORWARD_1', null], 'WAIT')
   await expect(page.locator(`[data-cargo-id="${first}"]`)).toHaveAttribute('data-slot', '3')
   await expect(page.locator(`[data-cargo-id="${second}"]`)).toHaveAttribute('data-slot', '4')
-  await expect.poll(() => page.evaluate(() => window.queueTransitions)).toContain('top')
+  await expect.poll(() => page.evaluate(() => window.queueTransitions)).toContain('left')
   await expect(page.getByTestId('executed-command')).toHaveText('NOP')
   // Accept another command while the shift animation is still settling.
   await page.getByRole('button', { name: 'Laser', exact: true }).click()
@@ -89,8 +91,8 @@ test('empty queue accepts three commands in slots 3, 4 and 5', async ({ page }) 
   const gate = await page.locator('.machine-lock-gate').boundingBox()
   const third = await page.getByTestId('slot-3').boundingBox()
   const second = await page.getByTestId('slot-2').boundingBox()
-  expect(gate.y).toBeGreaterThanOrEqual(third.y + third.height)
-  expect(gate.y + gate.height).toBeLessThanOrEqual(second.y)
+  expect(gate.x).toBeGreaterThanOrEqual(third.x + third.width)
+  expect(gate.x + gate.width).toBeLessThanOrEqual(second.x)
 })
 
 test('slot 3 remains available when slots 4 and 5 are occupied', async ({ page }) => {
@@ -106,7 +108,7 @@ test('execution uses the confirmed command, skipped ticks snap, and crashes clea
   const game = await openQueue(page)
   await game.tick([null, 'FORWARD_1', 'FORWARD_1', null, null], 'LASER', 2)
   await expect(page.getByTestId('executed-command')).toHaveText('Laser')
-  await expect(page.getByTestId('executed-command')).toHaveClass(/execution-pulse/)
+  await expect(page.getByTestId('executed-command')).not.toHaveClass(/execution-pulse/)
   await expect(page.locator('.command-machine')).toHaveClass(/queue-snap/)
   game.state.vehicles[0].status = 'CRASHED'
   await game.tick([null, null, null, null, null], 'FORWARD_1')

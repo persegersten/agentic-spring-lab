@@ -3,6 +3,10 @@ import { activateShield, appendCommand } from '../api/games'
 import { ContinuousBoard } from './ContinuousBoard'
 import { ScoreTable } from './ScoreTable'
 import { CommandQueue } from './CommandQueue'
+import { useTickPresentation } from '../presentation/useTickPresentation'
+import { gameAudio } from '../presentation/audio'
+import { AudioControls } from './AudioControls'
+import { Icon } from './Icon'
 import { commandLabels } from './commandLabels'
 import type { MovementOrder, PlayerGame, PlayerSession } from '../types/game'
 
@@ -21,12 +25,13 @@ export function ContinuousGame({view,session,onSnapshot}:{view:PlayerGame;sessio
   const [shieldBusy, setShieldBusy] = useState(false)
   const [shieldError, setShieldError] = useState('')
   const [now,setNow] = useState(Date.now())
+  const presentation = useTickPresentation(view)
   const c = view.continuous
   const offset = useMemo(() => c ? Date.now() - Date.parse(c.serverTime) : 0, [c])
   useEffect(() => { const timer = setInterval(() => setNow(Date.now()),100); return () => clearInterval(timer) }, [])
   async function send(p:Pending) {
     setPending(p); localStorage.setItem(key,JSON.stringify(p)); setBusy(true); setError('')
-    try { onSnapshot(await appendCommand(session,p.command,p.requestId)); setPending(null); localStorage.removeItem(key) }
+    try { onSnapshot(await appendCommand(session,p.command,p.requestId)); gameAudio.play('submit', `${session.gameId}:submit:${p.requestId}`); setPending(null); localStorage.removeItem(key) }
     catch(e) { setError(e instanceof Error ? e.message : 'Request failed') }
     finally { setBusy(false) }
   }
@@ -45,26 +50,27 @@ export function ContinuousGame({view,session,onSnapshot}:{view:PlayerGame;sessio
   return <main className="game-page" data-testid="game-page">
       <div className="game-heading">
         <h1>WRECKAGE <span>{view.status === 'FINISHED' ? 'Slut' : 'Spelar'}</span></h1>
+        <AudioControls />
         <p>Tick {c?.tick ?? 0} · {c ? Math.max(0,(Date.parse(c.nextTick)-now+offset)/1000).toFixed(1) : '…'} s</p>
       </div>
     <section className="game-viewport" aria-label="Spelöversikt">
       <div className="board-stage">
-        <ContinuousBoard view={view}/>
+        <ContinuousBoard view={view} presentation={presentation}/>
       </div>
     </section>
     <aside className="game-controls" aria-label="Spelkontroller">
     <section className="panel queue-panel"><div className="queue-heading"><h2>Kommandokö</h2><span>3–5 öppna · 1–2 låsta</span></div>
-      {c && <CommandQueue snapshot={c} crashed={crashed} />}
+      {c && <CommandQueue snapshot={c} crashed={crashed} animate={presentation.queueAnimate} />}
       <div className="command-pad">
         <p className="queue-destination">{destination ? `Mata in → ${destination}` : 'Kön är full'}</p>
         <div className="queue-commands">{commands.map(command => <button key={command} aria-label={commandLabels[command]} title={command}
-          disabled={!c || !destination || !!pending || busy || crashed || view.status !== 'RUNNING'} onClick={() => void send({command,requestId:crypto.randomUUID()})}>{commandLabels[command]}</button>)}</div>
+          disabled={!c || !destination || !!pending || busy || crashed || view.status !== 'RUNNING'} onClick={() => void send({command,requestId:crypto.randomUUID()})}><Icon name={command}/><span>{commandLabels[command]}</span></button>)}</div>
         <div className="shield-ability">
           <p data-testid="shield-status" role={shieldError ? 'alert' : 'status'} title={shieldError || undefined}>
             {shieldError ? 'Obekräftad · försök igen' : shieldRequest ? (shieldBusy ? 'Bekräftar sköld…' : 'Obekräftad · försök igen') : c?.shieldPending ? 'Startar nästa tick' : (c?.shieldTicksRemaining ?? 0) > 0 ? `Aktiv · ${c?.shieldTicksRemaining} tick kvar` : view.shieldAvailable ? 'Tillgänglig · 1 gång' : 'Förbrukad'}
           </p>
           <button data-testid="activate-shield" disabled={shieldBusy || (!shieldRequest && (!c || !view.shieldAvailable || crashed || view.status !== 'RUNNING'))}
-            onClick={() => void activateMyShield()}>{shieldRequest ? 'Försök sköld igen' : 'Aktivera sköld'}</button>
+            onClick={() => void activateMyShield()}><Icon name="shield"/>{shieldRequest ? 'Försök sköld igen' : 'Aktivera sköld'}</button>
         </div>
       </div>
       <div className="queue-status" data-testid="queue-status">

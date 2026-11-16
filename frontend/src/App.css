@@ -58,7 +58,7 @@
 .queue-status p{flex:1;min-width:0;margin:0;font-size:11px;line-height:14px;overflow-wrap:anywhere}
 .queue-status [role=alert]{color:#ffb39b}
 .queue-status button{flex:none;height:44px;min-width:88px;padding:4px;font-size:11px}
-/* Slot geometry and moving cargo share the track's actual height, including during resize. */
+/* Mechanical conveyor structure; horizontal geometry is shared with cargo below. */
 .command-machine{--feed-gap:4px;--cargo-height:22px;min-width:0;min-height:0;position:relative;padding:5px;border:2px solid #68746f;border-radius:5px;background:linear-gradient(120deg,#34403b,#19231f 45%,#303a35);box-shadow:inset 0 0 0 2px #101a16;display:grid;grid-template-rows:14px minmax(0,1fr) 8px 42px;gap:2px;font-family:ui-monospace,SFMono-Regular,Consolas,monospace}
 .machine-header{display:flex;align-items:center;gap:5px;color:#c3cdc6;font-size:10px;letter-spacing:.1em}
 .machine-header>span:last-child{margin-left:auto;color:#f5ce76}
@@ -145,3 +145,91 @@
 .shield-ability [role=alert]{color:#ffb39b}
 .shield-ability button{min-height:44px;padding:4px 2px;font-size:11px;background:#175669;border-color:#72cfe4}
 @media(max-width:699px),(max-height:600px){.queue-commands button{font-size:10px}}
+
+/* Industrial presentation: restrained surfaces, shared icons, board-local feedback. */
+:root{--steel:#78878a;--steel-dark:#252d30;--panel:#192124;--amber:#e5b45e;--muted:#a4b0b3}
+.game-page{background:radial-gradient(ellipse at 35% 30%,#293133,#11171a 75%);color:#dce1dd}
+.game-page .panel{border:1px solid #586164;border-radius:4px;background:linear-gradient(135deg,#2a3235,#192124 60%);box-shadow:inset 0 1px #ffffff0c,0 3px 8px #0005}
+.game-page button{background:linear-gradient(#5a6261,#343d3e);border:1px solid #87928c;border-bottom:3px solid #11191b;border-radius:3px;color:#f1e9d5}
+.game-page button:active:not(:disabled){transform:translateY(1px);filter:brightness(.9)}
+.game-page button:focus-visible,.audio-controls input:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+.game-icon{width:18px;height:18px;flex:none;vertical-align:middle}
+.audio-controls{display:flex;align-items:center;gap:4px;margin-left:auto}
+.audio-controls button{display:grid;place-items:center;width:28px;height:26px;padding:3px;min-width:0}
+.audio-controls label{display:flex;align-items:center}
+.audio-controls input{width:54px;height:26px;padding:0;accent-color:var(--amber)}
+.tick-board{width:100%;height:100%;min-width:0;min-height:0;display:grid;place-items:center}
+.board-stage .board-wrap{background:linear-gradient(135deg,#7c8786,#333c3f 45%,#687371);border-color:#151c1f;box-shadow:0 6px 14px #0008,inset 0 0 0 1px #b5bbb44d}
+.board{background-color:#283135;background-image:linear-gradient(#a9b5b514 1px,transparent 1px),linear-gradient(90deg,#a9b5b514 1px,transparent 1px);isolation:isolate}
+.wall{filter:drop-shadow(1px 2px 1px #0009)}
+.wall-north{border-top-color:#9ca39c}.wall-south{border-bottom-color:#9ca39c}.wall-east{border-right-color:#9ca39c}.wall-west{border-left-color:#9ca39c}
+.obstacle{border-color:#7e8581;background:repeating-linear-gradient(135deg,#5b615a 0 6px,#343a37 6px 12px)}
+.conveyor{color:#94a9ad;background:repeating-linear-gradient(0deg,#69797a22 0 3px,#11191a33 3px 6px)}
+.rotator{color:#b5c1b5;border-color:#788e81}
+.checkpoint{border-radius:3px;border-color:#9aad86;background:#99b16f1a;box-shadow:inset 0 0 0 2px #101b17}
+.checkpoint-progress{border-radius:3px;border-color:#718374;background:#101719e8}
+.vehicle{left:0;top:0;color:#afbfc4;transition:transform var(--move-duration,200ms) cubic-bezier(.25,.65,.35,1)}
+.vehicle.own-vehicle{color:var(--amber);background:#e5b45e10;outline:1px solid #e5b45e66;outline-offset:-2px}
+.vehicle-direction,.board-stage .vehicle-direction{background:none;clip-path:none;overflow:visible;filter:drop-shadow(0 2px 1px #000a);transition:transform var(--move-duration,200ms) ease-out}
+.robot-track{fill:#10191b;stroke:#788282;stroke-width:1.5}.robot-tread{stroke:#89908a;stroke-width:2}
+.robot-chassis{fill:currentColor;stroke:#152124;stroke-width:2}.robot-plate{fill:#48595b;stroke:#b9c8bd;stroke-width:1}
+.robot-barrel{fill:#bfc5b4;stroke:#172225;stroke-width:2}.robot-seam{stroke:#263d3f;stroke-width:2}.robot-eye{stroke:#fff1b7;stroke-width:2}
+.vehicle-recoil{width:76%;max-width:42px;aspect-ratio:10/13;max-height:85%;display:grid;place-items:center}
+.vehicle-recoil .vehicle-spin{width:100%;height:100%;max-width:none;max-height:100%}
+.timeline-snap .vehicle,.timeline-snap .vehicle-direction,.timeline-snap .vehicle-spin{transition:none}
+.vehicle.shield-effect{box-shadow:inset 0 0 0 2px #92cbd5,0 0 6px #8fced544}
+.board-effects{position:absolute;inset:0;width:100%;height:100%;z-index:7;pointer-events:none;overflow:hidden;color:#edc282}
+.board-effects circle,.board-effects line{vector-effect:non-scaling-stroke}
+.effect-ring{fill:#e7c27e22;stroke:currentColor;stroke-width:2;animation:effect-ring 600ms ease-out both;transform-origin:0 0}
+.effect-fragment{stroke:currentColor;stroke-width:2;animation:effect-fragments 600ms ease-out both;transform-origin:0 0}
+.effect-crash{color:#cbb194}.effect-crash .effect-ring{fill:#151b1b99;stroke:#c38e58}
+.effect-respawn,.effect-shield{color:#a7c7c9}.effect-capture{color:#cce7a7}
+.effect-respawn .effect-fragment,.effect-shield .effect-fragment,.effect-capture .effect-fragment{stroke-width:1}
+.laser-glow{stroke:#ed7554;filter:none;opacity:.2}.laser-beam{stroke:#ed7554;filter:none}.laser-core{stroke:#fff6d6}
+.laser-block{fill:#e7c27e22;stroke:#e7c27e}
+.queue-panel{grid-template-columns:minmax(0,1fr);grid-template-rows:20px minmax(88px,1fr) auto 44px;align-content:start}
+.command-machine{height:100%;padding:4px;grid-template-columns:minmax(0,1fr) 7px 58px;grid-template-rows:14px minmax(0,1fr);gap:3px;background:linear-gradient(120deg,#444d4e,#20282b 55%,#3e4849);border-color:#788481;border-radius:3px}
+.machine-header{grid-column:1/-1}
+.machine-track{grid-template-columns:repeat(5,minmax(0,1fr));grid-template-rows:minmax(0,1fr);gap:4px;padding:0;border:0;border-top:2px solid #7f8881;border-bottom:2px solid #7f8881;background:repeating-linear-gradient(90deg,#121a1b 0 6px,#323c3b 6px 8px)}
+.machine-slot{min-width:0;background:#1b2424}
+.machine-slot.slot-input{background:#403b2a;border-color:#b39b67}
+.slot-number{left:3px;top:3px;transform:none;font-size:9px}
+.slot-state{right:2px;top:2px;transform:none;line-height:10px}
+.slot-state .game-icon{width:10px;height:10px}
+.slot-empty{left:0;right:0;top:65%;text-align:center;font-size:9px}
+.machine-cargo-layer{inset:0}
+.queue-cargo{top:22px;bottom:4px;left:calc(var(--cargo-row) * (100% + 4px) / 5 + 2px);right:auto;width:calc((100% - 16px) / 5 - 4px);height:auto;min-width:0;padding:2px;flex-direction:column;gap:2px;font-size:8px;overflow:hidden;background:linear-gradient(#727a6c,#3c4944);border-color:#a5b09d;transition:left .3s cubic-bezier(.35,0,.3,1)}
+.queue-cargo .game-icon{width:20px;height:20px}.queue-cargo span{max-width:100%;overflow:hidden;text-overflow:ellipsis}
+.machine-lock-gate{top:0;bottom:0;left:calc(3 * (100% + 4px) / 5 - 4px);right:auto;width:4px;height:auto;background:repeating-linear-gradient(135deg,#bfa05d 0 4px,#252a27 4px 8px)}
+.machine-output-arrow{align-self:center;font-size:12px;line-height:16px}
+.machine-execution{grid-template-columns:minmax(0,1fr);padding:2px;border-color:#b8a477;gap:2px}
+.machine-execution small{white-space:normal;font-size:7px;line-height:9px}
+.execution-label{font-size:8px;white-space:nowrap}.execution-label .game-icon{width:10px;height:10px}
+.execution-command{font-size:9px;line-height:12px;overflow:hidden;text-overflow:ellipsis}
+.command-pad{display:grid;grid-template-columns:minmax(0,1fr) 94px;grid-template-rows:16px auto;gap:3px 6px}
+.queue-destination{grid-column:1/-1;min-height:16px;font-size:11px;line-height:16px}
+.queue-commands{grid-column:1;grid-row:2;gap:4px}
+.queue-commands button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-height:44px;font-size:10px;padding:2px}
+.queue-commands .game-icon{width:17px;height:17px}
+.shield-ability{grid-column:2;grid-row:2;align-content:start;gap:4px}
+.shield-ability p{white-space:normal;line-height:12px;min-height:26px;font-size:9px}
+.shield-ability button{min-height:58px;font-size:10px;border-color:#8ba6a7;background:linear-gradient(#465f62,#2b3e40)}
+.shield-ability button .game-icon{display:block;margin:0 auto 3px}
+.compact-scores .game-icon{width:12px;height:12px}
+@keyframes effect-ring{from{opacity:1;transform:scale(.65)}to{opacity:0;transform:scale(1.5)}}
+@keyframes effect-fragments{from{opacity:1;transform:scale(.6)}to{opacity:0;transform:scale(1.7)}}
+@media(max-width:699px){.queue-panel{grid-template-rows:18px minmax(88px,1fr) auto 44px}.game-heading h1 span{display:none}}
+@media(max-height:600px) and (orientation:landscape){.queue-panel{padding:4px;gap:3px;grid-template-rows:16px minmax(78px,1fr) 108px 44px}.command-pad{grid-template-rows:14px minmax(0,1fr)}.queue-destination{line-height:14px;min-height:14px}.queue-heading h2{font-size:12px;line-height:16px}.machine-execution small{font-size:6px}.queue-cargo span{display:none}}
+@media(prefers-reduced-motion:reduce){.effect-ring,.effect-fragment{animation:none}.effect-fragment{display:none}.effect-ring{opacity:.8}}
+/* Reserve the pad's complete two-row button geometry rather than its smaller min-content height. */
+.command-pad{height:111px;min-height:111px;grid-template-rows:16px 92px}
+.queue-panel{grid-template-rows:20px minmax(88px,1fr) 111px 44px}
+@media(max-width:699px){.queue-panel{grid-template-rows:18px minmax(78px,1fr) 111px 44px}}
+@media(max-height:600px) and (orientation:landscape){.queue-panel{grid-template-rows:16px minmax(78px,1fr) 111px 44px}.command-pad{grid-template-rows:16px 92px}}
+@media(min-width:700px) and (min-height:601px){
+  .game-page{grid-template-rows:28px auto minmax(0,1fr)}
+  .game-controls,.compact-scores{align-self:start}
+  .queue-panel{grid-template-rows:20px 118px 111px 44px}
+}
+.command-machine[data-queue-status=full] .machine-light{background:#e5b45e;box-shadow:0 0 4px #e5b45e66}
+.command-machine[data-queue-status=crashed] .machine-light{background:#d78668;box-shadow:0 0 4px #d7866855}

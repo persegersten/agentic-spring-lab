@@ -44,7 +44,7 @@ test('all players see the same server-owned game board in planning', async ({ br
   })
 })
 
-test('vehicle arrow tips point in the server forward direction', async ({ page }) => {
+test('robot barrels point in the server forward direction', async ({ page }) => {
   const gameId = '10000000-0000-0000-0000-000000000001'
   const playerId = '20000000-0000-0000-0000-000000000001'
   const state = {
@@ -96,7 +96,7 @@ test('vehicle arrow tips point in the server forward direction', async ({ page }
 
   const northVehicle = page.getByTestId('player-vehicle').filter({ hasText: 'North' })
   const southVehicle = page.getByTestId('player-vehicle').filter({ hasText: 'South' })
-  expect(await northVehicle.evaluate(el => el.offsetTop)).toBeGreaterThan(await southVehicle.evaluate(el => el.offsetTop))
+  expect((await northVehicle.boundingBox()).y).toBeGreaterThan((await southVehicle.boundingBox()).y)
 
   // Right turns increase the angle even across the full-circle boundary.
   for (const [direction, angle] of [['EAST', 90], ['SOUTH', 180], ['WEST', 270], ['NORTH', 360]]) {
