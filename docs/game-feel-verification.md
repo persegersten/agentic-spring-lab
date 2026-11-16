@@ -1,5 +1,72 @@
 # Game-feel verification
 
+## M3 visual effects and HUD polish — 2026-11-16
+
+M3 adds server-driven laser flashes, impact sparks and plates, collapsing robot
+silhouettes, respawn deployment brackets/scan, checkpoint brackets and standings
+highlights. Gunmetal surfaces, amber command warnings and consistent SVG icons
+keep the existing board and queue architecture. Checkpoint progress is now in
+the standings. No dependencies, external artwork, backend contracts or gameplay
+rules were added or changed.
+
+The visual planner caps simultaneous groups at eight, including beams, and
+fragments at 48. It prioritizes important/local feedback and permanently drops
+excess decorative effects. Markers last 160–550 ms, bounded by the tick's existing
+linger window. Overlapping local shake cues do not stack; shake is at most 2 px
+for 120 ms. Live reduced-motion changes cancel decoration and retain static
+markers, without replay on re-enabling motion. The countdown timer is isolated
+from board renders; the scheduler stops requesting frames after settling.
+
+Reviewed screenshots: `/tmp/wreckage-m3-capture-desktop.png`,
+`/tmp/wreckage-m3-respawn-desktop.png`, `/tmp/wreckage-fit-320x568.png`,
+`/tmp/wreckage-fit-568x320.png`. Effects render below robots and checkpoint
+numbers and do not receive pointer input. Very small boards still compress robot
+names, as before; full names remain available through accessible labels.
+
+M3 verification:
+
+- TypeScript/Vite production build, oxlint and `git diff --check`: passed.
+- **117 unique focused regressions passed across completed runs**: 65 other
+  presentation/model/audio cases, three laser cases and 49 responsive scenarios.
+  The final laser/responsive run was **52 passed**. Short-lived beam/block checks
+  record admission through MutationObserver rather than assuming a polling
+  assertion will catch a 160–180 ms marker. The initial combined runner was
+  terminated, and a reused Vite server later shut down; completed verification
+  used an isolated Vite-only server because these scenarios mock backend data.
+- New checks cover authoritative effect classification/anchors, capture validation,
+  lifetimes, deterministic full-ID debris, preemption and no backfill, eight-group /
+  48-fragment limits, non-stacking local shake, live reduced-motion cancellation
+  without replay, standings feedback and a settled board with zero requested
+  animation frames / DOM mutations during a 700 ms idle observation.
+- The full legacy acceptance suite was not rerun for M3; its earlier limitations
+  are recorded below. Backend, deployments and server timing were not changed.
+
+Production comparison uses the same `dense multiplayer` scenario: ten robots,
+40 events per tick, three ticks, Chromium 153 reporting four logical processors,
+one worker, tracing/video disabled, no concurrent test run. Both builds passed
+bounded-effects and cleanup checks.
+
+| Measurement | Before M3 | After M3 |
+| --- | --- | --- |
+| Median frame interval | 16.7 ms | 16.7 ms |
+| 95th percentile frame interval | 33.3 ms | 16.8 ms |
+| Long tasks | one, 89 ms | none recorded |
+| Sample duration / frames | 6.06 s / 329 | 5.68 s / 325 |
+| Production JS gzip | 135.21 KB | 136.82 KB |
+
+The shorter effects also shorten this fixture's cleanup waits. These are short
+samples, not a controlled hardware benchmark or a guarantee of 60 FPS. No low-end
+mobile, Firefox or Safari device profiling was performed. Dense bursts can drop
+lower-priority cosmetic groups; gameplay and sound dispatch are unaffected.
+Very small cells reduce decorative detail. Original SVG/CSS avoids particle
+engine overhead and external asset downloads.
+
+Raw metrics: `/tmp/wreckage-m3-baseline-performance.json` and
+`/tmp/wreckage-m3-final-performance.json`. Local test logs:
+`/tmp/wreckage-m3-focused.log` (67 passed before the last laser assertion fix)
+and `/tmp/wreckage-m3-layout.log` (52 passed after that fix).
+No deploy, commit or push was performed.
+
 ## M2 sound refinement — 2026-11-16
 
 - Frontend TypeScript/Vite production build, oxlint and `git diff --check`: passed.

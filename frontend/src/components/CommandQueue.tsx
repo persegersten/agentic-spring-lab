@@ -62,7 +62,7 @@ export function CommandQueue({ snapshot, crashed, animate = true, execution = nu
   const executed = snapshot.lastExecutedCommand
   const travel = frame.slide && animate && width === frame.width
   return <section className={`command-machine ${travel ? '' : 'queue-snap'}`} aria-label="Kommandokö" data-queue-status={crashed ? 'crashed' : destination == null ? 'full' : 'ready'}>
-    <div className="machine-header"><span className="machine-light" /> KÖ <span>→</span></div>
+    <div className="machine-header"><span className="machine-light" /> KÖ <span className="machine-condition" data-testid="queue-warning">{crashed ? 'VÄNTAR' : destination == null ? 'FULL' : 'REDO'}</span><span>→</span></div>
     <div ref={track} className="machine-track" data-testid="command-track">
       {[5, 4, 3, 2, 1].map(slot => {
         const command = snapshot.queue[slot - 1]

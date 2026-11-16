@@ -5,7 +5,7 @@ import type { useTickPresentation } from '../presentation/useTickPresentation'
 export function ContinuousBoard({ view, presentation }: { view: PlayerGame; presentation: ReturnType<typeof useTickPresentation> }) {
   return <div className={`tick-board ${presentation.animate ? '' : 'timeline-snap'}`}>
     <GameBoard board={presentation.board} vehicles={presentation.vehicles} players={view.players} currentPlayerId={view.playerId}
-      laserEvents={presentation.effects.filter(item => item.event.actionType === 'LASER' && ['WEAPON_FIRED','WEAPON_HIT','PUSH_BLOCKED'].includes(item.event.type)).map(item => item.event)}
-      animate={presentation.animate} duration={presentation.duration} effects={presentation.effects} laserRotations={presentation.rotations} laserSpins={presentation.spins} activeShieldPlayerIds={view.continuous?.activeShieldPlayerIds ?? []} />
+
+      shake={presentation.shake} animate={presentation.animate} duration={presentation.duration} effects={presentation.effects} laserRotations={presentation.rotations} laserSpins={presentation.spins} activeShieldPlayerIds={view.continuous?.activeShieldPlayerIds ?? []} />
   </div>
 }

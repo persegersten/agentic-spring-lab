@@ -6,6 +6,7 @@
 | --- | --- | --- | --- |
 | `frontend/public/audio/*.wav` | Original Wreckage synthesis; filenames below | CC0 1.0 (see bundled `audio/LICENSE.txt`) | None after generation |
 | Robot artwork | Original inline SVG in `GameBoard.tsx` | Project source; no external artwork | N/A |
+| M3 beams, sparks, debris, destruction, respawn and capture effects | Original inline SVG in `BoardEffects.tsx` / `LaserEffects.tsx` and CSS in `game-polish.css` | Project source; no external artwork | N/A |
 | HUD and command icons | Original inline SVG in `Icon.tsx` | Project source; no external artwork | N/A |
 | Motion for React and its Motion dependencies | https://motion.dev, npm `motion` 14.14.0 | MIT; bundled at `public/licenses/motion-MIT.txt` | Unmodified dependencies |
 | tslib (Motion dependency) | https://github.com/microsoft/tslib | 0BSD; bundled at `public/licenses/tslib-0BSD.txt` | Unmodified dependency |

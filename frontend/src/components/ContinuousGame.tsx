@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useState } from 'react'
 import { MotionConfig } from 'motion/react'
 import { activateShield, appendCommand } from '../api/games'
 import { ContinuousBoard } from './ContinuousBoard'
+import { TickStatus } from './TickStatus'
 import { ScoreTable } from './ScoreTable'
 import { CommandQueue } from './CommandQueue'
 import { useTickPresentation } from '../presentation/useTickPresentation'
@@ -25,11 +26,9 @@ export function ContinuousGame({view,session,onSnapshot,recoveryEpoch=0}:{recove
   const [shieldRequest, setShieldRequest] = useState(() => loadShieldRequest(shieldKey))
   const [shieldBusy, setShieldBusy] = useState(false)
   const [shieldError, setShieldError] = useState('')
-  const [now,setNow] = useState(Date.now())
   const presentation = useTickPresentation(view, recoveryEpoch)
   const c = view.continuous
-  const offset = useMemo(() => c ? Date.now() - Date.parse(c.serverTime) : 0, [c])
-  useEffect(() => { const timer = setInterval(() => setNow(Date.now()),100); return () => clearInterval(timer) }, [])
+
   async function send(p:Pending) {
     setPending(p); localStorage.setItem(key,JSON.stringify(p)); setBusy(true); setError('')
     try { onSnapshot(await appendCommand(session,p.command,p.requestId)); gameAudio.play('submit', `${session.gameId}:submit:${p.requestId}`); setPending(null); localStorage.removeItem(key) }
@@ -52,7 +51,7 @@ export function ContinuousGame({view,session,onSnapshot,recoveryEpoch=0}:{recove
       <div className="game-heading">
         <h1>WRECKAGE <span>{view.status === 'FINISHED' ? 'Slut' : 'Spelar'}</span></h1>
         <AudioControls />
-        <p>Tick {c?.tick ?? 0} · {c ? Math.max(0,(Date.parse(c.nextTick)-now+offset)/1000).toFixed(1) : '…'} s</p>
+        <TickStatus snapshot={c} running={view.status === 'RUNNING'}/>
       </div>
     <section className="game-viewport" aria-label="Spelöversikt">
       <div className="board-stage">
@@ -75,11 +74,11 @@ export function ContinuousGame({view,session,onSnapshot,recoveryEpoch=0}:{recove
         </div>
       </div>
       <div className="queue-status" data-testid="queue-status">
-        <p role={error ? 'alert' : 'status'} title={error || undefined} aria-label={error || undefined}>{error ? 'Kommandot kunde inte bekräftas.' : crashed ? 'Kraschad · återstart nästa tick.' : pending ? `Bekräftar ${commandLabels[pending.command]}…` : 'Kommandon kan inte ändras.'}</p>
+        <p role={error ? 'alert' : 'status'} title={error || undefined} aria-label={error || undefined}>{error ? 'Kommandot kunde inte bekräftas.' : crashed ? 'Kraschad · väntar på återstart.' : pending ? `Bekräftar ${commandLabels[pending.command]}…` : 'Kommandon kan inte ändras.'}</p>
         {pending && <button disabled={busy} title={error || undefined} onClick={() => void send(pending)}>Försök igen</button>}
       </div>
     </section>
     </aside>
-    <ScoreTable players={view.players} placements={view.placements} compact currentPlayerId={session.playerId}/>
+    <ScoreTable checkpointCount={view.board.checkpoints.length} captureEffects={presentation.effects.filter(effect=>effect.kind==='capture')} players={view.players} placements={view.placements} compact currentPlayerId={session.playerId}/>
   </main></MotionConfig>
 }

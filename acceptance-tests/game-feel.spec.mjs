@@ -121,8 +121,14 @@ test('hidden tabs establish a silent baseline and resume only future ticks',asyn
   await page.evaluate(()=>{Object.defineProperty(document,'hidden',{configurable:true,get:()=>false});document.dispatchEvent(new Event('visibilitychange'))})
   await expect(page.getByTestId('laser-shot')).toHaveCount(0)
   await expect(page.getByTestId('executed-command')).not.toHaveClass(/execution-pulse/)
+  await page.evaluate(()=>{
+    window.resumedBeams=[]
+    new MutationObserver(()=>{
+      for(const beam of document.querySelectorAll('[data-effect="beam"]'))window.resumedBeams.push(beam.dataset.eventId)
+    }).observe(document.querySelector('.board-stage'),{childList:true,subtree:true})
+  })
   game.next([game.event('WEAPON_FIRED',1,{actionType:'LASER'})])
-  await expect(page.getByTestId('laser-shot')).toBeVisible()
+  await expect.poll(()=>page.evaluate(()=>window.resumedBeams.length)).toBeGreaterThan(0)
 })
 
 test('new ticks cancel stale effects and confirmed checkpoints have distinct feedback',async({page})=>{
@@ -504,4 +510,67 @@ test('M2: a command acknowledgement that advances the tick keeps its submission 
   await expect.poll(()=>page.evaluate(()=>window.m2Cues.filter(c=>c.cue==='submit').length)).toBe(1)
   await page.waitForTimeout(180)
   expect(await page.evaluate(()=>window.m2Stopped.filter(c=>c==='submit'))).toHaveLength(0)
+})
+
+test('M3: capture brackets and standings feedback keep checkpoint progress outside the board',async({page})=>{
+  const game=await setup(page)
+  await expect(page.locator('.board-stage [data-testid="checkpoint-progress"]')).toHaveCount(0)
+  await expect(page.locator('.compact-scores [data-testid="checkpoint-progress"]')).toBeVisible()
+  game.next([game.event('SCORE_CHANGED',1,{scoreReason:'CHECKPOINT',checkpointId:'CP1'})])
+  const capture=page.locator('[data-effect="capture"]')
+  await expect(capture).toBeVisible()
+  await expect(capture).toHaveAttribute('transform','translate(2.5,8.5)')
+  await expect(page.getByTestId('capture-highlight')).toBeVisible()
+  expect(await capture.evaluate(el=>getComputedStyle(el.closest('svg')).pointerEvents)).toBe('none')
+  expect(await page.getByTestId('board-checkpoint').evaluate(el=>Number(getComputedStyle(el).zIndex))).toBeGreaterThan(3)
+  await page.screenshot({path:'/tmp/wreckage-m3-capture-desktop.png'})
+  await expect(capture).toHaveCount(0)
+  await expect(page.getByTestId('capture-highlight')).toHaveCount(0)
+})
+
+test('M3: live reduced-motion changes cancel debris and shake without replaying old effects',async({page})=>{
+  const game=await setup(page)
+  await page.evaluate(()=>{
+    window.shakes=[]
+    const original=Element.prototype.animate
+    Element.prototype.animate=function(frames,options){
+      if(this.matches('[data-testid="game-board"]'))window.shakes.push({frames,options})
+      return original.call(this,frames,options)
+    }
+  })
+  game.next([game.event('CRASH')])
+  const effect=page.locator('[data-effect="crash"]')
+  await expect(effect).toHaveAttribute('data-motion','on')
+  await page.emulateMedia({reducedMotion:'reduce'})
+  await expect(effect).toHaveAttribute('data-motion','off')
+  expect(await effect.locator('.effect-fragment').first().evaluate(el=>getComputedStyle(el).display)).toBe('none')
+  await page.emulateMedia({reducedMotion:'no-preference'})
+  await expect(effect).toHaveAttribute('data-motion','off')
+  const shakes=await page.evaluate(()=>window.shakes)
+  expect(shakes).toHaveLength(1)
+  expect(shakes[0].options.duration).toBe(120)
+  expect(shakes[0].frames.map(frame=>frame.transform)).toEqual(['none','translate(2px,-1px)','translate(-1px,1px)','none'])
+  await expect(effect).toHaveCount(0)
+  game.state.continuous.revision++
+  await page.waitForTimeout(650)
+  expect(await page.evaluate(()=>window.shakes.length)).toBe(1)
+})
+
+test('M3: respawn deployment and settled board need no idle animation frames or DOM mutations',async({page})=>{
+  const game=await setup(page)
+  game.next([],[game.event('VEHICLE_RESPAWNED')])
+  await expect(page.locator('[data-effect="respawn"] .effect-deployment')).toBeVisible()
+  await expect(page.getByTestId('player-vehicle')).toHaveAttribute('data-respawning','on')
+  await page.screenshot({path:'/tmp/wreckage-m3-respawn-desktop.png'})
+  await expect(page.getByTestId('board-effect')).toHaveCount(0)
+  await page.waitForTimeout(1800)
+  await page.evaluate(()=>{
+    window.idleWork={frames:0,mutations:0}
+    const original=window.requestAnimationFrame
+    window.requestAnimationFrame=function(callback){window.idleWork.frames++;return original.call(this,callback)}
+    window.idleObserver=new MutationObserver(records=>window.idleWork.mutations+=records.length)
+    window.idleObserver.observe(document.querySelector('[data-testid="game-board"]'),{subtree:true,childList:true,attributes:true})
+  })
+  await page.waitForTimeout(700)
+  expect(await page.evaluate(()=>window.idleWork)).toEqual({frames:0,mutations:0})
 })

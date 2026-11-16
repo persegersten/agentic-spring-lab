@@ -2,7 +2,9 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { PlayerGame } from '../types/game'
 import { playbackVehicles } from '../components/playbackVehicles'
 import { gameAudio } from './audio'
-import { createTimeline, hasEffect, shouldAnimate } from './timeline'
+import { useReducedMotionPreference } from './useReducedMotionPreference'
+import { planEffects, planShakes } from './visualEffects'
+import { createTimeline, shouldAnimate } from './timeline'
 
 export function useTickPresentation(view: PlayerGame, recoveryEpoch = 0) {
   const [timeline, setTimeline] = useState(() => ({ view, recoveryEpoch, schedule: createTimeline(view), animate: false, spinBase: {} as Record<string, number> }))
@@ -22,8 +24,16 @@ export function useTickPresentation(view: PlayerGame, recoveryEpoch = 0) {
     setTimeline({ view, recoveryEpoch, schedule: createTimeline(view), animate: nextAnimate, spinBase })
   }
   const { schedule } = timeline
+  const reducedMotion = useReducedMotionPreference()
+  const effectPlan = useMemo(() => planEffects(schedule, timeline.view.board, view.playerId), [schedule, timeline.view.board, view.playerId])
+  const shakePlan = useMemo(() => planShakes(schedule, view.playerId), [schedule, view.playerId])
   const elapsed = clock.key === schedule.key ? clock.elapsed : 0
   const executionDuration = Math.min(300, (view.continuous?.intervalMillis ?? 2000) * .2)
+  const [motionPolicy, setMotionPolicy] = useState({ plan: effectPlan, reduced: reducedMotion, blockedUntil: reducedMotion ? 0 : -1 })
+  if (motionPolicy.plan !== effectPlan || motionPolicy.reduced !== reducedMotion) {
+    setMotionPolicy({ plan: effectPlan, reduced: reducedMotion,
+      blockedUntil: motionPolicy.plan !== effectPlan ? (reducedMotion ? 0 : -1) : Math.max(motionPolicy.blockedUntil, elapsed) })
+  }
   const animate = timeline.animate && visible
   const settled = !animate || elapsed >= schedule.duration
   useEffect(() => {
@@ -52,13 +62,13 @@ export function useTickPresentation(view: PlayerGame, recoveryEpoch = 0) {
           if (time - item.at < 150) gameAudio.event(item.event, item.id, view.playerId)
         }
       }
-      const boundary = `${schedule.events.filter(item => item.at <= time).length}:${schedule.events.filter(item => item.until <= time).length}:${time >= schedule.duration}:${time >= executionDuration}`
+      const boundary = `${schedule.events.filter(item => item.at <= time).length}:${effectPlan.filter(item => item.until <= time).length}:${shakePlan.filter(item => item.until <= time).length}:${time >= schedule.duration}:${time >= executionDuration}`
       if (boundary !== previousBoundary) { previousBoundary = boundary; setClock({ key: schedule.key, elapsed: time }) }
       if (time < schedule.duration) timer = requestAnimationFrame(update)
     }
     timer = requestAnimationFrame(update)
     return () => { cancelAnimationFrame(timer); gameAudio.stop(`${schedule.key}:`) }
-  }, [animate, schedule, view.playerId, executionDuration])
+  }, [animate, schedule, view.playerId, executionDuration, effectPlan, shakePlan])
   useEffect(() => {
     if (!timeline.animate && timeline.view.status === 'FINISHED') lastStatus.current = 'FINISHED'
     if (lastStatus.current !== 'FINISHED' && view.status === 'FINISHED' && settled && visible) {
@@ -66,11 +76,15 @@ export function useTickPresentation(view: PlayerGame, recoveryEpoch = 0) {
       lastStatus.current = view.status
     } else if (view.status !== 'FINISHED') lastStatus.current = view.status
   }, [view, settled, visible, timeline.animate, timeline.view.status])
-  const shown = useMemo(() => schedule.events.filter(item => item.at <= elapsed), [schedule, elapsed])
+  const eventProgress = schedule.events.filter(item => item.at <= elapsed).length
+  const shown = useMemo(() => schedule.events.slice(0, eventProgress), [schedule, eventProgress])
   const vehicles = useMemo(() => settled ? view.vehicles.filter(v => v.status === 'ACTIVE')
     : playbackVehicles(timeline.view.round?.state.initialVehicles ?? timeline.view.vehicles,
       shown.filter(item => item.stream === 'playback').map(item => item.event)), [settled, view.vehicles, timeline.view, shown])
-  const effects = settled ? [] : shown.filter(item => hasEffect(item.event) && item.until > elapsed).slice(-8)
+  const effects = useMemo(() => settled ? [] : effectPlan.filter(item => item.at <= elapsed && item.until > elapsed)
+    .map(item => ({ ...item, motion: !reducedMotion && item.at > motionPolicy.blockedUntil, age: elapsed - item.at })),
+    [settled, effectPlan, elapsed, reducedMotion, motionPolicy.blockedUntil])
+  const shake = !settled && !reducedMotion ? shakePlan.find(item => item.at <= elapsed && item.until > elapsed && item.at > motionPolicy.blockedUntil) : undefined
   const spins: Record<string, number> = {}
   if (timeline.animate) for (const item of shown) if (item.event.type === 'TURN' && item.event.actionType === 'LASER') {
     spins[item.event.vehicleId] = (spins[item.event.vehicleId] ?? 0) + 1
@@ -79,5 +93,5 @@ export function useTickPresentation(view: PlayerGame, recoveryEpoch = 0) {
   for (const [id, count] of Object.entries(spins)) rotations[id] = (rotations[id] ?? 0) + count
   const execution = animate && elapsed < executionDuration && timeline.view.continuous?.lastExecutedCommand != null
     ? { id: schedule.key, command: timeline.view.continuous.lastExecutedCommand } : null
-  return { execution, duration: Math.min(200, schedule.step) / 1000, board: timeline.view.board, vehicles, effects, spins, rotations, animate: animate && !settled, queueAnimate: timeline.animate && visible }
+  return { execution, shake, duration: Math.min(200, schedule.step) / 1000, board: timeline.view.board, vehicles, effects, spins, rotations, animate: animate && !settled, queueAnimate: timeline.animate && visible }
 }

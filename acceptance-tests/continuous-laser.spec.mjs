@@ -43,10 +43,14 @@ async function setup(page, { reducedMotion = false, mobile = false } = {}) {
     window.maxLaserCount = 0
     window.laserAppearances = 0
     window.laserPaths = []
+    window.laserBlocks = []
+    window.laserMotion = []
     new MutationObserver(records => {
+      for (const marker of document.querySelectorAll('[data-testid="laser-block"]')) window.laserBlocks.push(marker.closest('[data-testid="board-effect"]').dataset.motion)
       window.maxLaserCount = Math.max(window.maxLaserCount, document.querySelectorAll('[data-testid="laser-shot"]').length)
       for (const shot of document.querySelectorAll('[data-testid="laser-shot"]')) {
         if (!window.laserPaths.some(path => path.sequence === shot.dataset.sequence)) {
+          window.laserMotion.push({motion:shot.closest('[data-testid=board-effect]').dataset.motion,animation:getComputedStyle(shot.closest('[data-testid=board-effect]')).animationName})
           window.laserPaths.push({ sequence: shot.dataset.sequence, startX: shot.dataset.startX,
             strokeWidth: getComputedStyle(shot.querySelector('.laser-beam')).strokeWidth })
         }
@@ -76,9 +80,9 @@ for (const mobile of [false, true]) {
     const game = await setup(page, { mobile })
     game.fire()
     // Inspect the captured appearance; the first beam may expire while a later one is still visible.
-    await expect.poll(() => page.evaluate(() => window.laserPaths)).toContainEqual({ sequence: '1', startX: '1', strokeWidth: '6px' })
+    await expect.poll(() => page.evaluate(() => window.laserPaths)).toContainEqual({ sequence: '1', startX: '1', strokeWidth: '3px' })
     await page.screenshot({ path: `/tmp/wreckage-laser-${mobile ? 'mobile' : 'desktop'}.png` })
-    await expect.poll(() => page.evaluate(() => window.maxLaserCount)).toBe(2)
+    await expect.poll(() => page.evaluate(() => window.maxLaserCount)).toBe(1)
     for (const [id, x, direction] of [['target-c', '4', 'EAST'], ['target-d', '3', 'SOUTH']]) {
       const target = page.locator(`[data-testid="player-vehicle"][data-player-id="${id}"]`)
       await expect(target).toHaveAttribute('data-x', x)
@@ -106,9 +110,8 @@ test('blocked shots show a block marker, and reduced motion disables spins while
   game.fire()
   game.initial[3].status = 'CRASHED'
   game.state.vehicles = structuredClone(game.initial)
-  await expect(page.getByTestId('laser-shot')).toBeVisible()
-  await expect(page.getByTestId('laser-shot')).toHaveCSS('animation-name', 'none')
-  await expect(page.getByTestId('laser-block')).toBeVisible()
+  await expect.poll(() => page.evaluate(() => window.laserMotion)).toContainEqual({motion:'off',animation:'none'})
+  await expect.poll(() => page.evaluate(() => window.laserBlocks)).toContain('off')
   await expect(page.locator('[data-player-id="target-d"][data-testid="player-vehicle"]')).toHaveCount(0)
   const target = page.locator('[data-player-id="target-c"][data-testid="player-vehicle"]')
   await expect(target).toHaveAttribute('data-x', '3')

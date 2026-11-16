@@ -263,9 +263,32 @@ revision is unchanged. An older response cannot clear pending recovery. That
 epoch resets board and queue presentation without changing server contracts. Reduced motion disables
 travel, spins and recoil, including preference changes while playback is active,
 while retaining short visible event markers.
-Laser beams use server endpoints; hit bursts require hit events. Decorative SVG
-bursts are limited to eight groups of six fragments and expire within 650 ms.
-Board shake is local to confirmed local rams/crashes. Sound uses a bounded,
+Laser beams use server endpoints; hit bursts require hit events. M3's pure
+`visualEffects` planner admits at most eight simultaneous SVG groups (including
+beams) and 48 fragments. Full event IDs seed deterministic debris geometry.
+Higher priority local/destruction/capture effects can truncate lower priority
+ones; dropped effects never backfill after capacity frees. Lifetimes are 160 ms
+for beams, 180 ms for blocked actions, 240 ms for hits/collisions, 300 ms for
+shield activation, 450 ms for destruction, 500 ms for respawn, and 550 ms for
+checkpoint capture, shortened to the existing tick linger budget. Capture
+requires the CHECKPOINT reason and a valid board checkpoint ID. These cosmetic
+lifetimes do not change event application or sound timing.
+
+Laser flashes, contact sparks, torn plates, collapsing chassis, deployment
+brackets and capture markers use original SVG/CSS without a particle library.
+Effects sit below robots and checkpoint numbers and never receive pointer input.
+The checkpoint progress summary lives in the standings rather than over the
+board. Gunmetal panels, amber command warnings, muted cyan protection and pale
+green capture feedback share the existing icon vocabulary.
+
+Board shake is limited to fresh confirmed local rams/crashes: at most two pixels
+for 120 ms, with overlapping cues suppressed rather than stacked. Reduced motion
+cancels active shake and decorative animation and retains static event markers;
+turning motion back on does not replay already-visible effects. Negative CSS
+delays are captured at admission so other effect expirations cannot restart them.
+The countdown owns its 100 ms timer in `TickStatus`; it does not rerender the board.
+Robot and static board layers are memoized, and the presentation scheduler stops
+requesting frames when the tick settles. Sound uses a bounded,
 deduplicated Howler adapter; settings and asset provenance are in `docs/assets.md`.
 
 M2 separates audio policy from browser playback. `audioController` consumes cue
