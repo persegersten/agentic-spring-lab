@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { MotionConfig } from 'motion/react'
 import { activateShield, appendCommand } from '../api/games'
 import { ContinuousBoard } from './ContinuousBoard'
 import { ScoreTable } from './ScoreTable'
@@ -15,7 +16,7 @@ type Pending = {command:MovementOrder; requestId:string}
 function loadShieldRequest(key: string): string | null {
   try { return localStorage.getItem(key) } catch { return null }
 }
-export function ContinuousGame({view,session,onSnapshot}:{view:PlayerGame;session:PlayerSession;onSnapshot:(v:PlayerGame)=>void}) {
+export function ContinuousGame({view,session,onSnapshot,recoveryEpoch=0}:{recoveryEpoch?:number;view:PlayerGame;session:PlayerSession;onSnapshot:(v:PlayerGame)=>void}) {
   const key = `wreckage-pending:${session.gameId}:${session.playerId}`
   const [pending,setPending] = useState<Pending|null>(() => JSON.parse(localStorage.getItem(key) ?? 'null'))
   const [busy,setBusy] = useState(false)
@@ -25,7 +26,7 @@ export function ContinuousGame({view,session,onSnapshot}:{view:PlayerGame;sessio
   const [shieldBusy, setShieldBusy] = useState(false)
   const [shieldError, setShieldError] = useState('')
   const [now,setNow] = useState(Date.now())
-  const presentation = useTickPresentation(view)
+  const presentation = useTickPresentation(view, recoveryEpoch)
   const c = view.continuous
   const offset = useMemo(() => c ? Date.now() - Date.parse(c.serverTime) : 0, [c])
   useEffect(() => { const timer = setInterval(() => setNow(Date.now()),100); return () => clearInterval(timer) }, [])
@@ -47,7 +48,7 @@ export function ContinuousGame({view,session,onSnapshot}:{view:PlayerGame;sessio
   }
   const destination = c?.queue[2] == null ? 3 : c.queue[3] == null ? 4 : c.queue[4] == null ? 5 : null
   const crashed = view.vehicles.some(v => v.playerId === session.playerId && v.status === 'CRASHED')
-  return <main className="game-page" data-testid="game-page">
+  return <MotionConfig reducedMotion="user"><main className="game-page" data-testid="game-page">
       <div className="game-heading">
         <h1>WRECKAGE <span>{view.status === 'FINISHED' ? 'Slut' : 'Spelar'}</span></h1>
         <AudioControls />
@@ -60,7 +61,7 @@ export function ContinuousGame({view,session,onSnapshot}:{view:PlayerGame;sessio
     </section>
     <aside className="game-controls" aria-label="Spelkontroller">
     <section className="panel queue-panel"><div className="queue-heading"><h2>Kommandokö</h2><span>3–5 öppna · 1–2 låsta</span></div>
-      {c && <CommandQueue snapshot={c} crashed={crashed} animate={presentation.queueAnimate} />}
+      {c && <CommandQueue key={`${view.id}:${recoveryEpoch}`} snapshot={c} crashed={crashed} animate={presentation.queueAnimate} execution={presentation.execution} />}
       <div className="command-pad">
         <p className="queue-destination">{destination ? `Mata in → ${destination}` : 'Kön är full'}</p>
         <div className="queue-commands">{commands.map(command => <button key={command} aria-label={commandLabels[command]} title={command}
@@ -80,5 +81,5 @@ export function ContinuousGame({view,session,onSnapshot}:{view:PlayerGame;sessio
     </section>
     </aside>
     <ScoreTable players={view.players} placements={view.placements} compact currentPlayerId={session.playerId}/>
-  </main>
+  </main></MotionConfig>
 }

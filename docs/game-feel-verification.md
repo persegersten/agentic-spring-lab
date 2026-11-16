@@ -1,6 +1,31 @@
 # Game-feel verification
 
-## Completed checks
+## M1 Motion refinement — 2026-11-16
+
+- TypeScript/Vite production build, oxlint and `git diff --check`: passed.
+- Focused Chromium regression suite: **83 passed**, including 49 responsive
+  scenarios and new tests for Motion interpolation, slot-1 execution identity,
+  collision recoil, recovery on newer/equal revisions, and snapshot deduplication.
+- Additional active-animation preference test: **1 passed**. Enabling reduced
+  motion while a robot and conveyor are moving immediately sets both to their
+  authoritative targets. There are **84 distinct passing cases** across these runs.
+- No sound features, particle libraries, backend contracts or gameplay rules
+  were added or changed. The existing sound and effect regressions still pass.
+
+The focused selection is the command below with `responsive-board shield-flags`
+also included. Local execution used the same temporary Maven/Playwright setup
+noted below. No deployment, commit or push was performed. The full legacy
+acceptance suite was not rerun for M1; its earlier limitations remain documented.
+
+Motion 14's reduced-motion hook captures its initial value. M1 uses a cached
+media-query subscription alongside it so live preference changes cancel tweens.
+CSS no longer owns transforms migrated to Motion; animation callbacks never
+submit gameplay requests. The production JavaScript bundle is approximately
+134 KB gzip after adding Motion (approximately 80 KB before this refinement).
+The performance timings below describe the earlier implementation, not a new
+performance measurement of M1.
+
+## Earlier game-feel implementation checks
 
 - Frontend TypeScript/Vite production build: passed.
 - Frontend oxlint: passed without warnings.

@@ -232,7 +232,7 @@ for board, controls and scores. All six buttons and all participants' scores sta
 visible without document or panel scrolling, including ten-player matches. The
 compact score variant shows names and scores, preserves standings and winner
 markers, and highlights the current player. Full statistics remain in the regular
-score table. Queue cargo positions are calculated from the track's actual height
+score table. Queue cargo positions are calculated from the track's actual width
 so animated shifts remain aligned when the viewport changes. A reserved status
 row holds errors and retry controls without moving the other regions.
 
@@ -246,9 +246,23 @@ live queue, shields and status without restarting playback. The board keeps robo
 DOM identity across ticks, applies confirmed events, and reconciles to final
 server vehicles. Static geometry is memoized separately.
 
+Robot translation, accumulated rotation and collision recoil use Motion for React
+on separate transform layers. Queue cargo uses the measured horizontal track
+width, with stable identities even for adjacent identical commands. These bounded
+tweens never dispatch gameplay. Slot 1 overlays `lastExecutedCommand` for up to
+300 ms on a confirmed tick: the new queue head is the *next* command, not the
+one that just executed. Locked empty slots remain NOPs; append slots retain their
+input/empty states. Resizing immediately realigns cargo rather than replaying a
+shift.
+
 Initial loads, skipped ticks and return from hidden tabs establish a silent
-baseline; obsolete animation frames are cancelled. Reduced motion disables
-travel, spins, recoil and shake while retaining short visible event markers.
+baseline; obsolete animation frames and Motion tweens are cancelled. A polling
+failure marks snapshot ingestion disconnected; the first non-stale successful
+snapshot increments a frontend presentation recovery epoch, including when its
+revision is unchanged. An older response cannot clear pending recovery. That
+epoch resets board and queue presentation without changing server contracts. Reduced motion disables
+travel, spins and recoil, including preference changes while playback is active,
+while retaining short visible event markers.
 Laser beams use server endpoints; hit bursts require hit events. Decorative SVG
 bursts are limited to eight groups of six fragments and expire within 650 ms.
 Board shake is local to confirmed local rams/crashes. Sound uses a bounded,

@@ -65,3 +65,33 @@ test('event cues preserve semantics and suppress secondary laser collisions', ()
   expect(cueForEvent(event('WEAPON_HIT'))).toBe('hit')
   expect(cueForEvent(event('VEHICLE_RESPAWNED'))).toBe('respawn')
 })
+
+test('recovery accepts equal revisions as a presentation reset without replacing authoritative state', async () => {
+  const { acceptSnapshot, initialSnapshotState } = await import('../frontend/src/presentation/snapshots.ts')
+  const view = { ...snapshot(), continuous: { ...snapshot().continuous, revision: 5 } }
+  let state = acceptSnapshot(initialSnapshotState, { type: 'snapshot', snapshot: view })
+  expect(acceptSnapshot(state, { type: 'snapshot', snapshot: structuredClone(view) })).toBe(state)
+  state = acceptSnapshot(state, { type: 'disconnected' })
+  const stale = { ...view, continuous: { ...view.continuous, revision: 4 } }
+  expect(acceptSnapshot(state, { type: 'snapshot', snapshot: stale })).toBe(state)
+  const recovered = acceptSnapshot(state, { type: 'snapshot', snapshot: structuredClone(view) })
+  expect(recovered.view).toBe(view)
+  expect(recovered.recoveryEpoch).toBe(1)
+  expect(recovered.disconnected).toBe(false)
+  expect(acceptSnapshot(recovered, { type: 'snapshot', snapshot: view })).toBe(recovered)
+})
+
+test('recovery resets newer ticks once and game identity permits a new revision sequence', async () => {
+  const { acceptSnapshot, initialSnapshotState } = await import('../frontend/src/presentation/snapshots.ts')
+  const view = { ...snapshot(), continuous: { ...snapshot().continuous, revision: 5 } }
+  let state = acceptSnapshot(initialSnapshotState, { type: 'snapshot', snapshot: view })
+  state = acceptSnapshot(state, { type: 'disconnected' })
+  const newer = { ...view, continuous: { ...view.continuous, revision: 6, tick: 2 } }
+  state = acceptSnapshot(state, { type: 'snapshot', snapshot: newer })
+  expect(state.view).toBe(newer)
+  expect(state.recoveryEpoch).toBe(1)
+  const different = { ...newer, id: 'new-game', continuous: { ...newer.continuous, revision: 1, tick: 0 } }
+  state = acceptSnapshot(state, { type: 'snapshot', snapshot: different })
+  expect(state.view).toBe(different)
+  expect(state.recoveryEpoch).toBe(2)
+})

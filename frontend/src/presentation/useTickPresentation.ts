@@ -1,12 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { CSSProperties } from 'react'
 import type { PlayerGame } from '../types/game'
 import { playbackVehicles } from '../components/playbackVehicles'
 import { gameAudio } from './audio'
 import { createTimeline, hasEffect, shouldAnimate } from './timeline'
 
-export function useTickPresentation(view: PlayerGame) {
-  const [timeline, setTimeline] = useState(() => ({ view, schedule: createTimeline(view), animate: false, spinBase: {} as Record<string, number> }))
+export function useTickPresentation(view: PlayerGame, recoveryEpoch = 0) {
+  const [timeline, setTimeline] = useState(() => ({ view, recoveryEpoch, schedule: createTimeline(view), animate: false, spinBase: {} as Record<string, number> }))
   const [clock, setClock] = useState({ key: '', elapsed: Infinity })
   const [visible, setVisible] = useState(!document.hidden)
   const consumed = useRef(new Set<string>())
@@ -14,16 +13,17 @@ export function useTickPresentation(view: PlayerGame) {
   const latestStatus = useRef(view.status)
   useEffect(() => { latestStatus.current = view.status }, [view.status])
   const nextKey = `${view.id}:${view.continuous?.tick ?? 0}`
-  if (nextKey !== timeline.schedule.key) {
-    const nextAnimate = shouldAnimate(timeline.view, view, visible && !document.hidden)
+  if (nextKey !== timeline.schedule.key || recoveryEpoch !== timeline.recoveryEpoch) {
+    const nextAnimate = recoveryEpoch === timeline.recoveryEpoch && shouldAnimate(timeline.view, view, visible && !document.hidden)
     const spinBase = nextAnimate ? { ...timeline.spinBase } : {}
     if (nextAnimate && timeline.animate) for (const item of timeline.schedule.events) {
       if (item.event.type === 'TURN' && item.event.actionType === 'LASER') spinBase[item.event.vehicleId] = (spinBase[item.event.vehicleId] ?? 0) + 1
     }
-    setTimeline({ view, schedule: createTimeline(view), animate: nextAnimate, spinBase })
+    setTimeline({ view, recoveryEpoch, schedule: createTimeline(view), animate: nextAnimate, spinBase })
   }
   const { schedule } = timeline
   const elapsed = clock.key === schedule.key ? clock.elapsed : 0
+  const executionDuration = Math.min(300, (view.continuous?.intervalMillis ?? 2000) * .2)
   const animate = timeline.animate && visible
   const settled = !animate || elapsed >= schedule.duration
   useEffect(() => {
@@ -52,13 +52,13 @@ export function useTickPresentation(view: PlayerGame) {
           if (time - item.at < 150) gameAudio.event(item.event, item.id, view.playerId)
         }
       }
-      const boundary = `${schedule.events.filter(item => item.at <= time).length}:${schedule.events.filter(item => item.until <= time).length}:${time >= schedule.duration}`
+      const boundary = `${schedule.events.filter(item => item.at <= time).length}:${schedule.events.filter(item => item.until <= time).length}:${time >= schedule.duration}:${time >= executionDuration}`
       if (boundary !== previousBoundary) { previousBoundary = boundary; setClock({ key: schedule.key, elapsed: time }) }
       if (time < schedule.duration) timer = requestAnimationFrame(update)
     }
     timer = requestAnimationFrame(update)
     return () => { cancelAnimationFrame(timer); gameAudio.stop() }
-  }, [animate, schedule, view.playerId])
+  }, [animate, schedule, view.playerId, executionDuration])
   useEffect(() => {
     if (!timeline.animate && timeline.view.status === 'FINISHED') lastStatus.current = 'FINISHED'
     if (lastStatus.current !== 'FINISHED' && view.status === 'FINISHED' && settled && visible) {
@@ -77,6 +77,7 @@ export function useTickPresentation(view: PlayerGame) {
   }
   const rotations = { ...timeline.spinBase }
   for (const [id, count] of Object.entries(spins)) rotations[id] = (rotations[id] ?? 0) + count
-  return { board: timeline.view.board, vehicles, effects, spins, rotations, animate: animate && !settled, queueAnimate: timeline.animate && visible,
-    style: { '--move-duration': `${Math.min(200, schedule.step)}ms` } as CSSProperties }
+  const execution = animate && elapsed < executionDuration && timeline.view.continuous?.lastExecutedCommand != null
+    ? { id: schedule.key, command: timeline.view.continuous.lastExecutedCommand } : null
+  return { execution, duration: Math.min(200, schedule.step) / 1000, board: timeline.view.board, vehicles, effects, spins, rotations, animate: animate && !settled, queueAnimate: timeline.animate && visible }
 }

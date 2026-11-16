@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useReducer, useState } from 'react'
 import { addBot, addPlayer, createGame, getGame, getPlayerGame, startGame } from '../api/games'
+import { acceptSnapshot, initialSnapshotState } from '../presentation/snapshots'
 import { ContinuousGame } from '../components/ContinuousGame'
 import type { Game, PlayerGame, PlayerSession } from '../types/game'
 
@@ -33,7 +34,7 @@ function hostTokenKey(gameId: string) {
 
 export function GamePage() {
   const [game, setGame] = useState<Game | null>(null)
-  const [view, setView] = useState<PlayerGame | null>(null)
+  const [{ view, recoveryEpoch }, dispatchSnapshot] = useReducer(acceptSnapshot, initialSnapshotState)
   const [session, setSession] = useState<PlayerSession | null>(() => loadPlayerSession(gameIdFromPath()))
   const [name, setName] = useState('')
   const [hostToken] = useState(() => {
@@ -42,14 +43,17 @@ export function GamePage() {
   })
   const [error, setError] = useState<string | null>(null)
   const [working, setWorking] = useState(false)
-  const apply = useCallback((next: PlayerGame) => setView(old =>
-    old?.id === next.id && old?.continuous && (!next.continuous || old.continuous.revision >= next.continuous.revision) ? old : next), [])
+  const apply = useCallback((snapshot: PlayerGame) => dispatchSnapshot({ type: 'snapshot', snapshot }), [])
 
   const refresh = useCallback(async () => {
     if (!session) return
-    const next = await getPlayerGame(session)
-    apply(next)
-    setError(null)
+    try {
+      apply(await getPlayerGame(session))
+      setError(null)
+    } catch (error) {
+      dispatchSnapshot({ type: 'disconnected' })
+      throw error
+    }
   }, [session, apply])
 
   useEffect(() => {
@@ -92,7 +96,7 @@ export function GamePage() {
       const player = await addPlayer(game.id, name.trim(), hostToken || undefined)
       const nextSession = { gameId: game.id, playerId: player.id, token: player.token }
       savePlayerSession(nextSession)
-      setSession(nextSession); setView(await getPlayerGame(nextSession))
+      setSession(nextSession); apply(await getPlayerGame(nextSession))
     })
   }
 
@@ -117,7 +121,7 @@ export function GamePage() {
   }, [lobby, session])
 
   if (view && session && view.status !== 'WAITING_FOR_PLAYERS') {
-    return <ContinuousGame view={view} session={session} onSnapshot={apply} />
+    return <ContinuousGame view={view} session={session} onSnapshot={apply} recoveryEpoch={recoveryEpoch} />
   }
 
   const gameLink = lobby ? `${window.location.origin}/game/${lobby.id}/lobby` : ''

@@ -55,16 +55,19 @@ test('machine separates input and locked slots and moves identical commands with
   const cargo = page.getByTestId('queue-cargo')
   const first = await cargo.and(page.locator('[data-command="FORWARD_1"]')).first().getAttribute('data-cargo-id')
   const second = await cargo.last().getAttribute('data-cargo-id')
-  await page.evaluate(() => {
-    window.queueTransitions = []
-    document.addEventListener('transitionrun', event => {
-      if (event.target.matches('.queue-cargo')) window.queueTransitions.push(event.propertyName)
-    })
-  })
+  await page.evaluate(id => {
+    window.queuePositions = []
+    const sample = () => {
+      const cargo = document.querySelector(`[data-cargo-id="${id}"]`)
+      if (cargo) window.queuePositions.push(cargo.getBoundingClientRect().left)
+      if (window.queuePositions.length < 120) requestAnimationFrame(sample)
+    }
+    requestAnimationFrame(sample)
+  }, first)
   await game.tick([null, null, 'FORWARD_1', 'FORWARD_1', null], 'WAIT')
   await expect(page.locator(`[data-cargo-id="${first}"]`)).toHaveAttribute('data-slot', '3')
   await expect(page.locator(`[data-cargo-id="${second}"]`)).toHaveAttribute('data-slot', '4')
-  await expect.poll(() => page.evaluate(() => window.queueTransitions)).toContain('left')
+  await expect.poll(() => page.evaluate(() => new Set(window.queuePositions.map(x => Math.round(x * 10))).size)).toBeGreaterThan(2)
   await expect(page.getByTestId('executed-command')).toHaveText('NOP')
   // Accept another command while the shift animation is still settling.
   await page.getByRole('button', { name: 'Laser', exact: true }).click()

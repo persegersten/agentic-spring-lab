@@ -7,6 +7,8 @@
 | `frontend/public/audio/*.wav` | Original Wreckage synthesis; filenames below | CC0 1.0 (see bundled `audio/LICENSE.txt`) | None after generation |
 | Robot artwork | Original inline SVG in `GameBoard.tsx` | Project source; no external artwork | N/A |
 | HUD and command icons | Original inline SVG in `Icon.tsx` | Project source; no external artwork | N/A |
+| Motion for React and its Motion dependencies | https://motion.dev, npm `motion` 14.14.0 | MIT; bundled at `public/licenses/motion-MIT.txt` | Unmodified dependencies |
+| tslib (Motion dependency) | https://github.com/microsoft/tslib | 0BSD; bundled at `public/licenses/tslib-0BSD.txt` | Unmodified dependency |
 | Howler.js | https://github.com/goldfire/howler.js, npm `howler` 2.2.4 | MIT; bundled at `public/licenses/howler-MIT.txt` | Unmodified dependency |
 
 The original sound files are `submit.wav`, `tick.wav`, `move.wav`, `turn.wav`,
@@ -25,8 +27,6 @@ samples, network access or Python packages. All files are mono 16-bit PCM WAV at
   supplies the complete cue set without importing assets of uncertain provenance.
 - [Kenney UI Pack – Sci-Fi](https://kenney.nl/assets/ui-pack-sci-fi): CC0 1.0.
   Original SVG gives the board, queue and buttons a consistent industrial style.
-- [Motion for React](https://motion.dev/docs/react): existing CSS transitions and
-  the shared presentation scheduler cover the required motion; not installed.
 - [tsParticles](https://github.com/tsparticles/tsparticles): bounded SVG bursts
   cover the effects without an additional canvas lifecycle; not installed.
 

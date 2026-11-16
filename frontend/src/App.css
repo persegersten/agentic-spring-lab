@@ -233,3 +233,12 @@
 }
 .command-machine[data-queue-status=full] .machine-light{background:#e5b45e;box-shadow:0 0 4px #e5b45e66}
 .command-machine[data-queue-status=crashed] .machine-light{background:#d78668;box-shadow:0 0 4px #d7866855}
+
+/* M1: Motion owns cargo and robot transforms; CSS only paints their surfaces. */
+.queue-cargo{left:2px;transition:none}
+.vehicle,.vehicle-direction,.board-stage .vehicle-direction,.vehicle-spin{transition:none}
+.slot-executing{z-index:3;border-color:#ffe0a0!important;box-shadow:inset 0 0 10px #e5b45e55,0 0 4px #e5b45e55}
+.slot-execution{position:absolute;inset:20px 1px 2px;z-index:4;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;background:#59482c;color:#fff2c9;border:1px solid #d5b77b;border-radius:2px;overflow:hidden;pointer-events:none;font-size:8px}
+.slot-execution .game-icon{width:20px;height:20px}.slot-execution>span{max-width:100%;overflow:hidden;text-overflow:ellipsis}
+.vehicle-recoil[data-impact=true]{outline:1px solid #e5b45e88;outline-offset:1px}
+@media(max-height:600px) and (orientation:landscape){.slot-execution>span{display:none}}
