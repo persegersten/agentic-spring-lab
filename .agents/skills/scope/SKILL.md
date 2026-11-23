@@ -3,7 +3,7 @@ name: scope
 description: Cut an approved brief or plan into slices that can each be built and verified on their own. Use when a plan is agreed and the next question is what order to build it in, or when a task feels too big to hand over in one go.
 argument-hint: <path-to-brief-or-plan>
 disable-model-invocation: true
-allowed-tools: Read Glob Grep Bash(cat *)
+allowed-tools: Read Write Glob Grep Bash(cat *) Bash(mkdir -p *)
 ---
 
 # Scope
@@ -50,6 +50,27 @@ finding out early, while there is still time to change the plan.
 **What is not in any slice.** Anything in the brief you could not place. That is either
 scope you forgot or scope that should be cut, and either way the user needs to see it now
 rather than discover it at the end.
+
+## Save the slice plan
+
+After producing the full slice plan, **save the same plan as Markdown** in
+`docs/plans/slices.md`, relative to the project root (not the skill directory).
+
+1. Use `Glob` or `Read` to check whether `docs/plans/slices.md` already exists.
+   **Never overwrite an existing plan silently.** If it exists, ask whether to replace it
+   or use another file name. Do not continue writing until the choice is clear.
+2. Create `docs/plans/` if it does not exist, then use `Write` to create the Markdown file.
+3. Include a title, a reference to the input brief/plan, the ordered slices, the riskiest
+   slice and its rationale, and any requirements that do not fit in a slice. For every
+   slice, preserve the three fields above: what changes, how to verify manually, and
+   what it deliberately does not do yet.
+4. Keep the file and the answer consistent. After saving, tell the user the **actual path**
+   written and briefly summarize the proposed order.
+5. If the write fails (including missing permissions), say so explicitly and provide the
+   full Markdown plan in the response. **Do not claim the file was saved.**
+
+Saving the plan is the **only project modification** this skill should make.
+Do not create code, commits, tests, or launch implementation agents.
 
 ## Rules
 
