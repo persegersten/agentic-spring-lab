@@ -18,8 +18,18 @@ public final class BoardEffectEngine {
 
     public BoardEffectResult resolve(GameState state, RegisterEffects effects) {
         List<RoundEvent> events = new ArrayList<>();
-        GameState current=state;
-        for(var c:state.board().conveyors()){var v=current.vehicleStates().stream().filter(VehicleState::isActive).filter(x->x.position().equals(c.position())).findFirst().orElse(null);if(v!=null){var m=movement.applyConveyor(current,v.vehicle().id(),c.direction(),effects);current=m.state();events.addAll(m.events());}}
+        List<List<RoundEvent>> steps = new ArrayList<>();
+        GameState current = state;
+        for (var conveyor : state.board().conveyors()) {
+            var vehicle = current.vehicleStates().stream().filter(VehicleState::isActive)
+                    .filter(candidate -> candidate.position().equals(conveyor.position())).findFirst().orElse(null);
+            if (vehicle == null) continue;
+            var result = movement.applyConveyor(current, vehicle.vehicle().id(), conveyor.direction(), effects);
+            current = result.state();
+            events.addAll(result.events());
+            steps.addAll(result.atomicSteps());
+        }
+        int movementEventCount = events.size();
         List<VehicleState> vehicles=new ArrayList<>(current.vehicleStates());
         for(int i=0;i<vehicles.size();i++){var v=vehicles.get(i);if(!v.isActive())continue;var r=state.board().rotatorAt(v.position());if(r==null)continue;var d=r.rotation()==se.segersten.wreckage.game.domain.Rotation.CLOCKWISE?v.orientation().turnRight():v.orientation().turnLeft();vehicles.set(i,new VehicleState(v.vehicle(),v.position(),d,v.status(),v.shieldAvailable()));events.add(new RoundEvent(0,RoundEventType.ROTATOR_TURN,v.vehicle().playerId(),v.vehicle().id(),v.position(),v.position(),v.orientation(),d));}
         for (int index = 0; index < vehicles.size(); index++) {
@@ -33,7 +43,8 @@ public final class BoardEffectEngine {
                         vehicle.orientation(), vehicle.orientation()));
             }
         }
+        if (events.size() > movementEventCount) steps.add(List.copyOf(events.subList(movementEventCount, events.size())));
         return events.isEmpty() ? new BoardEffectResult(state, events)
-                : new BoardEffectResult(new GameState(state.board(), List.copyOf(vehicles)), events);
+                : new BoardEffectResult(new GameState(state.board(), List.copyOf(vehicles)), events, steps);
     }
 }

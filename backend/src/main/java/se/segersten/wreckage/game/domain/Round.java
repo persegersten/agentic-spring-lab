@@ -125,11 +125,11 @@ public final class Round {
                             new Turn(List.of(new VehicleTurn(vehicle, programs.get(playerId).commands().get(index)))),
                             state, registerEffects);
                     state = result.state();
-                    checkpointVictory = addScoredEvents(events,result.events(),playersById,configuration,false,registerIndex);
+                    checkpointVictory = addScoredEvents(events,result.atomicSteps(),playersById,configuration,false,registerIndex);
                     if (checkpointVictory) break resolution;
                 }
             }
-            var result=effects.resolve(state, registerEffects);state=result.state();addScoredEvents(events,result.events(),playersById,configuration,false,registerIndex);
+            var result=effects.resolve(state, registerEffects);state=result.state();addScoredEvents(events,result.atomicSteps(),playersById,configuration,false,registerIndex);
             checkpointVictory = playersById.values().stream().anyMatch(player -> player.hasCompletedCheckpoints(initialState.board()));
             if (checkpointVictory) break;
         }
@@ -161,7 +161,16 @@ public final class Round {
         }
     }
 
-    private boolean addScoredEvents(List<RoundEvent> target, List<RoundEvent> movementEvents,
+    private boolean addScoredEvents(List<RoundEvent> target, List<List<RoundEvent>> steps,
+                                 Map<UUID,Player> players, GameConfiguration configuration, boolean rewardPush,
+                                 int registerIndex) {
+        for (var step : steps) {
+            if (addScoredStep(target, step, players, configuration, rewardPush, registerIndex)) return true;
+        }
+        return false;
+    }
+
+    private boolean addScoredStep(List<RoundEvent> target, List<RoundEvent> movementEvents,
                                  Map<UUID,Player>players,GameConfiguration configuration,boolean rewardPush,
                                  int registerIndex) {
         java.util.Set<UUID> rewardedCrashes = new java.util.HashSet<>();
@@ -169,17 +178,6 @@ public final class Round {
             event = event.withRegister(registerIndex);
             target.add(event.withSequence(target.size() + 1));
             Player subject = players.get(event.playerId());
-            if(subject!=null&&(event.type()==RoundEventType.MOVE||event.type()==RoundEventType.RAM||event.type()==RoundEventType.PUSH||event.type()==RoundEventType.CONVEYOR_MOVE||event.type()==RoundEventType.CONVEYOR_RAM||event.type()==RoundEventType.CONVEYOR_PUSH)){
-                Checkpoint checkpoint = initialState.board().checkpointAt(event.newPosition());
-                // Slice 1: only Flag 1 can be claimed. Later captures are deliberately deferred.
-                if (checkpoint != null && checkpoint.order() == 1
-                        && players.values().stream().noneMatch(player -> player.getVisitedCheckpoints().contains(checkpoint.id()))
-                        && subject.captureCheckpoint(checkpoint, initialState.board())) {
-                    addScoreEvent(target, event, subject, configuration.checkpointScore(),
-                            ScoreChangeReason.CHECKPOINT, checkpoint.id());
-                    if (subject.hasCompletedCheckpoints(initialState.board())) return true;
-                }
-            }
             if(subject!=null&&(event.type()==RoundEventType.CRASH||event.type()==RoundEventType.CONVEYOR_CRASH)){
                 subject.recordCrash();
                 addScoreEvent(target, event, subject, configuration.crashPenalty(),
@@ -191,7 +189,30 @@ public final class Round {
                 }
             }
         }
+        // Every entry in this batch occurred in one successful atomic step.
+        // Capture in flag order, never in push-event or robot-storage order.
+        while (true) {
+            Checkpoint next = FlagProgress.nextAvailable(initialState.board(), players.values());
+            if (next == null) break;
+            RoundEvent entry = movementEvents.stream().filter(this::isCellEntry)
+                    .filter(event -> event.newPosition().equals(next.position()))
+                    .filter(event -> players.containsKey(event.playerId())).findFirst().orElse(null);
+            if (entry == null) break;
+            Player owner = players.get(entry.playerId());
+            owner.visitCheckpoint(next.id());
+            addScoreEvent(target, entry.withRegister(registerIndex), owner, configuration.checkpointScore(),
+                    ScoreChangeReason.CHECKPOINT, next.id());
+            if (owner.hasCompletedCheckpoints(initialState.board())) return true;
+        }
         return false;
+    }
+
+    private boolean isCellEntry(RoundEvent event) {
+        if (event.oldPosition().equals(event.newPosition())) return false;
+        return switch (event.type()) {
+            case MOVE, RAM, PUSH, CONVEYOR_MOVE, CONVEYOR_RAM, CONVEYOR_PUSH -> true;
+            default -> false;
+        };
     }
 
     private void addScoreEvent(List<RoundEvent> target, RoundEvent cause, Player player, int delta,

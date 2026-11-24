@@ -866,31 +866,45 @@ No player is permanently eliminated from the match.
 
 ---
 
-## 21. Checkpoints — unique flag capture, slice 1
+## 21. Checkpoints — unique sequential flag capture
 
 A map retains its four checkpoints (`CP1` through `CP4`) and their existing
-positions. In the current development milestone, only Flag 1 can be captured.
-The first player whose robot enters Flag 1's cell becomes its exclusive owner
-and receives `checkpointScore`. Entry uses the existing movement-event hooks;
-standing on the cell, waiting, turning, or attempting blocked movement does not
-capture it. Another player entering the same cell later receives nothing.
+positions. Flags unlock globally in map order. Only the first unowned flag is
+available; all later flags are locked. The first eligible entrant owns that
+flag exclusively and receives `checkpointScore`. Ownership never transfers.
 
-Ownership is represented by the owner's authoritative `visitedCheckpoints`
-entry, included in the existing public and player API snapshots. The board's
-checkpoint definitions remain unchanged. Clients hide Flag 1's marker after
-capture and show its owner in a persistent numbered flag strip. Flag 1 starts
-available; after its capture Flag 2 is highlighted and labelled available.
-Flags 3 and 4 remain locked. **Capturing Flags 2–4 is deferred**, including entry
-onto the highlighted Flag 2. This milestone does not implement sequential
-captures within an atomic push, new completion rules, or new ranking rules.
+Captures require a new cell entry through voluntary movement, a push, Laser
+displacement, or a conveyor. Standing on a newly unlocked flag, waiting,
+turning, spawning, and blocked movement do not capture it. A robot already on
+Flag 2 when another robot captures Flag 1 must leave and re-enter Flag 2.
 
-The existing storage of player progress is reused; this slice adds no recovery
-or migration policy for matches already underway. Explicit crash, reconnect,
-and saved-state recovery verification belongs to slice 3. Existing match limits
-and completion/placement code remain in place until the later slices.
+One successful atomic movement step is one entry batch, including every robot
+in a push chain. After recording that step's displacements, evaluate its new
+entries in flag-number order. A single push placing robots on Flags 1 and 2
+awards both, even when the engine emits Flag 2's displacement first. Robot
+storage order does not affect ownership or capture-event order. A blocked
+chain has no successful entries and awards nothing.
+
+Separate player commands, individual steps of historical multi-cell commands,
+and separate conveyors retain their existing execution order. An entry onto a
+locked flag in an earlier step is never reconsidered after a later step unlocks
+it. Each capture produces one authoritative checkpoint score event following
+its movement batch; a subsequent Laser spin remains after displacement captures.
+
+Ownership continues to use the existing player `visitedCheckpoints` entries.
+Public and authenticated snapshots report each player's count of owned flags
+(including nonconsecutive flags) and the globally next available flag. The
+persistent strip names every owner, hides captured board markers, and highlights
+the first unowned flag. Map checkpoint definitions remain intact.
+
+This is slice 2. It adds no crash/reconnect/restart recovery policy or conversion
+of existing matches. Match limits, completion detection, distance tie-breaks,
+and ranking code have not been replaced; those remain later slices. In
+particular, split ownership of all flags does not yet trigger the proposed new
+round-end completion rule.
 
 See [the slice plan](plans/slices.md) and
-[the reproducible first-flag scenario](dev/unique-first-flag-verification.md).
+[the reproducible sequential-capture scenarios](dev/sequential-flags-verification.md).
 
 ---
 

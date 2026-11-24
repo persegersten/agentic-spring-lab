@@ -47,13 +47,15 @@ public class MovementEngine {
         Objects.requireNonNull(gameState);
 
         GameState result = gameState;
+        List<List<RoundEvent>> steps = new ArrayList<>();
         List<RoundEvent> events = new ArrayList<>();
         for (VehicleTurn vehicleTurn : turn.vehicleTurns()) {
             MovementResult movement = applyOrder(result, vehicleTurn, effects);
             result = movement.state();
             events.addAll(movement.events());
+            steps.addAll(movement.atomicSteps());
         }
-        return new MovementResult(result, events);
+        return new MovementResult(result, events, steps);
     }
 
     private MovementResult applyOrder(GameState gameState, VehicleTurn vehicleTurn, RegisterEffects effects) {
@@ -108,7 +110,13 @@ public class MovementEngine {
         }
         MovementResult pushed = applyWeaponPush(gameState, target.vehicle().id(), shooter.orientation(), shooter, effects);
         GameState current = pushed.state();
-        events.addAll(pushed.events().stream().map(e -> withAction(e, ActionType.LASER)).toList());
+        List<List<RoundEvent>> steps = new ArrayList<>();
+        steps.add(List.copyOf(events));
+        for (var step : pushed.atomicSteps()) {
+            var tagged = step.stream().map(e -> withAction(e, ActionType.LASER)).toList();
+            events.addAll(tagged);
+            steps.add(tagged);
+        }
         int targetIndex = indexOf(current.vehicleStates(), target.vehicle());
         VehicleState beforeSpin = current.vehicleStates().get(targetIndex);
         if (beforeSpin.isActive()) {
@@ -118,24 +126,28 @@ public class MovementEngine {
             var states = new ArrayList<>(current.vehicleStates());
             states.set(targetIndex, afterSpin);
             current = new GameState(current.board(), List.copyOf(states));
-            events.add(withAction(event(RoundEventType.TURN, shooter, beforeSpin, afterSpin), ActionType.LASER));
+            var spin = withAction(event(RoundEventType.TURN, shooter, beforeSpin, afterSpin), ActionType.LASER);
+            events.add(spin);
+            steps.add(List.of(spin));
         }
-        return new MovementResult(current, List.copyOf(events));
+        return new MovementResult(current, events, steps);
     }
 
     private MovementResult applyForward(GameState gameState, int vehicleIndex, VehicleState state,
                                         RegisterEffects effects, int distance) {
         GameState current = gameState;
         int currentIndex = vehicleIndex;
+        List<List<RoundEvent>> steps = new ArrayList<>();
         List<RoundEvent> events = new ArrayList<>();
         for (int step = 0; step < distance; step++) {
             MovementResult movement = applyTranslation(current, currentIndex, state.orientation(), false, effects);
             current = movement.state();
             events.addAll(movement.events());
+            steps.addAll(movement.atomicSteps());
             currentIndex = indexOf(current.vehicleStates(), state.vehicle());
             if (currentIndex < 0 || !current.vehicleStates().get(currentIndex).isActive()) break;
         }
-        return new MovementResult(current, List.copyOf(events));
+        return new MovementResult(current, events, steps);
     }
 
     private MovementResult applyTurn(GameState gameState, int vehicleIndex, Direction orientation) {

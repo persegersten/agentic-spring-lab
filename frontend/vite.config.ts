@@ -6,7 +6,7 @@ export default defineConfig({
   plugins: [react()],
   server: {
     proxy: {
-      '/games': 'http://localhost:8080',
+      '/games': process.env.WRECKAGE_BACKEND_URL ?? 'http://localhost:8080',
     },
   },
 })

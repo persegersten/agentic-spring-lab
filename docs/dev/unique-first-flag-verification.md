@@ -1,8 +1,9 @@
 # Unique Flag Capture — Slice 1 Verification
 
-This is an intermediate development milestone. Only Flag 1 can be captured.
-Flag 2 becomes highlighted after the first capture, but entering it awards
-nothing until slice 2. Completion and placement rules have not been replaced.
+This guide started with slice 1 and now reflects slice 2: later flags unlock
+and can be captured sequentially. Completion and placement rules have not been
+replaced. For the standing-robot, atomic-push, wall, Laser, and conveyor cases,
+use [the slice 2 scenarios](sequential-flags-verification.md).
 
 ## Reproducible local setup
 
@@ -55,8 +56,8 @@ and newly queued commands first pass through slots 3, 2, and 1.
    owner of Flag 1, remove its board marker, and highlight Flag 2. The strip
    must show Flag 2 as **Tillgänglig**, with Flags 3 and 4 still **Låst**.
 4. As Alice, queue **Framåt**, **Framåt**, **Vänster**, **Framåt**, **Framåt**.
-   Wait for queue space as necessary. Alice crosses Flag 2 and ends at locked
-   Flag 3 `(4,2)`; her flag count must remain 1. Neither flag gains an owner.
+   Wait for queue space as necessary. Alice captures Flag 2, immediately unlocks Flag 3, and captures it at
+   `(4,2)`; her flag count must become 3. Flag 4 becomes available.
 5. As Bob, queue **Vänd**, **Framåt**, **Vänster**, **Framåt**. Wait at `(2,0)`,
    Flag 1's former cell. Both clients must still show Alice as its owner and
    Bob with zero flags; Flag 1's marker must remain absent.

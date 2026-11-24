@@ -299,7 +299,7 @@ class GameRoundTest {
         assertThat(pushed.getScore()).isEqualTo(2);
         assertThat(pusher.getScore()).isZero();
         assertThat(round.playback()).extracting(RoundEvent::type).containsExactly(
-                RoundEventType.PUSH, RoundEventType.SCORE_CHANGED, RoundEventType.RAM);
+                RoundEventType.PUSH, RoundEventType.RAM, RoundEventType.SCORE_CHANGED);
     }
 
     @Test
@@ -327,7 +327,7 @@ class GameRoundTest {
     }
 
     @Test
-    void laterFlagCaptureByLaserIsDeferredInSliceOne() {
+    void fourthCheckpointCapturedByLaserPreservesExistingImmediateVictory() {
         UUID shooterId = UUID.randomUUID();
         UUID targetId = UUID.randomUUID();
         Player shooter = Player.create(shooterId, "Shooter", "s");
@@ -345,13 +345,13 @@ class GameRoundTest {
 
         round.resolve(new MovementEngine(), List.of(shooter, target), GameConfiguration.defaults());
 
-        assertThat(target.hasCompletedCheckpoints(board)).isFalse();
-        assertThat(target.getVisitedCheckpoints()).containsExactlyInAnyOrder("CP1", "CP2", "CP3");
+        assertThat(target.hasCompletedCheckpoints(board)).isTrue();
+        assertThat(target.getVisitedCheckpoints()).containsExactlyInAnyOrder("CP1", "CP2", "CP3", "CP4");
         assertThat(round.finalVehicleStates()).filteredOn(v -> v.vehicle().playerId().equals(targetId))
                 .singleElement().extracting(VehicleState::position).isEqualTo(new Position(3, 1));
         assertThat(round.playback()).extracting(RoundEvent::type).containsExactly(
                 RoundEventType.WEAPON_FIRED, RoundEventType.WEAPON_HIT,
-                RoundEventType.PUSH, RoundEventType.TURN);
+                RoundEventType.PUSH, RoundEventType.SCORE_CHANGED);
     }
 
     @Test
@@ -564,7 +564,7 @@ class GameRoundTest {
     }
 
     @Test
-    void firstFlagOwnershipSurvivesAcrossRoundsButLaterCapturesAreDeferred() {
+    void checkpointOwnershipAndUnlockingContinueAcrossRounds() {
         UUID playerId = UUID.randomUUID();
         Player player = Player.create(playerId, "Alice", "a");
         Board board = new Board(6, 3, java.util.Set.of(), java.util.Set.of(),
@@ -573,12 +573,12 @@ class GameRoundTest {
         resolveSinglePlayer(board, player, state(playerId, 0, 1), MovementOrder.FORWARD_1);
         resolveSinglePlayer(board, player, state(playerId, 1, 1), MovementOrder.FORWARD_1);
 
-        assertThat(player.getCapturedCheckpointCount(board)).isOne();
-        assertThat(player.getNextCheckpoint(board).id()).isEqualTo("CP2");
+        assertThat(player.getCapturedCheckpointCount(board)).isEqualTo(2);
+        assertThat(player.getNextCheckpoint(board).id()).isEqualTo("CP3");
     }
 
     @Test
-    void crossingLaterFlagsDoesNotFinishTheMatchInSliceOne() {
+    void fourthCheckpointPreservesExistingImmediateCompletion() {
         Instant now = Instant.parse("2099-01-01T00:00:00Z");
         Board board = new Board(7, 3, java.util.Set.of(), java.util.Set.of(),
                 checkpoints(new Position(1, 1), new Position(2, 1), new Position(3, 1), new Position(4, 1)));
@@ -598,11 +598,12 @@ class GameRoundTest {
         round.resolve(new MovementEngine(), game.getPlayers(), game.getConfiguration());
         game.completeRound();
 
-        assertThat(winner.getCapturedCheckpointCount(board)).isOne();
-        assertThat(game.getStatus()).isEqualTo(GameStatus.RUNNING);
-        assertThat(game.getPlacements()).isEmpty();
+        assertThat(winner.getCapturedCheckpointCount(board)).isEqualTo(4);
+        assertThat(game.getStatus()).isEqualTo(GameStatus.FINISHED);
+        assertThat(game.getPlacements()).filteredOn(GamePlacement::winner)
+                .extracting(GamePlacement::playerId).containsExactly(winner.getId());
         assertThat(round.playback()).filteredOn(event -> event.playerId().equals(opponent.getId())
-                && event.type() == RoundEventType.MOVE).hasSize(4);
+                && event.type() == RoundEventType.MOVE).hasSize(1);
     }
 
     private Game game(Instant now) {

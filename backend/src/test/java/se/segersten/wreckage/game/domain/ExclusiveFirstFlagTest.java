@@ -31,7 +31,7 @@ class ExclusiveFirstFlagTest {
     }
 
     @Test
-    void laterFlagsAwardNothingBeforeOrAfterFirstCapture() {
+    void laterFlagsUnlockGloballyAndCannotBeRecaptured() {
         move(bob, new Position(1, 1), Direction.EAST, MovementOrder.FORWARD_1);
         assertThat(bob.getVisitedCheckpoints()).isEmpty();
         move(alice, new Position(0, 1), Direction.EAST, MovementOrder.FORWARD_1);
@@ -39,8 +39,8 @@ class ExclusiveFirstFlagTest {
             move(alice, new Position(x, 1), Direction.EAST, MovementOrder.FORWARD_1);
             move(bob, new Position(x, 1), Direction.EAST, MovementOrder.FORWARD_1);
         }
-        assertThat(alice.getVisitedCheckpoints()).containsExactly("first");
-        assertThat(alice.getScore()).isEqualTo(GameConfiguration.DEFAULT_CHECKPOINT_SCORE);
+        assertThat(alice.getVisitedCheckpoints()).containsExactlyInAnyOrder("first", "second", "third", "fourth");
+        assertThat(alice.getScore()).isEqualTo(4 * GameConfiguration.DEFAULT_CHECKPOINT_SCORE);
         assertThat(bob.getVisitedCheckpoints()).isEmpty();
         assertThat(bob.getScore()).isZero();
     }
@@ -64,9 +64,9 @@ class ExclusiveFirstFlagTest {
                     aliceFirst ? List.of(first.getId(), second.getId()) : List.of(second.getId(), first.getId()),
                     new GameState(board, List.of(a, b)));
             round.resolve(new MovementEngine(), List.of(first, second), GameConfiguration.defaults());
-            assertThat((aliceFirst ? first : second).getVisitedCheckpoints()).containsExactly("first");
-            assertThat((aliceFirst ? second : first).getVisitedCheckpoints()).isEmpty();
-            assertThat(round.playback()).filteredOn(event -> event.scoreReason() == ScoreChangeReason.CHECKPOINT)
+            assertThat((aliceFirst ? first : second).getVisitedCheckpoints()).contains("first");
+            assertThat((aliceFirst ? second : first).getVisitedCheckpoints()).doesNotContain("first");
+            assertThat(round.playback()).filteredOn(event -> "first".equals(event.checkpointId()))
                     .hasSize(1);
         }
     }

@@ -11,7 +11,7 @@ public record PlayerGameResponse(UUID id, UUID playerId, UUID hostPlayerId, Game
         if(r!=null){ PlayerProgram p=r.programs().get(playerId); boolean privatePlanning=r.phase()==RoundPhase.PLANNING&&p!=null; round=new PlayerRoundResponse(PublicRoundResponse.from(r),privatePlanning?p.hand():List.of(),privatePlanning?p.commands():List.of(),privatePlanning&&p.shieldSelected()); }
         return new PlayerGameResponse(game.getId(), playerId, game.getHostPlayerId(), game.getStatus(), game.getConfiguration().roundLimit(),
                 game.getConfiguration(),
-                game.getPlayers().stream().map(player -> PlayerResponse.from(player, game.getBoard())).toList(),
+                game.getPlayers().stream().map(player -> PlayerResponse.from(player, game.getBoard(), game.getPlayers())).toList(),
                 BoardResponse.from(game.getBoard()), game.getVehicleStates().stream().map(VehicleResponse::from).toList(), round,
                 game.isShieldAvailable(playerId),
                 game.getPlacements(), snapshot(game, playerId));

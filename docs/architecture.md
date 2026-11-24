@@ -72,6 +72,12 @@ turn, ram, push, or crash events. Retired `FORWARD_2` and `FORWARD_3` remain rea
 three complete one-cell steps, so any step can interact with another vehicle or
 board boundary.
 
+Movement and board-effect results also retain transient atomic event batches.
+`Round` evaluates new checkpoint entries within each batch in global flag order,
+then appends capture score events to the existing flat playback stream. A push
+chain is one batch; separate translation steps and separate conveyors are not
+merged. Batch metadata is not added to saved playback or API event payloads.
+
 The same one-cell chain resolver powers ramming and programming-card Laser.
 Laser traces to the first vehicle in its current direction and attempts one
 displacement step, emitting authoritative fire, hit, push/blocked, and turn events.

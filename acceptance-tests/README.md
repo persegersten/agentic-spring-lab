@@ -36,6 +36,16 @@ BASE_URL=http://localhost:4173 npm test
 
 ## Multiplayer scenarios
 
+Sequential flag-capture fixtures use a separate test-only backend profile and
+local ports 18080/5174. Run them from the project root with:
+
+```bash
+npm --prefix acceptance-tests test -- --config=sequential-flags.config.mjs --workers=1 --reporter=line
+```
+
+They are excluded from the default configuration. See
+[manual scenario setup and expected results](../docs/dev/sequential-flags-verification.md).
+
 Represent every player with a separate Playwright `BrowserContext` and create
 one page in each context. The contexts must be closed in a `finally` block. The
 `withPlayerPages` helper in `player-pages.mjs` demonstrates this pattern.

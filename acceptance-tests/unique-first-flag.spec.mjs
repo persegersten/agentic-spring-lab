@@ -15,7 +15,7 @@ async function drive(page, commands, name, x, y) {
   await expect(robot).toHaveAttribute('data-y', String(y), { timeout: 20_000 })
 }
 
-test('slice 1: two real clients see the exclusive first claim and later flags award nothing', async ({ browser }) => {
+test('two real clients see exclusive ownership and sequential flag captures', async ({ browser }) => {
   test.setTimeout(120_000)
   await withPlayerPages(browser, ['alice', 'bob'], async ({ alice, bob }) => {
     await alice.goto('/')
@@ -46,16 +46,19 @@ test('slice 1: two real clients see the exclusive first claim and later flags aw
       await expect(flag(page, 'CP4')).toHaveAttribute('data-state', 'locked')
     }
 
-    // Cross Flag 2 (capture deferred), then locked Flag 3.
+    // Cross Flag 2, immediately unlocking Flag 3 before entering it.
     await drive(alice, ['Framåt', 'Framåt', 'Vänster', 'Framåt', 'Framåt'], 'Alice', 4, 2)
     // Bob now enters Flag 1's former cell without colliding with Alice.
     await drive(bob, ['Vänd', 'Framåt', 'Vänster', 'Framåt'], 'Bob', 2, 0)
     for (const page of [alice, bob]) {
       await expect(flag(page, 'CP1')).toContainText('Alice')
       await expect(marker(page, 'CP1')).toHaveCount(0)
-      await expect(flag(page, 'CP2')).toHaveAttribute('data-state', 'available')
-      await expect(flag(page, 'CP3')).toHaveAttribute('data-state', 'locked')
-      await expect(page.getByTestId('score-row').filter({ hasText: 'Alice' }).getByTestId('player-score')).toHaveText('1')
+      await expect(flag(page, 'CP2')).toHaveAttribute('data-state', 'owned')
+      await expect(marker(page, 'CP2')).toHaveCount(0)
+      await expect(flag(page, 'CP3')).toHaveAttribute('data-state', 'owned')
+      await expect(marker(page, 'CP3')).toHaveCount(0)
+      await expect(flag(page, 'CP4')).toHaveAttribute('data-state', 'available')
+      await expect(page.getByTestId('score-row').filter({ hasText: 'Alice' }).getByTestId('player-score')).toHaveText('3')
       await expect(page.getByTestId('score-row').filter({ hasText: 'Bob' }).getByTestId('player-score')).toHaveText('0')
       const session = await page.evaluate(() => JSON.parse(localStorage.getItem(
         Object.keys(localStorage).find(key => key.startsWith('wreckage-session:')))))
@@ -64,7 +67,7 @@ test('slice 1: two real clients see the exclusive first claim and later flags aw
       })
       expect(response.ok()).toBeTruthy()
       const snapshot = await response.json()
-      expect(snapshot.players.find(player => player.name === 'Alice').visitedCheckpoints).toEqual(['CP1'])
+      expect(snapshot.players.find(player => player.name === 'Alice').visitedCheckpoints).toEqual(expect.arrayContaining(['CP1', 'CP2', 'CP3']))
       expect(snapshot.players.find(player => player.name === 'Bob').visitedCheckpoints).toEqual([])
     }
     await alice.screenshot({ path: '/tmp/wreckage-first-flag.png' })

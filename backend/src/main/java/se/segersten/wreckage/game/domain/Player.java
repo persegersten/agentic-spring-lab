@@ -4,7 +4,6 @@ import java.util.Objects;
 import java.util.UUID;
 import java.util.Set;
 import java.util.LinkedHashSet;
-import java.util.List;
 
 public class Player {
 
@@ -74,17 +73,11 @@ public class Player {
     public Set<String> getVisitedCheckpoints() { return Set.copyOf(visitedCheckpoints); }
     public boolean visitCheckpoint(String checkpointId) { return visitedCheckpoints.add(checkpointId); }
     public int getCapturedCheckpointCount(Board board) {
-        int captured = 0;
-        for (Checkpoint checkpoint : board.orderedCheckpoints()) {
-            if (!visitedCheckpoints.contains(checkpoint.id())) break;
-            captured++;
-        }
-        return captured;
+        return (int) board.checkpoints().stream().filter(checkpoint -> visitedCheckpoints.contains(checkpoint.id())).count();
     }
     public Checkpoint getNextCheckpoint(Board board) {
-        int captured = getCapturedCheckpointCount(board);
-        List<Checkpoint> checkpoints = board.orderedCheckpoints();
-        return captured < checkpoints.size() ? checkpoints.get(captured) : null;
+        return board.orderedCheckpoints().stream().filter(checkpoint -> !visitedCheckpoints.contains(checkpoint.id()))
+                .findFirst().orElse(null);
     }
     public boolean captureCheckpoint(Checkpoint checkpoint, Board board) {
         Checkpoint next = getNextCheckpoint(board);
