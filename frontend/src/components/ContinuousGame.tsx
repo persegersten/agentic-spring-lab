@@ -79,6 +79,6 @@ export function ContinuousGame({view,session,onSnapshot,recoveryEpoch=0}:{recove
       </div>
     </section>
     </aside>
-    <ScoreTable checkpointCount={view.board.checkpoints.length} captureEffects={presentation.effects.filter(effect=>effect.kind==='capture')} players={view.players} placements={view.placements} compact currentPlayerId={session.playerId}/>
+    <ScoreTable board={view.board} checkpointCount={view.board.checkpoints.length} captureEffects={presentation.effects.filter(effect=>effect.kind==='capture')} players={view.players} placements={view.placements} compact currentPlayerId={session.playerId}/>
   </main></MotionConfig>
 }

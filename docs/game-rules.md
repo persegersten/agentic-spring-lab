@@ -866,29 +866,31 @@ No player is permanently eliminated from the match.
 
 ---
 
-## 21. Checkpoints
+## 21. Checkpoints — unique flag capture, slice 1
 
-A map defines four checkpoints with stable identities, explicit order, and board positions:
-`CP1`, `CP2`, `CP3`, and `CP4`.
+A map retains its four checkpoints (`CP1` through `CP4`) and their existing
+positions. In the current development milestone, only Flag 1 can be captured.
+The first player whose robot enters Flag 1's cell becomes its exclusive owner
+and receives `checkpointScore`. Entry uses the existing movement-event hooks;
+standing on the cell, waiting, turning, or attempting blocked movement does not
+capture it. Another player entering the same cell later receives nothing.
 
-When a vehicle enters or is moved onto its player's next required checkpoint,
-that player captures it and receives:
+Ownership is represented by the owner's authoritative `visitedCheckpoints`
+entry, included in the existing public and player API snapshots. The board's
+checkpoint definitions remain unchanged. Clients hide Flag 1's marker after
+capture and show its owner in a persistent numbered flag strip. Flag 1 starts
+available; after its capture Flag 2 is highlighted and labelled available.
+Flags 3 and 4 remain locked. **Capturing Flags 2–4 is deferred**, including entry
+onto the highlighted Flag 2. This milestone does not implement sequential
+captures within an atomic push, new completion rules, or new ranking rules.
 
-```text
-checkpointScore
-```
+The existing storage of player progress is reused; this slice adds no recovery
+or migration policy for matches already underway. Explicit crash, reconnect,
+and saved-state recovery verification belongs to slice 3. Existing match limits
+and completion/placement code remain in place until the later slices.
 
-Progress is retained for the match. Future checkpoints have no effect until all
-earlier checkpoints have been captured, and previously captured checkpoints do
-not need to be revisited.
-
-Different players may score the same checkpoint independently.
-
-Checkpoint scoring applies when the vehicle reaches the cell through:
-
-- its own movement,
-- a push,
-- a conveyor or other board movement effect.
+See [the slice plan](plans/slices.md) and
+[the reproducible first-flag scenario](dev/unique-first-flag-verification.md).
 
 ---
 

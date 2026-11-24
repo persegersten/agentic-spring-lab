@@ -1,8 +1,9 @@
 import { Icon } from './Icon'
+import { FlagStrip } from './FlagStrip'
 import type { VisualEffect } from '../presentation/visualEffects'
-import type { Placement, Player } from '../types/game'
+import type { Board, Placement, Player } from '../types/game'
 
-export function ScoreTable({ players, placements = [], compact = false, currentPlayerId, checkpointCount, captureEffects = [] }: { players: Player[]; scores?: Record<string, number>; placements?: Placement[]; compact?: boolean; currentPlayerId?: string; checkpointCount?: number; captureEffects?: VisualEffect[] }) {
+export function ScoreTable({ players, board, placements = [], compact = false, currentPlayerId, checkpointCount, captureEffects = [] }: { players: Player[]; board?: Board; scores?: Record<string, number>; placements?: Placement[]; compact?: boolean; currentPlayerId?: string; checkpointCount?: number; captureEffects?: VisualEffect[] }) {
   const placementByPlayer = Object.fromEntries(placements.map(result => [result.playerId, result]))
   const winnerCount = placements.filter(result => result.winner).length
   const rows = players.map((player, joinIndex) => ({ ...player, joinIndex,
@@ -15,8 +16,8 @@ export function ScoreTable({ players, placements = [], compact = false, currentP
     <h2>{placements.length ? 'Slutställning · flaggor' : 'Flaggor'}{winnerCount > 1 && <span data-testid="draw-result"> · Delad vinst</span>}</h2>
     {ownPlayer && checkpointCount != null && <p className="checkpoint-progress" data-testid="checkpoint-progress">
       <span><Icon name="flag"/> Flaggor: {ownPlayer.flags} / {checkpointCount}</span>
-      <span>Nästa: <b data-testid="next-checkpoint">{ownPlayer.nextCheckpoint ?? 'Alla tagna'}</b></span>
     </p>}
+    {board && <FlagStrip board={board} players={players}/>}
     <ol className="compact-score-list">{rows.map(player => <li key={player.id}
       className={player.id === currentPlayerId ? 'score-own-player' : ''}
       data-testid={placements.length ? 'final-standing-row' : 'score-row'} data-player-id={player.id}

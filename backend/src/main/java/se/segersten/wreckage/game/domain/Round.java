@@ -171,7 +171,10 @@ public final class Round {
             Player subject = players.get(event.playerId());
             if(subject!=null&&(event.type()==RoundEventType.MOVE||event.type()==RoundEventType.RAM||event.type()==RoundEventType.PUSH||event.type()==RoundEventType.CONVEYOR_MOVE||event.type()==RoundEventType.CONVEYOR_RAM||event.type()==RoundEventType.CONVEYOR_PUSH)){
                 Checkpoint checkpoint = initialState.board().checkpointAt(event.newPosition());
-                if (checkpoint != null && subject.captureCheckpoint(checkpoint, initialState.board())) {
+                // Slice 1: only Flag 1 can be claimed. Later captures are deliberately deferred.
+                if (checkpoint != null && checkpoint.order() == 1
+                        && players.values().stream().noneMatch(player -> player.getVisitedCheckpoints().contains(checkpoint.id()))
+                        && subject.captureCheckpoint(checkpoint, initialState.board())) {
                     addScoreEvent(target, event, subject, configuration.checkpointScore(),
                             ScoreChangeReason.CHECKPOINT, checkpoint.id());
                     if (subject.hasCompletedCheckpoints(initialState.board())) return true;
