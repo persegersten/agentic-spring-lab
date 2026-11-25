@@ -1,0 +1,1 @@
+ALTER TABLE player ADD COLUMN flag_acquisition_ticks VARCHAR(20000) NOT NULL DEFAULT '';

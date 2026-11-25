@@ -84,3 +84,5 @@
 .checkpoint[data-state=available]{border:2px solid #dbb66d;background:#dbb66d33;box-shadow:inset 0 0 0 1px #152222}
 .checkpoint[data-state=locked]{border-style:dashed;opacity:.65}
 @media(max-height:600px) and (orientation:landscape){.compact-score-list li{line-height:14px}}
+
+.flag-strip [data-transferred=true]{background:#3b4930;border-color:#ffe29b;box-shadow:inset 0 0 0 1px #ffe29b;color:#fff0c9}

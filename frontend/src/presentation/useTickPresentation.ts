@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { PlayerGame } from '../types/game'
+import { playbackPlayers } from './playbackPlayers'
 import { playbackVehicles } from '../components/playbackVehicles'
 import { gameAudio } from './audio'
 import { useReducedMotionPreference } from './useReducedMotionPreference'
@@ -62,7 +63,7 @@ export function useTickPresentation(view: PlayerGame, recoveryEpoch = 0) {
           if (time - item.at < 150) gameAudio.event(item.event, item.id, view.playerId)
         }
       }
-      const boundary = `${schedule.events.filter(item => item.at <= time).length}:${effectPlan.filter(item => item.until <= time).length}:${shakePlan.filter(item => item.until <= time).length}:${time >= schedule.duration}:${time >= executionDuration}`
+      const boundary = `${schedule.events.filter(item => item.at <= time).length}:${effectPlan.filter(item => item.until <= time).length}:${shakePlan.filter(item => item.until <= time).length}:${time >= schedule.duration}:${time >= executionDuration}:${schedule.events.filter(item => item.event.type === 'FLAG_TRANSFERRED' && item.until <= time).length}`
       if (boundary !== previousBoundary) { previousBoundary = boundary; setClock({ key: schedule.key, elapsed: time }) }
       if (time < schedule.duration) timer = requestAnimationFrame(update)
     }
@@ -81,6 +82,12 @@ export function useTickPresentation(view: PlayerGame, recoveryEpoch = 0) {
   const vehicles = useMemo(() => settled ? view.vehicles.filter(v => v.status === 'ACTIVE')
     : playbackVehicles(timeline.view.round?.state.initialVehicles ?? timeline.view.vehicles,
       shown.filter(item => item.stream === 'playback').map(item => item.event)), [settled, view.vehicles, timeline.view, shown])
+  const players = useMemo(() => settled ? view.players : playbackPlayers(timeline.view.players,
+    timeline.view.round?.state.playback ?? [], shown.filter(item => item.stream === 'playback').map(item => item.event)),
+    [settled, view.players, timeline.view, shown])
+  const transferredFlagIds = useMemo(() => settled ? [] : schedule.events
+    .filter(item => item.event.type === 'FLAG_TRANSFERRED' && item.at <= elapsed && item.until > elapsed)
+    .map(item => item.event.checkpointId!).filter(Boolean), [settled, schedule, elapsed])
   const effects = useMemo(() => settled ? [] : effectPlan.filter(item => item.at <= elapsed && item.until > elapsed)
     .map(item => ({ ...item, motion: !reducedMotion && item.at > motionPolicy.blockedUntil, age: elapsed - item.at })),
     [settled, effectPlan, elapsed, reducedMotion, motionPolicy.blockedUntil])
@@ -93,5 +100,5 @@ export function useTickPresentation(view: PlayerGame, recoveryEpoch = 0) {
   for (const [id, count] of Object.entries(spins)) rotations[id] = (rotations[id] ?? 0) + count
   const execution = animate && elapsed < executionDuration && timeline.view.continuous?.lastExecutedCommand != null
     ? { id: schedule.key, command: timeline.view.continuous.lastExecutedCommand } : null
-  return { settled, execution, shake, duration: Math.min(200, schedule.step) / 1000, board: timeline.view.board, vehicles, effects, spins, rotations, animate: animate && !settled, queueAnimate: timeline.animate && visible }
+  return { settled, players, transferredFlagIds, execution, shake, duration: Math.min(200, schedule.step) / 1000, board: timeline.view.board, vehicles, effects, spins, rotations, animate: animate && !settled, queueAnimate: timeline.animate && visible }
 }

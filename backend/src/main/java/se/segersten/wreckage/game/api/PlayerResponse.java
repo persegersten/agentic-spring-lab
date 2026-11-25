@@ -6,7 +6,8 @@ import java.util.Set;
 import se.segersten.wreckage.game.domain.Player;
 
 public record PlayerResponse(UUID id, String name, int score, Set<String> visitedCheckpoints,
-                             int capturedCheckpoints, String nextCheckpoint, int crashes, boolean automated) {
+                             int capturedCheckpoints, String nextCheckpoint, int crashes, boolean automated,
+                             java.util.Map<String, Long> flagAcquisitionTicks) {
 
     public static PlayerResponse from(Player player, se.segersten.wreckage.game.domain.Board board) {
         return from(player, board, java.util.List.of(player));
@@ -17,6 +18,6 @@ public record PlayerResponse(UUID id, String name, int score, Set<String> visite
         var next = se.segersten.wreckage.game.domain.FlagProgress.nextAvailable(board, players);
         return new PlayerResponse(player.getId(), player.getName(), player.getScore(), player.getVisitedCheckpoints(),
                 player.getCapturedCheckpointCount(board), next == null ? null : next.id(), player.getCrashes(),
-                player.isAutomated());
+                player.isAutomated(), player.getFlagAcquisitionTicks());
     }
 }

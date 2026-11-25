@@ -14,7 +14,8 @@ import se.segersten.wreckage.game.domain.*;
 /** Reproducible local scenarios shared by engine tests and the test-only HTTP fixture. */
 public final class SequentialFlagScenarios {
     public enum Scenario { STANDING, PUSH, REVERSED_PUSH, BLOCKED_PUSH, LASER, CONVEYOR, RECOVERY,
-        FINAL_TIE, FINAL_UNEQUAL, LIMIT_TIE, LIMIT_ZERO, LIMIT_UNEQUAL, LIMIT_FINAL }
+        FINAL_TIE, FINAL_UNEQUAL, LIMIT_TIE, LIMIT_ZERO, LIMIT_UNEQUAL, LIMIT_FINAL,
+        THEFT, THEFT_SHIELD, THEFT_BLOCKED, THEFT_PIT }
 
     private SequentialFlagScenarios() {}
 
@@ -72,6 +73,16 @@ public final class SequentialFlagScenarios {
                 bob.changeScore(9000);
                 for (int crash = 0; crash < 5; crash++) bob.recordCrash();
             }
+            case THEFT, THEFT_SHIELD, THEFT_BLOCKED, THEFT_PIT -> {
+                first = new Position(6, 1);
+                second = new Position(6, 2);
+                alicePosition = new Position(2, 1);
+                bobPosition = new Position(0, 1);
+                alice.acquireFlag("CP1", 10);
+                alice.changeScore(original.getConfiguration().checkpointScore());
+                if (scenario == Scenario.THEFT_BLOCKED) walls = Set.of(new Wall(alicePosition, Direction.EAST));
+                if (scenario == Scenario.THEFT_PIT) pits = Set.of(new Position(3, 1));
+            }
             case CONVEYOR -> {
                 first = new Position(1, 5);
                 second = new Position(3, 1);
@@ -106,6 +117,13 @@ public final class SequentialFlagScenarios {
             clock.nextTick = clock.deadline;
             // These commands were committed earlier and are due in the final permitted tick.
             for (Player player : game.getPlayers()) clock.queues.put(player.getId(), CommandQueue.decode("FORWARD_1,-,-,-,-"));
+        }
+        if (scenario.name().startsWith("THEFT")) {
+            var clock = game.getContinuous();
+            clock.tick = 10;
+            clock.nextTick = matchStart.plusMillis(11 * clock.intervalMillis);
+            clock.queues.put(bob.getId(), CommandQueue.decode("LASER,-,-,-,-"));
+            if (scenario == Scenario.THEFT_SHIELD) clock.scheduleShield(alice.getId(), java.util.UUID.randomUUID());
         }
         return game;
     }

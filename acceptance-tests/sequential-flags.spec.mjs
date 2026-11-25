@@ -96,15 +96,15 @@ test('a wall blocks the whole push chain without awarding any flags', async ({ b
   })
 })
 
-test('Laser displacement claims sequential flags for the target', async ({ browser }) => {
+test('Laser steals the prior flag before displacement captures the next for the target', async ({ browser }) => {
   await scenario(browser, 'LASER', async ({ pages, command, ownership }) => {
     await command(0, 'Laser')
     await ownership('Bob', null)
     await command(0, 'Laser')
-    await ownership('Bob', 'Bob')
+    await ownership('Alice', 'Bob')
     for (const page of pages) {
-      await expect(page.getByTestId('score-row').filter({ hasText: 'Bob' }).getByTestId('player-score')).toHaveText('2')
-      await expect(page.getByTestId('score-row').filter({ hasText: 'Alice' }).getByTestId('player-score')).toHaveText('0')
+      await expect(page.getByTestId('score-row').filter({ hasText: 'Bob' }).getByTestId('player-score')).toHaveText('1')
+      await expect(page.getByTestId('score-row').filter({ hasText: 'Alice' }).getByTestId('player-score')).toHaveText('1')
     }
   })
 })

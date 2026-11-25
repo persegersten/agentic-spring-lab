@@ -1,7 +1,7 @@
 export type MovementOrder = 'FORWARD_1'|'FORWARD_2'|'FORWARD_3'|'REVERSE_1'|'TURN_LEFT'|'TURN_RIGHT'|'U_TURN'|'LASER'|'WAIT'
 export type Direction = 'NORTH' | 'EAST' | 'SOUTH' | 'WEST'
 export type RoundPhase = 'PLANNING' | 'RESOLVING' | 'PLAYBACK'
-export type Player = { id: string; name: string; score: number; visitedCheckpoints: string[]; capturedCheckpoints?: number; nextCheckpoint?: string | null; crashes: number; automated: boolean }
+export type Player = { id: string; name: string; score: number; visitedCheckpoints: string[]; capturedCheckpoints?: number; nextCheckpoint?: string | null; crashes: number; automated: boolean; flagAcquisitionTicks?: Record<string, number> }
 export type PlayerJoin = Player & { token: string }
 export type GameStatus = 'WAITING_FOR_PLAYERS' | 'RUNNING' | 'FINISHED'
 export type GameConfiguration = { maxPlayers: number; joinTimeoutSeconds: number; programSize: number; planningTimeoutSeconds: number; roundLimit: number; checkpointScore: number; controlPointScore: number; crashPenalty: number; pushCrashScore: number; mapId?: string | null; mapSeed?: number | null }
@@ -13,7 +13,7 @@ export type Conveyor={position:Position;direction:Direction};export type Rotator
 export type Board={mapId:string;mapName:string;width:number;height:number;walls:Wall[];pits:Position[];checkpoints:Checkpoint[];spawnPoints:SpawnPoint[];conveyors:Conveyor[];rotators:Rotator[];controlPoints:Position[];obstacles:Position[]}
 export type VehicleStatus = 'ACTIVE' | 'CRASHED'
 export type Vehicle = { id: string; playerId: string; x: number; y: number; direction: Direction; status: VehicleStatus; spawnPoint: Position; spawnOrientation: Direction }
-export type RoundEventType='VEHICLE_RESPAWNED'|'MOVE'|'TURN'|'RAM'|'PUSH'|'PUSH_BLOCKED'|'MOVE_BLOCKED'|'CONVEYOR_MOVE'|'CONVEYOR_RAM'|'CONVEYOR_PUSH'|'CONVEYOR_CRASH'|'ROTATOR_TURN'|'CRASH'|'WEAPON_FIRED'|'WEAPON_HIT'|'SHIELD_ACTIVATED'|'SCORE_CHANGED'
+export type RoundEventType='VEHICLE_RESPAWNED'|'MOVE'|'TURN'|'RAM'|'PUSH'|'PUSH_BLOCKED'|'MOVE_BLOCKED'|'CONVEYOR_MOVE'|'CONVEYOR_RAM'|'CONVEYOR_PUSH'|'CONVEYOR_CRASH'|'ROTATOR_TURN'|'CRASH'|'WEAPON_FIRED'|'WEAPON_HIT'|'SHIELD_ACTIVATED'|'FLAG_TRANSFERRED'|'SCORE_CHANGED'
 export type ScoreChangeReason = 'CHECKPOINT' | 'CONTROL_POINT' | 'CRASH_PENALTY' | 'PUSH_CRASH'
 export type RoundEvent = { sequence: number; type: RoundEventType; playerId: string; vehicleId: string; sourcePlayerId: string; sourceVehicleId: string; oldPosition: Position; newPosition: Position; oldDirection: Direction; newDirection: Direction; oldScore?: number; newScore?: number; scoreDelta?: number; scoreReason?: ScoreChangeReason; checkpointId?: string; actionType?: 'LASER'; registerIndex?: number }
 export type PublicRound = { number: number; phase: RoundPhase; planningDeadline:string; ready: Record<string, boolean>; initiative: string[]; initialVehicles: Vehicle[]; initialScores: Record<string, number>; startEvents: RoundEvent[]; playback: RoundEvent[] }

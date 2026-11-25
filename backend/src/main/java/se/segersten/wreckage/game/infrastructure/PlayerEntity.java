@@ -50,6 +50,9 @@ class PlayerEntity {
     @Column(name = "crashes", nullable = false)
     private int crashes;
 
+    @Column(name = "flag_acquisition_ticks", nullable = false, length = 20000)
+    private String flagAcquisitionTicks = "";
+
     protected PlayerEntity() {
     }
 
@@ -66,14 +69,17 @@ class PlayerEntity {
     }
 
     static PlayerEntity fromDomain(Player player, GameEntity game) {
-        return new PlayerEntity(player.getId(), game, player.getName(), player.getAccessTokenHash(),
+        var entity = new PlayerEntity(player.getId(), game, player.getName(), player.getAccessTokenHash(),
                 player.isAutomated(), player.getScore(), encodeCheckpoints(player.getVisitedCheckpoints()), player.getCrashes());
+        entity.flagAcquisitionTicks = encodeTicks(player.getFlagAcquisitionTicks());
+        return entity;
     }
 
     PlayerEntity updateFrom(Player player) {
         score = player.getScore();
         visitedCheckpoints = encodeCheckpoints(player.getVisitedCheckpoints());
         crashes = player.getCrashes();
+        flagAcquisitionTicks = encodeTicks(player.getFlagAcquisitionTicks());
         return this;
     }
 
@@ -84,7 +90,24 @@ class PlayerEntity {
     Player toDomain() {
         Set<String> checkpoints = visitedCheckpoints == null || visitedCheckpoints.isBlank() ? Set.of()
                 : Arrays.stream(visitedCheckpoints.split("\\|", -1)).collect(Collectors.toUnmodifiableSet());
-        return Player.rehydrate(domainId, name, accessTokenHash, automated, score, checkpoints, crashes);
+        var player = Player.rehydrate(domainId, name, accessTokenHash, automated, score, checkpoints, crashes);
+        var ticks = new java.util.LinkedHashMap<String, Long>();
+        if (flagAcquisitionTicks != null && !flagAcquisitionTicks.isBlank()) {
+            for (String entry : flagAcquisitionTicks.split("\\|")) {
+                String[] parts = entry.split(":", 2);
+                String flag = new String(java.util.Base64.getUrlDecoder().decode(parts[0]), java.nio.charset.StandardCharsets.UTF_8);
+                ticks.put(flag, Long.parseLong(parts[1]));
+            }
+        }
+        player.restoreFlagAcquisitionTicks(ticks);
+        return player;
+    }
+
+    private static String encodeTicks(java.util.Map<String, Long> ticks) {
+        return ticks.entrySet().stream().sorted(java.util.Map.Entry.comparingByKey())
+                .map(entry -> java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(
+                        entry.getKey().getBytes(java.nio.charset.StandardCharsets.UTF_8)) + ":" + entry.getValue())
+                .collect(Collectors.joining("|"));
     }
 
     private static String encodeCheckpoints(Set<String> checkpoints) {

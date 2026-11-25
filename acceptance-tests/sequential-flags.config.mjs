@@ -6,7 +6,7 @@ const frontend = 'http://127.0.0.1:5174'
 
 export default {
   ...base,
-  testMatch: ['**/sequential-flags.spec.mjs', '**/final-flag.spec.mjs', '**/match-limit.spec.mjs'],
+  testMatch: ['**/sequential-flags.spec.mjs', '**/final-flag.spec.mjs', '**/match-limit.spec.mjs', '**/laser-theft.spec.mjs'],
   testIgnore: [],
   use: { ...base.use, baseURL: frontend },
   webServer: [

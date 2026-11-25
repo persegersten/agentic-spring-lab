@@ -242,6 +242,23 @@ calculate capture counts and the globally available next flag; clients rebuild
 the strip and captured-marker visibility from those snapshots rather than replaying
 capture events into ownership.
 
+Continuous-play captures also store per-flag acquisition ticks in the player's
+`flag_acquisition_ticks` column (Flyway V26). On an unshielded Laser hit, the round
+resolver processes ownership transfers before displacement entry batches or crash
+scoring. `FLAG_TRANSFERRED` uses the existing event fields: subject/vehicle are
+the previous owner, source/vehicle are the shooter, and checkpoint ID is the flag.
+The existing round-event codec persists it without a new payload shape. API
+player snapshots expose acquisition ticks alongside current ownership. Missing
+historical timing is not reconstructed.
+
+During uninterrupted tick playback, clients reconstruct pre-event ownership from
+the final snapshot by reversing transfer events, then apply shown transfers in
+order. The strip and owned counts therefore change at the transfer boundary;
+cell-entry captures retain their existing snapshot presentation.
+A temporary strip highlight uses the existing presentation clock, without new
+sound or motion. Initial snapshots and recovery still display authoritative
+ownership directly. This slice adds no new register-mode theft semantics.
+
 The normal in-memory H2 profile loses all matches when its process stops. The
 test-only `flag-recovery-e2e` profile uses a retained H2 file for local restart
 verification, with the same Flyway migrations and entity mappings. It does not

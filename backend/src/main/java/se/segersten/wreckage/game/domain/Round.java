@@ -123,10 +123,10 @@ public final class Round {
                             new Turn(List.of(new VehicleTurn(vehicle, programs.get(playerId).commands().get(index)))),
                             state, registerEffects);
                     state = result.state();
-                    addScoredEvents(events,result.atomicSteps(),playersById,configuration,false,registerIndex);
+                    addScoredEvents(events,result.atomicSteps(),playersById,configuration,false,registerIndex,continuous ? (long) number : null,registerEffects);
                 }
             }
-            var result=effects.resolve(state, registerEffects);state=result.state();addScoredEvents(events,result.atomicSteps(),playersById,configuration,false,registerIndex);
+            var result=effects.resolve(state, registerEffects);state=result.state();addScoredEvents(events,result.atomicSteps(),playersById,configuration,false,registerIndex,continuous ? (long) number : null,registerEffects);
         }
         if (!continuous) awardControlPoints(events, state, playersById, configuration);
         playback = List.copyOf(events);
@@ -158,19 +158,23 @@ public final class Round {
 
     private void addScoredEvents(List<RoundEvent> target, List<List<RoundEvent>> steps,
                                  Map<UUID,Player> players, GameConfiguration configuration, boolean rewardPush,
-                                 int registerIndex) {
+                                 int registerIndex, Long tick, se.segersten.wreckage.game.engine.RegisterEffects effects) {
         for (var step : steps) {
-            addScoredStep(target, step, players, configuration, rewardPush, registerIndex);
+            addScoredStep(target, step, players, configuration, rewardPush, registerIndex, tick, effects);
         }
     }
 
     private void addScoredStep(List<RoundEvent> target, List<RoundEvent> movementEvents,
                                  Map<UUID,Player>players,GameConfiguration configuration,boolean rewardPush,
-                                 int registerIndex) {
+                                 int registerIndex, Long tick, se.segersten.wreckage.game.engine.RegisterEffects effects) {
         java.util.Set<UUID> rewardedCrashes = new java.util.HashSet<>();
         for (RoundEvent event : movementEvents) {
             event = event.withRegister(registerIndex);
             target.add(event.withSequence(target.size() + 1));
+            if (tick != null && event.type() == RoundEventType.WEAPON_HIT
+                    && event.actionType() == ActionType.LASER && !effects.isShielded(event.vehicleId())) {
+                transferFlags(target, event, players, tick);
+            }
             Player subject = players.get(event.playerId());
             if(subject!=null&&(event.type()==RoundEventType.CRASH||event.type()==RoundEventType.CONVEYOR_CRASH)){
                 subject.recordCrash();
@@ -193,9 +197,25 @@ public final class Round {
                     .filter(event -> players.containsKey(event.playerId())).findFirst().orElse(null);
             if (entry == null) break;
             Player owner = players.get(entry.playerId());
-            owner.visitCheckpoint(next.id());
+            if (tick == null) owner.visitCheckpoint(next.id());
+            else owner.acquireFlag(next.id(), tick);
             addScoreEvent(target, entry.withRegister(registerIndex), owner, configuration.checkpointScore(),
                     ScoreChangeReason.CHECKPOINT, next.id());
+        }
+    }
+
+    private void transferFlags(List<RoundEvent> target, RoundEvent hit, Map<UUID, Player> players, long tick) {
+        Player previous = players.get(hit.playerId());
+        Player shooter = players.get(hit.sourcePlayerId());
+        if (previous == null || shooter == null || previous == shooter) return;
+        for (Checkpoint flag : initialState.board().orderedCheckpoints()) {
+            if (!previous.isFlagStealable(flag.id(), tick)) continue;
+            previous.transferFlagTo(shooter, flag.id(), tick);
+            // Subject is the previous owner; source is the new owner. No capture score is awarded.
+            target.add(new RoundEvent(target.size() + 1, RoundEventType.FLAG_TRANSFERRED,
+                    hit.playerId(), hit.vehicleId(), hit.sourcePlayerId(), hit.sourceVehicleId(),
+                    hit.oldPosition(), hit.oldPosition(), hit.oldDirection(), hit.oldDirection(),
+                    null, null, null, null, flag.id(), ActionType.LASER, hit.registerIndex()));
         }
     }
 

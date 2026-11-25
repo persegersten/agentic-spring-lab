@@ -70,3 +70,8 @@ one page in each context. The contexts must be closed in a `finally` block. The
 `withPlayerPages` helper in `player-pages.mjs` demonstrates this pattern.
 Separate contexts ensure that cookies, local storage and other browser session
 state are not shared between players.
+## Laser theft scenarios
+
+Run `npm --prefix acceptance-tests test -- --config=sequential-flags.config.mjs laser-theft --workers=1 --reporter=line`
+from the project root for slice 1's normal, shielded, blocked, and pit-crash hits.
+See [manual setup and verification](../docs/dev/laser-theft-verification.md).

@@ -60,12 +60,12 @@ class SequentialFlagCaptureTest {
     }
 
     @Test
-    void laserCapturesNextFlagsForTheDisplacedRobotNotTheShooter() {
+    void laserStealsPriorFlagBeforeDisplacementCapturesTheNextForTheTarget() {
         Game game = fixture(Scenario.LASER);
         command(game, 0, MovementOrder.LASER);
         assertOwnership(game, List.of(), List.of("CP1"));
         command(game, 0, MovementOrder.LASER);
-        assertOwnership(game, List.of(), List.of("CP1", "CP2"));
+        assertOwnership(game, List.of("CP1"), List.of("CP2"));
         assertThat(game.getPlayers().getFirst().getScore()).isZero();
         assertThat(game.getPlayers().get(1).getScore()).isEqualTo(4);
     }

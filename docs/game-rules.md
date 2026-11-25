@@ -871,7 +871,8 @@ No player is permanently eliminated from the match.
 A map retains its four checkpoints (`CP1` through `CP4`) and their existing
 positions. Flags unlock globally in map order. Only the first unowned flag is
 available; all later flags are locked. The first eligible entrant owns that
-flag exclusively and receives `checkpointScore`. Ownership never transfers.
+flag exclusively and receives `checkpointScore`. Continuous-play Laser theft can
+transfer ownership under the rule below.
 
 Captures require a new cell entry through voluntary movement, a push, Laser
 displacement, or a conveyor. Standing on a newly unlocked flag, waiting,
@@ -897,13 +898,45 @@ Public and authenticated snapshots report each player's count of owned flags
 persistent strip names every owner, hides captured board markers, and highlights
 the first unowned flag. Map checkpoint definitions remain intact.
 
-Ownership belongs to the player for the entire match. A crash, removal from the
-board, and respawn never remove captured flags or relock them. Crash penalties
-affect the internal score, not the number of owned flags. Restoring a match from
+Ownership belongs to the player until an eligible Laser theft transfers it. A
+crash, removal from the board, and respawn never remove captured flags or relock
+them. Crash penalties affect the internal score, not the number of owned flags. Restoring a match from
 its retained database uses the saved player ownership entries; neither positions
 nor saved playback events create new captures during recovery. Both clients
 rebuild the same ownership strip, missing captured markers, and next available
 flag from authenticated server snapshots after reconnect or reload.
+
+### 21.1 Continuous-play Laser theft
+
+Acquisition by cell entry or theft on tick T makes a flag stealable during ticks
+T+1 through T+5, excluding T. Each theft resets its acquisition tick. On a Laser
+hit, first check the original target's shield. An active shield prevents theft,
+displacement, and turning. Otherwise transfer the target's eligible flags to the
+shooter before resolving existing Laser displacement and turning. A blocked
+displacement or subsequent crash does not undo a transfer. Other robots in a push
+chain do not lose flags to that shot. Newly captured flags from the displacement
+are not eligible for that same hit.
+
+A transfer changes the two players' owned counts without awarding another
+checkpoint score. The flag remains captured: its board marker stays hidden,
+sequential availability does not change, and the original board location cannot
+recapture it. Existing targeting, hit turning, crash behavior, and match-ending
+boundaries remain unchanged. Register-based play retains its existing behavior;
+this tick-based slice applies to continuous play.
+
+The server stores acquisition ticks with current ownership and emits one
+`FLAG_TRANSFERRED` event per transferred flag. Its subject is the previous owner,
+its source is the new owner, and its checkpoint ID identifies the flag. Connected
+clients highlight the changed entries in the existing ownership strip and show
+new owners at the corresponding playback boundary, before displacement. No new
+sound, event feed, or flying-flag animation is introduced.
+
+Slice 1 verifies a single eligible flag against normal, shielded, blocked, and
+pit-crash hits. Mixed-age transfers and repeated-theft boundaries are verified in
+slice 2; crash/respawn and restart recovery scenarios follow in slice 3 of
+[the theft slice plan](plans/slices.md). Acquisition timing for matches predating
+this feature is unspecified; no timing is inferred from ownership or playback.
+See [the reproducible theft scenarios](dev/laser-theft-verification.md).
 
 Restart recovery requires retaining the development database;
 the default in-memory database does not survive process shutdown. A test-only
