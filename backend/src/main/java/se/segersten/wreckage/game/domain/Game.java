@@ -51,7 +51,7 @@ public class Game {
         }
         continuous.queues.forEach((id,q) -> { if (vehicles.get(id).isActive()) q.shift(); else q.clear(); });
         continuous.tick++; continuous.revision++; continuous.nextTick = now.plusMillis(continuous.intervalMillis);
-        if (players.stream().anyMatch(p -> p.hasCompletedCheckpoints(board))) status = GameStatus.FINISHED;
+        if (FlagProgress.allCaptured(board, players)) status = GameStatus.FINISHED;
     }
 
     public Game(UUID id, Board board) { this(id, new ArrayList<>(), board, GameStatus.RUNNING); }
@@ -273,7 +273,7 @@ public class Game {
     public void completeRound() {
         if (round == null || round.phase() != RoundPhase.PLAYBACK) return;
         round.finalVehicleStates().forEach(s -> vehicles.put(s.vehicle().playerId(), s));
-        if (players.stream().anyMatch(player -> player.hasCompletedCheckpoints(board))
+        if (FlagProgress.allCaptured(board, players)
                 || round.number() >= configuration.roundLimit())
             status = GameStatus.FINISHED;
     }
@@ -281,35 +281,20 @@ public class Game {
     public List<GamePlacement> getPlacements() {
         if (status != GameStatus.FINISHED) return List.of();
         var sorted = players.stream().sorted(java.util.Comparator
-                .comparingInt((Player player) -> player.getCapturedCheckpointCount(board)).reversed()
-                .thenComparingInt(this::distanceToNextCheckpoint)).toList();
+                .comparingInt((Player player) -> player.getCapturedCheckpointCount(board)).reversed()).toList();
         List<GamePlacement> result = new ArrayList<>();
         Player previous = null;
         int placement = 0;
         for (int index = 0; index < sorted.size(); index++) {
             Player player = sorted.get(index);
             if (previous == null
-                    || player.getCapturedCheckpointCount(board) != previous.getCapturedCheckpointCount(board)
-                    || distanceToNextCheckpoint(player) != distanceToNextCheckpoint(previous)) placement = index + 1;
+                    || player.getCapturedCheckpointCount(board) != previous.getCapturedCheckpointCount(board)) placement = index + 1;
             result.add(new GamePlacement(player.getId(), placement, player.getScore(),
-                    player.getCapturedCheckpointCount(board), nullableDistanceToNextCheckpoint(player),
+                    player.getCapturedCheckpointCount(board), null,
                     player.getCrashes(), placement == 1));
             previous = player;
         }
         return List.copyOf(result);
-    }
-
-    private int distanceToNextCheckpoint(Player player) {
-        Checkpoint next = player.getNextCheckpoint(board);
-        VehicleState vehicle = vehicles.get(player.getId());
-        if (next == null) return -1;
-        if (vehicle == null) return Integer.MAX_VALUE;
-        return Math.abs(vehicle.position().x() - next.position().x())
-                + Math.abs(vehicle.position().y() - next.position().y());
-    }
-
-    private Integer nullableDistanceToNextCheckpoint(Player player) {
-        return player.getNextCheckpoint(board) == null ? null : distanceToNextCheckpoint(player);
     }
 
     public Player requirePlayer(UUID playerId) {

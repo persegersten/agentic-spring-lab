@@ -4,7 +4,7 @@ Ownership already uses persisted player records, independently of robot state.
 This slice verifies the contract through crashes, respawns, authenticated reads,
 reloads, network reconnection, and a real backend process restart. It adds a
 reproducible recovery scenario and a test-only retained development database.
-Victory detection, final ranking, and match limits are unchanged.
+For final-capture completion and ranking, see [slice 4 verification](final-flag-verification.md). Match-limit triggers are unchanged.
 
 The normal `in-memory` development profile loses matches when the backend stops.
 For a restart with the **same database**, use the file-backed H2 profile below.

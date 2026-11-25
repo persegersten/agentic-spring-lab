@@ -93,5 +93,5 @@ export function useTickPresentation(view: PlayerGame, recoveryEpoch = 0) {
   for (const [id, count] of Object.entries(spins)) rotations[id] = (rotations[id] ?? 0) + count
   const execution = animate && elapsed < executionDuration && timeline.view.continuous?.lastExecutedCommand != null
     ? { id: schedule.key, command: timeline.view.continuous.lastExecutedCommand } : null
-  return { execution, shake, duration: Math.min(200, schedule.step) / 1000, board: timeline.view.board, vehicles, effects, spins, rotations, animate: animate && !settled, queueAnimate: timeline.animate && visible }
+  return { settled, execution, shake, duration: Math.min(200, schedule.step) / 1000, board: timeline.view.board, vehicles, effects, spins, rotations, animate: animate && !settled, queueAnimate: timeline.animate && visible }
 }

@@ -1,8 +1,8 @@
 # Unique Flag Capture — Slice 1 Verification
 
 This guide started with slice 1 and now reflects slice 2: later flags unlock
-and can be captured sequentially. Completion and placement rules have not been
-replaced. For the standing-robot, atomic-push, wall, Laser, and conveyor cases,
+and can be captured sequentially. For current completion and shared ranks, see
+[slice 4 verification](final-flag-verification.md). For the standing-robot, atomic-push, wall, Laser, and conveyor cases,
 use [the slice 2 scenarios](sequential-flags-verification.md).
 
 ## Reproducible local setup

@@ -327,7 +327,7 @@ class GameRoundTest {
     }
 
     @Test
-    void fourthCheckpointCapturedByLaserPreservesExistingImmediateVictory() {
+    void fourthCheckpointCapturedByLaserStillResolvesTheTargetTurn() {
         UUID shooterId = UUID.randomUUID();
         UUID targetId = UUID.randomUUID();
         Player shooter = Player.create(shooterId, "Shooter", "s");
@@ -351,7 +351,7 @@ class GameRoundTest {
                 .singleElement().extracting(VehicleState::position).isEqualTo(new Position(3, 1));
         assertThat(round.playback()).extracting(RoundEvent::type).containsExactly(
                 RoundEventType.WEAPON_FIRED, RoundEventType.WEAPON_HIT,
-                RoundEventType.PUSH, RoundEventType.SCORE_CHANGED);
+                RoundEventType.PUSH, RoundEventType.SCORE_CHANGED, RoundEventType.TURN);
     }
 
     @Test
@@ -462,7 +462,7 @@ class GameRoundTest {
     }
 
     @Test
-    void finishedPlacementsUseCheckpointProgressThenDistanceAndAllowDraws() {
+    void finishedPlacementsUseOnlyFlagCountsAndShareEqualRanks() {
         Instant now = Instant.parse("2099-01-01T00:00:00Z");
         GameConfiguration configuration = new GameConfiguration(4, 60, 5, 30, 1, 2, -1, 1);
         Board board = new Board(5, 5, java.util.Set.of(), java.util.Set.of(),
@@ -480,11 +480,11 @@ class GameRoundTest {
         Game game = new Game(UUID.randomUUID(), List.of(first, tied, farther, behind), board,
                 GameStatus.FINISHED, states, null, configuration, now, now.plusSeconds(60));
 
-        assertThat(game.getPlacements()).extracting(GamePlacement::placement).containsExactly(1, 1, 3, 4);
+        assertThat(game.getPlacements()).extracting(GamePlacement::placement).containsExactly(1, 1, 1, 4);
         assertThat(game.getPlacements()).filteredOn(GamePlacement::winner)
-                .extracting(GamePlacement::playerId).containsExactly(first.getId(), tied.getId());
+                .extracting(GamePlacement::playerId).containsExactly(first.getId(), tied.getId(), farther.getId());
         assertThat(game.getPlacements()).extracting(GamePlacement::distanceToNextCheckpoint)
-                .containsExactly(1, 1, 6, 0);
+                .containsOnlyNulls();
     }
 
     @Test
@@ -578,7 +578,7 @@ class GameRoundTest {
     }
 
     @Test
-    void fourthCheckpointPreservesExistingImmediateCompletion() {
+    void fourthCheckpointFinishesAfterRemainingCommandsResolve() {
         Instant now = Instant.parse("2099-01-01T00:00:00Z");
         Board board = new Board(7, 3, java.util.Set.of(), java.util.Set.of(),
                 checkpoints(new Position(1, 1), new Position(2, 1), new Position(3, 1), new Position(4, 1)));
@@ -603,7 +603,7 @@ class GameRoundTest {
         assertThat(game.getPlacements()).filteredOn(GamePlacement::winner)
                 .extracting(GamePlacement::playerId).containsExactly(winner.getId());
         assertThat(round.playback()).filteredOn(event -> event.playerId().equals(opponent.getId())
-                && event.type() == RoundEventType.MOVE).hasSize(1);
+                && event.type() == RoundEventType.MOVE).hasSize(4);
     }
 
     private Game game(Instant now) {

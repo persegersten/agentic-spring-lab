@@ -31,8 +31,8 @@ remain available internally for tests and possible future use. Each joined
 vehicle immediately has the default public loadout `LASER + SHIELD`; its authenticated owner may update the
 weapon and ability while the lobby is open. Starting atomically fixes those
 choices and initializes weapon state, including one use for equipped Rockets.
-A game is `RUNNING` while rounds remain
-and becomes `FINISHED` only after that fixed round limit.
+A game is `RUNNING` until all flags have owners and the current round completes,
+or an existing match limit ends it.
 
 Each round moves through three externally visible phases:
 
@@ -116,17 +116,18 @@ crashed and waits for a later round.
 
 ## Scoring and results
 
-The domain owns checkpoint progress and all scoring. Movement events capture
-only the player's next map-defined checkpoint; capturing the fourth checkpoint
-ends resolution immediately. A vehicle also scores for occupying a control point at round end, loses the
-configured crash penalty, and may award the configured push-crash score to the
-responsible player. Every mutation emits a `SCORE_CHANGED` event containing the
-old score, new score, delta, reason, and optional checkpoint identifier.
+The domain owns flag capture and all scoring. Each successful atomic movement
+batch captures only globally available flags, in numerical order. Capturing the
+last flag allows the rest of the round's commands, board effects, and normal
+round-end scoring to finish. A vehicle also scores for occupying a control point
+at round end and receives the configured crash penalty. Every score mutation
+emits a `SCORE_CHANGED` event containing the old score, new score, delta, reason,
+and optional checkpoint identifier.
 
-When the round limit is reached without a completed checkpoint sequence,
-placements are ordered by captured checkpoint count and then distance to the
-next checkpoint. Equal progress and distance share first place as a draw.
-Vehicle count and crash state never finish a game early.
+Finished placements use only owned-flag counts, descending. Equal counts share
+rank, with stable join order and competition numbering (`1, 1, 3`). Distances,
+internal scores, and crash histories do not break ties. Vehicle count and crash
+state never finish a game early. Existing limit-trigger behavior is unchanged.
 
 ## Playback model
 
@@ -196,6 +197,22 @@ as human commands, inside the existing game transaction and write lock. GET
 requests never fill bot queues. Legacy round automation remains available. The authenticated
 creator adds bots on demand through the lobby; bots otherwise use the same
 aggregate membership, vehicles, cards, round lifecycle, and persistence as humans.
+
+## Final flag completion
+
+`Round` resolves the entire register sequence, including board effects and normal
+round-end scoring, without capture-triggered early exits. `Game` checks global
+flag ownership only at completion boundaries: after a continuous tick or when
+completing a register-based round. The finished status prevents future ticks and
+rounds. Placements derive solely from owned-flag counts, using shared competition
+ranks and stable join order for tied rows. The legacy nullable distance field is
+retained in responses but no longer populated or used as a tie-break.
+
+The presentation hook exposes when the current timeline is settled. Final
+standings wait for that boundary while input remains disabled as soon as the
+server reports `FINISHED`. Initial loads and recovery snapshots snap to the
+already authoritative result. Existing round/deadline limit triggers are
+unchanged; their alternate ending is deferred to slice 5.
 
 ## Persistence and migrations
 

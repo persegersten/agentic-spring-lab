@@ -582,8 +582,8 @@ class GameApiIntegrationTest {
             assertThat(result.path("crashes").asInt()).isZero();
         });
         assertThat(game.path("placements")).extracting(result -> result.path("placement").asInt())
-                .containsExactly(1, 2);
-        assertThat(game.path("placements")).filteredOn(result -> result.path("winner").asBoolean()).hasSize(1);
+                .containsExactly(1, 1);
+        assertThat(game.path("placements")).filteredOn(result -> result.path("winner").asBoolean()).hasSize(2);
         assertThat(game.path("players")).allSatisfy(player -> assertThat(player.path("crashes").asInt()).isZero());
         assertThat(game.path("players")).allSatisfy(player -> {
             assertThat(player.path("capturedCheckpoints").asInt()).isEqualTo(1);

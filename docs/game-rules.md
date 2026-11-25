@@ -89,8 +89,8 @@ request activation. Repeating an accepted request ID never consumes another use.
 
 The player-facing standings show only the number of captured flags (ordered
 checkpoints), including in the final standings. Internal scores and crash counts
-are not displayed there. This presentation change does not alter checkpoint
-ordering, match completion or the existing placement and tie-break rules.
+are not displayed there. Sequential ownership is defined in section 21;
+round-end completion and shared final ranks are defined in section 25.
 
 ---
 
@@ -905,14 +905,13 @@ nor saved playback events create new captures during recovery. Both clients
 rebuild the same ownership strip, missing captured markers, and next available
 flag from authenticated server snapshots after reconnect or reload.
 
-This is slice 3. Restart recovery requires retaining the development database;
+Restart recovery requires retaining the development database;
 the default in-memory database does not survive process shutdown. A test-only
 file-backed H2 profile supplies a reproducible restart verification without
 changing normal runtime profiles or schema. Conversion of legacy matches remains
-unspecified. Match limits, completion detection, distance tie-breaks,
-and ranking code have not been replaced; those remain later slices. In
-particular, split ownership of all flags does not yet trigger the proposed new
-round-end completion rule.
+unspecified. Slice 4 completes matches after the final capture round and ranks
+players by ownership as described in section 25. Existing limit checks remain
+unchanged; the alternate ending with flags still unclaimed belongs to slice 5.
 
 See [the slice plan](plans/slices.md) and
 [the reproducible sequential-capture scenarios](dev/sequential-flags-verification.md).
@@ -1003,18 +1002,32 @@ Every score change must be represented by an authoritative event.
 
 ## 25. End of game
 
-The first player to capture `CP4` after `CP1` through `CP3` wins immediately.
-No later movement, action, or board effect is resolved.
+When every flag has an owner, the match ends after the current round finishes.
+Ownership may be split between players; no individual must own the full sequence.
+The last capture never truncates later commands, remaining registers, Laser hit
+turns, conveyor movement, rotators, crashes, or normal round-end scoring.
 
-The game also ends after `roundLimit` rounds have completed. If nobody completed
-the sequence, the player with the most checkpoints wins. Ties use Manhattan
-distance from the player's final vehicle position to their next checkpoint;
-equal progress and equal distance produce a draw.
+In continuous play, the completion boundary is the end of the current tick: all
+players' commands for that tick and all board effects finish first. Commands
+queued for future ticks do not execute after completion. In register-based play,
+all remaining registers and their board effects finish before `completeRound`.
+No next round or tick begins once the game has finished.
 
-There is no last-vehicle-standing victory condition and no permanent player
-elimination.
+Final standings use only each player's number of owned flags, descending. Equal
+counts share a rank; join order keeps tied rows stable without breaking the tie.
+Ranks use competition numbering (`1, 1, 3`), and every first-ranked player is a
+winner. Internal scores, crash counts, and vehicle distances do not affect rank.
+The obsolete distance field remains nullable in the API for compatibility and
+is returned as null.
 
-No sudden-death round is created automatically.
+The server resolves the complete authoritative result before playback. Connected
+clients reveal final standings after the last round's playback finishes; a fresh
+load or reconnect can display the already completed authoritative state directly.
+
+Existing round/deadline limit checks are retained. Verifying the alternate ending
+with uncaptured flags remains slice 5; this slice changes no limit values or
+limit-trigger timing. There is no last-vehicle-standing victory, permanent player
+elimination, or automatic sudden-death round.
 
 ---
 

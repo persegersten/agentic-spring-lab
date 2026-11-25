@@ -2,7 +2,7 @@
 
 These scenarios verify global unlocking, exclusive ownership, and atomic movement
 entries. For slice 3 recovery, use [the recovery scenarios](flag-recovery-verification.md).
-Completion/ranking rules remain deferred. All boards keep four flags. The fixture controller and scenario definitions
+For completion/ranking, see [slice 4 verification](final-flag-verification.md). All boards keep four flags. The fixture controller and scenario definitions
 live under `backend/src/test/`, so they are absent from the production application.
 
 ## Automated verification
@@ -41,8 +41,8 @@ Playwright configuration excludes this profile-specific file.
 The backend tests also cover cases that must not be merged into one batch:
 separate commands, historical multi-cell movement steps, and separate conveyors.
 They assert that an earlier locked entry never receives a retroactive capture.
-Existing immediate-victory regression tests stay in place until slice 4 changes
-completion timing.
+Final-capture regression tests also require later actions and board effects to
+resolve before completion.
 
 ## Open a manual scenario
 

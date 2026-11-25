@@ -46,6 +46,10 @@ npm --prefix acceptance-tests test -- --config=sequential-flags.config.mjs --wor
 They are excluded from the default configuration. See
 [manual scenario setup and expected results](../docs/dev/sequential-flags-verification.md).
 
+That configuration also includes the final-flag completion and shared-rank
+scenarios. Select just those with `final-flag`; see
+[final-round manual verification](../docs/dev/final-flag-verification.md).
+
 Ownership recovery has its own process-restart test:
 
 ```bash

@@ -13,7 +13,7 @@ import se.segersten.wreckage.game.domain.*;
 
 /** Reproducible local scenarios shared by engine tests and the test-only HTTP fixture. */
 public final class SequentialFlagScenarios {
-    public enum Scenario { STANDING, PUSH, REVERSED_PUSH, BLOCKED_PUSH, LASER, CONVEYOR, RECOVERY }
+    public enum Scenario { STANDING, PUSH, REVERSED_PUSH, BLOCKED_PUSH, LASER, CONVEYOR, RECOVERY, FINAL_TIE, FINAL_UNEQUAL }
 
     private SequentialFlagScenarios() {}
 
@@ -22,9 +22,12 @@ public final class SequentialFlagScenarios {
         Player bob = original.getPlayers().get(1);
         Position first = new Position(1, 1);
         Position second = new Position(2, 1);
+        Position third = new Position(6, 5);
+        Position fourth = new Position(7, 5);
         Position alicePosition = new Position(0, 1);
         Position bobPosition = new Position(1, 1);
         List<Conveyor> conveyors = List.of();
+        List<Rotator> rotators = List.of();
         Set<Wall> walls = Set.of();
         Set<Position> pits = Set.of();
         switch (scenario) {
@@ -35,6 +38,21 @@ public final class SequentialFlagScenarios {
                 first = new Position(3, 1);
                 second = new Position(4, 1);
                 bobPosition = new Position(2, 1);
+            }
+            case FINAL_TIE, FINAL_UNEQUAL -> {
+                first = new Position(6, 1);
+                second = new Position(6, 2);
+                third = new Position(6, 3);
+                fourth = new Position(1, 1);
+                bobPosition = new Position(0, 3);
+                conveyors = List.of(new Conveyor(new Position(1, 3), Direction.EAST));
+                rotators = List.of(new Rotator(new Position(2, 3), Rotation.CLOCKWISE));
+                alice.visitCheckpoint("CP1");
+                (scenario == Scenario.FINAL_TIE ? bob : alice).visitCheckpoint("CP2");
+                bob.visitCheckpoint("CP3");
+                alice.changeScore(-300);
+                bob.changeScore(9000);
+                for (int crash = 0; crash < 5; crash++) bob.recordCrash();
             }
             case CONVEYOR -> {
                 first = new Position(1, 5);
@@ -48,10 +66,10 @@ public final class SequentialFlagScenarios {
         }
         Board board = new Board(10, 10, walls, pits, Set.of(
                 new Checkpoint("CP1", 1, first), new Checkpoint("CP2", 2, second),
-                new Checkpoint("CP3", 3, new Position(6, 5)),
-                new Checkpoint("CP4", 4, new Position(7, 5))),
+                new Checkpoint("CP3", 3, third),
+                new Checkpoint("CP4", 4, fourth)),
                 List.of(new SpawnPoint(alicePosition, Direction.EAST), new SpawnPoint(bobPosition, Direction.EAST)),
-                conveyors, List.of(), Set.of());
+                conveyors, rotators, Set.of());
         List<VehicleState> vehicles = new ArrayList<>();
         vehicles.add(vehicle(original, alice, alicePosition));
         vehicles.add(vehicle(original, bob, bobPosition));

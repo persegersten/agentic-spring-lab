@@ -99,7 +99,6 @@ public final class Round {
         List<RoundEvent> events = new ArrayList<>();
         Map<UUID, Player> playersById = players.stream().collect(java.util.stream.Collectors.toMap(Player::getId, p -> p));
         int cardPositions = programs.values().iterator().next().commands().size();
-        boolean checkpointVictory = false;
         var registerEffects = new se.segersten.wreckage.game.engine.RegisterEffects();
         for (UUID playerId : initiative) {
             boolean selected = programs.get(playerId).shieldSelected();
@@ -112,7 +111,6 @@ public final class Round {
                     vehicle.position(), vehicle.position(), vehicle.orientation(), vehicle.orientation())
                     .withSequence(events.size() + 1));
         }
-        resolution:
         for (int index = 0; index < cardPositions; index++) {
             int registerIndex = index + 1;
             for (UUID playerId : initiative) {
@@ -125,15 +123,12 @@ public final class Round {
                             new Turn(List.of(new VehicleTurn(vehicle, programs.get(playerId).commands().get(index)))),
                             state, registerEffects);
                     state = result.state();
-                    checkpointVictory = addScoredEvents(events,result.atomicSteps(),playersById,configuration,false,registerIndex);
-                    if (checkpointVictory) break resolution;
+                    addScoredEvents(events,result.atomicSteps(),playersById,configuration,false,registerIndex);
                 }
             }
             var result=effects.resolve(state, registerEffects);state=result.state();addScoredEvents(events,result.atomicSteps(),playersById,configuration,false,registerIndex);
-            checkpointVictory = playersById.values().stream().anyMatch(player -> player.hasCompletedCheckpoints(initialState.board()));
-            if (checkpointVictory) break;
         }
-        if (!checkpointVictory && !continuous) awardControlPoints(events, state, playersById, configuration);
+        if (!continuous) awardControlPoints(events, state, playersById, configuration);
         playback = List.copyOf(events);
         phase = RoundPhase.PLAYBACK;
     }
@@ -161,16 +156,15 @@ public final class Round {
         }
     }
 
-    private boolean addScoredEvents(List<RoundEvent> target, List<List<RoundEvent>> steps,
+    private void addScoredEvents(List<RoundEvent> target, List<List<RoundEvent>> steps,
                                  Map<UUID,Player> players, GameConfiguration configuration, boolean rewardPush,
                                  int registerIndex) {
         for (var step : steps) {
-            if (addScoredStep(target, step, players, configuration, rewardPush, registerIndex)) return true;
+            addScoredStep(target, step, players, configuration, rewardPush, registerIndex);
         }
-        return false;
     }
 
-    private boolean addScoredStep(List<RoundEvent> target, List<RoundEvent> movementEvents,
+    private void addScoredStep(List<RoundEvent> target, List<RoundEvent> movementEvents,
                                  Map<UUID,Player>players,GameConfiguration configuration,boolean rewardPush,
                                  int registerIndex) {
         java.util.Set<UUID> rewardedCrashes = new java.util.HashSet<>();
@@ -202,9 +196,7 @@ public final class Round {
             owner.visitCheckpoint(next.id());
             addScoreEvent(target, entry.withRegister(registerIndex), owner, configuration.checkpointScore(),
                     ScoreChangeReason.CHECKPOINT, next.id());
-            if (owner.hasCompletedCheckpoints(initialState.board())) return true;
         }
-        return false;
     }
 
     private boolean isCellEntry(RoundEvent event) {

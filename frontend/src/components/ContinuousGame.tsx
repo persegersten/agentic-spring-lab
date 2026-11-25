@@ -28,6 +28,7 @@ export function ContinuousGame({view,session,onSnapshot,recoveryEpoch=0}:{recove
   const [shieldError, setShieldError] = useState('')
   const presentation = useTickPresentation(view, recoveryEpoch)
   const c = view.continuous
+  const finishing = view.status === 'FINISHED' && !presentation.settled
 
   async function send(p:Pending) {
     setPending(p); localStorage.setItem(key,JSON.stringify(p)); setBusy(true); setError('')
@@ -49,9 +50,9 @@ export function ContinuousGame({view,session,onSnapshot,recoveryEpoch=0}:{recove
   const crashed = view.vehicles.some(v => v.playerId === session.playerId && v.status === 'CRASHED')
   return <MotionConfig reducedMotion="user"><main className="game-page" data-testid="game-page">
       <div className="game-heading">
-        <h1>WRECKAGE <span>{view.status === 'FINISHED' ? 'Slut' : 'Spelar'}</span></h1>
+        <h1>WRECKAGE <span>{finishing ? 'Avslutar' : view.status === 'FINISHED' ? 'Slut' : 'Spelar'}</span></h1>
         <AudioControls />
-        <TickStatus snapshot={c} running={view.status === 'RUNNING'}/>
+        <TickStatus snapshot={c} running={view.status === 'RUNNING'} finishing={finishing}/>
       </div>
     <section className="game-viewport" aria-label="Spelöversikt">
       <div className="board-stage">
@@ -79,6 +80,6 @@ export function ContinuousGame({view,session,onSnapshot,recoveryEpoch=0}:{recove
       </div>
     </section>
     </aside>
-    <ScoreTable board={view.board} checkpointCount={view.board.checkpoints.length} captureEffects={presentation.effects.filter(effect=>effect.kind==='capture')} players={view.players} placements={view.placements} compact currentPlayerId={session.playerId}/>
+    <ScoreTable board={view.board} checkpointCount={view.board.checkpoints.length} captureEffects={presentation.effects.filter(effect=>effect.kind==='capture')} players={view.players} placements={presentation.settled ? view.placements : []} compact currentPlayerId={session.playerId}/>
   </main></MotionConfig>
 }
