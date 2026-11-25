@@ -15,11 +15,14 @@ import se.segersten.wreckage.game.domain.*;
 public final class SequentialFlagScenarios {
     public enum Scenario { STANDING, PUSH, REVERSED_PUSH, BLOCKED_PUSH, LASER, CONVEYOR, RECOVERY,
         FINAL_TIE, FINAL_UNEQUAL, LIMIT_TIE, LIMIT_ZERO, LIMIT_UNEQUAL, LIMIT_FINAL,
-        THEFT, THEFT_SHIELD, THEFT_BLOCKED, THEFT_PIT }
+        THEFT, THEFT_SHIELD, THEFT_BLOCKED, THEFT_PIT,
+        THEFT_MIXED, THEFT_CAPTURE_10, THEFT_CAPTURE_11, THEFT_CAPTURE_15, THEFT_CAPTURE_16,
+        THEFT_CHAIN_15, THEFT_CHAIN_16, THEFT_CHAIN_20, THEFT_CHAIN_21 }
 
     private SequentialFlagScenarios() {}
 
     public static Game configure(Game original, Scenario scenario) {
+        if (LaserFlagBoundaryScenarios.supports(scenario)) return LaserFlagBoundaryScenarios.configure(original, scenario);
         Player alice = original.getPlayers().getFirst();
         Player bob = original.getPlayers().get(1);
         Position first = new Position(1, 1);

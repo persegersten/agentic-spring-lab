@@ -74,4 +74,5 @@ state are not shared between players.
 
 Run `npm --prefix acceptance-tests test -- --config=sequential-flags.config.mjs laser-theft --workers=1 --reporter=line`
 from the project root for slice 1's normal, shielded, blocked, and pit-crash hits.
+Includes mixed-age transfers, exact capture expiry, and three-player reset boundaries.
 See [manual setup and verification](../docs/dev/laser-theft-verification.md).

@@ -14,9 +14,15 @@ export function createTimeline(view: PlayerGame): TickPresentation {
   const wrap = (event: RoundEvent, stream: PresentedEvent['stream'], at: number): PresentedEvent => ({
     id: `${key}:${stream}:${event.sequence}`, event, stream, at, until: at + linger,
   })
+  // Consecutive transfers belong to one hit and reveal all changed owners together.
+  let transferStart = 0
+  const presentedPlayback = playback.map((event, index) => {
+    if (event.type !== 'FLAG_TRANSFERRED' || playback[index - 1]?.type !== 'FLAG_TRANSFERRED') transferStart = index
+    return wrap(event, 'playback', (event.type === 'FLAG_TRANSFERRED' ? transferStart : index) * step)
+  })
   return { key, step, duration: budget + linger, events: [
     ...(view.round?.state.startEvents ?? []).map(event => wrap(event, 'start', 0)),
-    ...playback.map((event, index) => wrap(event, 'playback', index * step)),
+    ...presentedPlayback,
   ] }
 }
 export function shouldAnimate(previous: PlayerGame, next: PlayerGame, visible: boolean) {

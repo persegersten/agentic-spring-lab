@@ -43,14 +43,18 @@ public class SequentialFlagFixtureController {
         var hosted = service.createHostedGame(GameConfiguration.defaults());
         UUID id = hosted.game().getId();
         var alice = service.addPlayer(id, "Alice", hosted.hostToken());
+        var carol = scenario.name().startsWith("THEFT_CHAIN_") ? service.addPlayer(id, "Carol") : null;
         var bob = service.addPlayer(id, "Bob");
         // Commit ordinary creation/join requests before loading database-generated timestamps.
         transaction.executeWithoutResult(status -> {
             var original = repository.findByIdForUpdate(id).orElseThrow();
             repository.save(SequentialFlagScenarios.configure(original, scenario));
         });
-        return new Fixture(id, List.of(new Session(id, alice.player().getId(), alice.token()),
-                new Session(id, bob.player().getId(), bob.token())));
+        var sessions = new java.util.ArrayList<Session>();
+        sessions.add(new Session(id, alice.player().getId(), alice.token()));
+        sessions.add(new Session(id, bob.player().getId(), bob.token()));
+        if (carol != null) sessions.add(new Session(id, carol.player().getId(), carol.token()));
+        return new Fixture(id, List.copyOf(sessions));
     }
 
     @PostMapping("/{gameId}/ticks")

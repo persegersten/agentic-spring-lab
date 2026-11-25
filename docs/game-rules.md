@@ -911,8 +911,11 @@ flag from authenticated server snapshots after reconnect or reload.
 Acquisition by cell entry or theft on tick T makes a flag stealable during ticks
 T+1 through T+5, excluding T. Each theft resets its acquisition tick. On a Laser
 hit, first check the original target's shield. An active shield prevents theft,
-displacement, and turning. Otherwise transfer the target's eligible flags to the
-shooter before resolving existing Laser displacement and turning. A blocked
+displacement, and turning. Otherwise atomically transfer every eligible flag to
+the shooter, leaving ineligible flags with the target, before resolving existing
+Laser displacement and turning. Each transferred flag receives the hit tick as
+its new acquisition tick, including when several flags transfer together. A later
+shot in the same tick cannot steal those newly transferred flags. A blocked
 displacement or subsequent crash does not undo a transfer. Other robots in a push
 chain do not lose flags to that shot. Newly captured flags from the displacement
 are not eligible for that same hit.
@@ -928,8 +931,8 @@ The server stores acquisition ticks with current ownership and emits one
 `FLAG_TRANSFERRED` event per transferred flag. Its subject is the previous owner,
 its source is the new owner, and its checkpoint ID identifies the flag. Connected
 clients highlight the changed entries in the existing ownership strip and show
-new owners at the corresponding playback boundary, before displacement. No new
-sound, event feed, or flying-flag animation is introduced.
+new owners together at the hit's transfer playback boundary, before displacement.
+No new sound, event feed, or flying-flag animation is introduced.
 
 Slice 1 verifies a single eligible flag against normal, shielded, blocked, and
 pit-crash hits. Mixed-age transfers and repeated-theft boundaries are verified in
