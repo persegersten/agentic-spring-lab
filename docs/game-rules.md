@@ -910,8 +910,8 @@ the default in-memory database does not survive process shutdown. A test-only
 file-backed H2 profile supplies a reproducible restart verification without
 changing normal runtime profiles or schema. Conversion of legacy matches remains
 unspecified. Slice 4 completes matches after the final capture round and ranks
-players by ownership as described in section 25. Existing limit checks remain
-unchanged; the alternate ending with flags still unclaimed belongs to slice 5.
+players by ownership as described in section 25. Existing limit values remain
+unchanged. Section 25 also defines completion with flags still unclaimed at the existing limit.
 
 See [the slice plan](plans/slices.md) and
 [the reproducible sequential-capture scenarios](dev/sequential-flags-verification.md).
@@ -1024,10 +1024,25 @@ The server resolves the complete authoritative result before playback. Connected
 clients reveal final standings after the last round's playback finishes; a fresh
 load or reconnect can display the already completed authoritative state directly.
 
-Existing round/deadline limit checks are retained. Verifying the alternate ending
-with uncaptured flags remains slice 5; this slice changes no limit values or
-limit-trigger timing. There is no last-vehicle-standing victory, permanent player
-elimination, or automatic sudden-death round.
+If flags remain unclaimed, the existing hard limit still ends the match using
+exactly the same flag-count ranking and shared ties. Uncaptured flags stay unowned;
+zero captures gives every player shared rank 1. No additional round is created.
+
+Register-based play finishes its configured final round, including every register,
+board effect, and normal round-end scoring, before ending. The player-count round
+caps remain unchanged. Continuous play retains its configured match duration
+(default 600000 ms) and tick interval (default 2000 ms). A tick scheduled at the
+deadline is the final permitted tick and resolves completely before results. If
+the scheduler observes expiry late, it resolves at most one pending tick already
+scheduled at or before the cutoff, then finishes. It never executes a tick
+scheduled after the cutoff or replays missed ticks to extend the match. When the
+deadline falls between ticks, expiry finishes the match without inventing another
+tick. The stored deadline is never extended.
+
+A final flag captured in the last permitted round is awarded normally, including
+remaining commands and board effects. Repeated completion or tick requests do not
+change the finished state or award captures again. There is no last-vehicle-standing
+victory, permanent player elimination, or automatic sudden-death round.
 
 ---
 

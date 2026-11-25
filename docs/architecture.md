@@ -127,7 +127,8 @@ and optional checkpoint identifier.
 Finished placements use only owned-flag counts, descending. Equal counts share
 rank, with stable join order and competition numbering (`1, 1, 3`). Distances,
 internal scores, and crash histories do not break ties. Vehicle count and crash
-state never finish a game early. Existing limit-trigger behavior is unchanged.
+state never finish a game early. The existing limit values are retained; final
+permitted rounds finish before results.
 
 ## Playback model
 
@@ -211,8 +212,16 @@ retained in responses but no longer populated or used as a tie-break.
 The presentation hook exposes when the current timeline is settled. Final
 standings wait for that boundary while input remains disabled as soon as the
 server reports `FINISHED`. Initial loads and recovery snapshots snap to the
-already authoritative result. Existing round/deadline limit triggers are
-unchanged; their alternate ending is deferred to slice 5.
+already authoritative result.
+
+The configured register-round cap and continuous match duration are retained.
+Continuous expiry resolves a pending tick scheduled at or before the deadline
+once, including commands and board effects, then finishes. If the next tick is
+scheduled beyond the cutoff, expiry finishes without executing it. It does not
+extend the deadline or run a catch-up loop. All completion paths use the same
+flag-only placements. Test-only limit fixtures keep the normal continuous
+600000 ms duration and 2000 ms interval, positioning the match immediately before
+its final due tick for reproducible browser verification.
 
 ## Persistence and migrations
 

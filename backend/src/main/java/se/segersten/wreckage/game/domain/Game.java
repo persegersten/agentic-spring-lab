@@ -29,7 +29,11 @@ public class Game {
     }
     public void tick(Instant now) {
         if (continuous == null || status != GameStatus.RUNNING) return;
-        if (!now.isBefore(continuous.deadline)) { status = GameStatus.FINISHED; continuous.revision++; return; }
+        boolean limitReached = !now.isBefore(continuous.deadline);
+        // Finish an already scheduled final tick at the cutoff; never execute a tick scheduled beyond it.
+        if (limitReached && continuous.nextTick.isAfter(continuous.deadline)) {
+            status = GameStatus.FINISHED; continuous.revision++; return;
+        }
         if (now.isBefore(continuous.nextTick)) return;
         var startEvents = respawnCrashedVehicles();
         Map<UUID, PlayerProgram> programs = new LinkedHashMap<>();
@@ -51,7 +55,7 @@ public class Game {
         }
         continuous.queues.forEach((id,q) -> { if (vehicles.get(id).isActive()) q.shift(); else q.clear(); });
         continuous.tick++; continuous.revision++; continuous.nextTick = now.plusMillis(continuous.intervalMillis);
-        if (FlagProgress.allCaptured(board, players)) status = GameStatus.FINISHED;
+        if (limitReached || FlagProgress.allCaptured(board, players)) status = GameStatus.FINISHED;
     }
 
     public Game(UUID id, Board board) { this(id, new ArrayList<>(), board, GameStatus.RUNNING); }

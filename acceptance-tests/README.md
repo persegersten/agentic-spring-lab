@@ -50,6 +50,10 @@ That configuration also includes the final-flag completion and shared-rank
 scenarios. Select just those with `final-flag`; see
 [final-round manual verification](../docs/dev/final-flag-verification.md).
 
+Select `match-limit` with that configuration to verify the existing-limit ending
+with incomplete, empty, and unequal collections, plus a final capture at the
+limit. See [match-limit verification](../docs/dev/match-limit-verification.md).
+
 Ownership recovery has its own process-restart test:
 
 ```bash

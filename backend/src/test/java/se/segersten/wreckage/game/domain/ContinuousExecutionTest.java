@@ -86,6 +86,10 @@ class ContinuousExecutionTest {
         game.tick(Instant.EPOCH.plusSeconds(100)); assertThat(game.getContinuous().tick).isEqualTo(4);
         game.tick(Instant.EPOCH.plusSeconds(100)); assertThat(game.getContinuous().tick).isEqualTo(4);
         game.tick(Instant.EPOCH.plusSeconds(600)); assertThat(game.getStatus()).isEqualTo(GameStatus.FINISHED);
-        assertThat(game.getContinuous().tick).isEqualTo(4);
+        // Expiry completes one pending permitted tick, never a burst of missed ticks.
+        assertThat(game.getContinuous().tick).isEqualTo(5);
+        assertThat(game.getContinuous().deadline).isEqualTo(Instant.EPOCH.plusSeconds(600));
+        game.tick(Instant.EPOCH.plusSeconds(602));
+        assertThat(game.getContinuous().tick).isEqualTo(5);
     }
 }

@@ -13,7 +13,8 @@ import se.segersten.wreckage.game.domain.*;
 
 /** Reproducible local scenarios shared by engine tests and the test-only HTTP fixture. */
 public final class SequentialFlagScenarios {
-    public enum Scenario { STANDING, PUSH, REVERSED_PUSH, BLOCKED_PUSH, LASER, CONVEYOR, RECOVERY, FINAL_TIE, FINAL_UNEQUAL }
+    public enum Scenario { STANDING, PUSH, REVERSED_PUSH, BLOCKED_PUSH, LASER, CONVEYOR, RECOVERY,
+        FINAL_TIE, FINAL_UNEQUAL, LIMIT_TIE, LIMIT_ZERO, LIMIT_UNEQUAL, LIMIT_FINAL }
 
     private SequentialFlagScenarios() {}
 
@@ -54,6 +55,23 @@ public final class SequentialFlagScenarios {
                 bob.changeScore(9000);
                 for (int crash = 0; crash < 5; crash++) bob.recordCrash();
             }
+            case LIMIT_TIE, LIMIT_ZERO, LIMIT_UNEQUAL, LIMIT_FINAL -> {
+                first = new Position(6, 1);
+                second = new Position(6, 2);
+                third = new Position(6, 3);
+                fourth = scenario == Scenario.LIMIT_FINAL ? new Position(1, 1) : new Position(7, 5);
+                bobPosition = new Position(0, 3);
+                conveyors = List.of(new Conveyor(new Position(1, 3), Direction.EAST));
+                rotators = List.of(new Rotator(new Position(2, 3), Rotation.CLOCKWISE));
+                if (scenario != Scenario.LIMIT_ZERO) {
+                    alice.visitCheckpoint("CP1");
+                    (scenario == Scenario.LIMIT_UNEQUAL ? alice : bob).visitCheckpoint("CP2");
+                    if (scenario == Scenario.LIMIT_UNEQUAL || scenario == Scenario.LIMIT_FINAL) bob.visitCheckpoint("CP3");
+                }
+                alice.changeScore(-300);
+                bob.changeScore(9000);
+                for (int crash = 0; crash < 5; crash++) bob.recordCrash();
+            }
             case CONVEYOR -> {
                 first = new Position(1, 5);
                 second = new Position(3, 1);
@@ -80,7 +98,15 @@ public final class SequentialFlagScenarios {
                 original.getConfiguration(), original.getCreatedAt(), original.getJoinDeadline(),
                 original.getHostTokenHash(), original.getHostPlayerId());
         // Only the fixture's explicit tick request advances time. Normal scheduling cannot race the demo.
-        game.enableContinuous(Instant.parse("2099-01-01T00:00:00Z"), 2000, 600000);
+        Instant matchStart = Instant.parse("2099-01-01T00:00:00Z");
+        game.enableContinuous(matchStart, 2000, 600000);
+        if (scenario.name().startsWith("LIMIT_")) {
+            var clock = game.getContinuous();
+            clock.tick = java.time.Duration.between(matchStart, clock.deadline).toMillis() / clock.intervalMillis - 1;
+            clock.nextTick = clock.deadline;
+            // These commands were committed earlier and are due in the final permitted tick.
+            for (Player player : game.getPlayers()) clock.queues.put(player.getId(), CommandQueue.decode("FORWARD_1,-,-,-,-"));
+        }
         return game;
     }
 

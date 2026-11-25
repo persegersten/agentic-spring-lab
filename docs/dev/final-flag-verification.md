@@ -6,8 +6,8 @@ board effects; queued future commands do not run. Register-based rounds finish
 every remaining register and normal round-end scoring. Final placement depends
 only on flag counts, with shared competition ranks (`1, 1, 3`).
 
-This guide does not implement or verify the alternate ending where the existing
-limit is reached with flags still unclaimed. That remains slice 5.
+For the alternate ending at the existing limit with flags still unclaimed, see
+[match-limit verification](match-limit-verification.md).
 
 ## Automated checks
 
