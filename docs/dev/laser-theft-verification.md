@@ -1,17 +1,17 @@
-# Laser Flag Theft — Slices 1 and 2 Verification
+# Laser Flag Theft — Slices 1–3 Verification
 
 Slice 1 demonstrates one eligible flag transferring before normal Laser
 displacement and turning. Shield protection, blocked displacement, and a target
 crashing into a pit have reproducible two-client scenarios. Slice 2 adds mixed-age
-transfers, exact expiry boundaries, and three-player theft resets. Reload, respawn,
-and backend restart verification remain in slice 3.
+transfers, exact expiry boundaries, and three-player theft resets. Slice 3 verifies reload, respawn,
+and backend restart recovery using independent saved copies.
 
 ## Automated checks
 
 From `backend/`:
 
 ```bash
-bash mvnw -Dtest=LaserFlagTheftTest,LaserRulesTest,SequentialFlagCaptureTest,FinalFlagCompletionTest,HardMatchLimitTest test
+bash mvnw -Dtest=LaserFlagRecoveryIntegrationTest,FlagOwnershipRecoveryIntegrationTest,LaserFlagTheftTest,LaserRulesTest,SequentialFlagCaptureTest,FinalFlagCompletionTest,HardMatchLimitTest test
 ```
 
 From the project root:
@@ -20,6 +20,7 @@ From the project root:
 npm --prefix frontend run build
 npm --prefix frontend run lint
 npm --prefix acceptance-tests test -- --config=sequential-flags.config.mjs laser-theft --workers=1 --reporter=line
+npm --prefix acceptance-tests test -- --config=flag-recovery.config.mjs --reporter=line
 ```
 
 Omit the `laser-theft` selector to include the existing capture, final-flag, and
@@ -176,3 +177,93 @@ engine cases fire a third shot on that new acquisition tick, T+1, T+5, and T+6
 for both successful Carol copies, verifying the reset repeats with exclusive
 ownership and no additional capture score. These checks use active matches;
 they do not test restoration, respawn, or backend restart.
+
+## Slice 3: saved theft, restart, and respawn copies
+
+The recovery browser configuration owns its backend on 18082, frontend on 5176,
+and a temporary **file-backed H2 database**, retained across process restarts. It
+runs both the existing capture recovery test and the new theft recovery test.
+The latter saves all seven copies before stopping the JVM, compares authenticated
+snapshots after starting a new JVM, and opens independent Bob and Carol sessions.
+It checks counts, hidden captured markers, next-flag availability, no stale theft
+highlight after reload, timing boundaries, and unchanged final standings.
+
+For manual verification, stop automated recovery tests first. From `backend/`,
+start a retained **development-only** database (the parent directory must exist):
+
+```bash
+mkdir -p /tmp/wreckage-theft-manual
+WRECKAGE_TEST_RECOVERY_DB=/tmp/wreckage-theft-manual/match bash mvnw spring-boot:test-run -Dspring-boot.run.profiles=sequential-flags-e2e,flag-recovery-e2e '-Dspring-boot.run.arguments=--server.port=18082 --wreckage.games.max-concurrent=50'
+```
+
+From `frontend/`, start:
+
+```bash
+WRECKAGE_BACKEND_URL=http://127.0.0.1:18082 npm run dev -- --host 127.0.0.1 --port 5176 --strictPort
+```
+
+Create **one fresh match per row**, before restarting. Save each response's game ID
+and all session objects; do not recreate these matches after restart:
+
+```bash
+curl -X POST 'http://127.0.0.1:18082/games/test-fixtures/flags?scenario=THEFT_RECOVERY_16'
+```
+
+Use the session/localStorage instructions above with origin
+`http://127.0.0.1:5176`. Responses list Alice, Bob, Carol; open at least Bob and
+Carol in independent profiles, optionally Alice in a third. All copies actually
+execute Bob's tick-15 Laser theft from Alice; Bob owns CP1 with acquisition tick
+15, Alice/Carol own none, and counts are 0/1/0. CP1 stays hidden; CP2 at `(6,2)`
+is available, CP3/CP4 remain locked. Alice was displaced from `(2,1)` to `(3,1)`
+and received the ordinary server-chosen turn. Her facing does not affect the
+next shot. Carol is at `(0,0)` facing north; Bob faces east. There are no random
+maps or direction-dependent follow-up shots.
+
+| Scenario | Saved tick | Bob's saved state | Next shot and expected owner/tick |
+| --- | ---: | --- | --- |
+| `THEFT_RECOVERY_16` | 15 | Active at `(0,1)` | Carol hits on 16 → Carol / 16. |
+| `THEFT_RECOVERY_20` | 19 | Active at `(0,1)` | Carol hits on 20 → Carol / 20. |
+| `THEFT_RECOVERY_21` | 20 | Active at `(0,1)` | Carol hits on 21 → Bob / 15. |
+| `THEFT_RESPAWN_16` | 15 | Crashed at pit `(1,1)` | Bob respawns at `(0,2)` before Carol hits on 16 → Carol / 16. |
+| `THEFT_RESPAWN_20` | 19 | Respawned at `(0,2)` on tick 16 | Carol hits on 20 → Carol / 20. |
+| `THEFT_RESPAWN_21` | 20 | Respawned at `(0,2)` on tick 16 | Carol hits on 21 → Bob / 15. |
+| `THEFT_FINISHED` | 15 | Active at `(0,1)`; match finished | No shot. Bob rank 1 (one flag); Alice/Carol shared rank 2 (zero). |
+
+Each active copy has only Carol's Laser queued in locked slot 1; all other slots
+and queues are empty/NOP. No commands need to be entered. For respawn copies,
+a conveyor at `(0,1)` moves Bob east into the pit **after** his tick-15 theft;
+his assigned spawn is `(0,2)`, off that conveyor. The 20/21 copies execute normal
+idle ticks after respawn before being saved, preserving acquisition tick 15.
+The finished copy uses the existing match deadline at tick 15, after the theft
+and all normal effects; it introduces no completion rule.
+
+Reload both sessions. Ownership/counts must remain 0/1/0, with no new transfer
+highlight, including the tick-15 copies whose saved playback contains a theft.
+For `THEFT_FINISHED`, confirm Bob's one flag and final ranks above.
+
+Stop only this local backend with Ctrl-C; leave the database files and frontend
+in place. Rerun the **identical backend command and database path**. Reload/reopen
+each saved game in both sessions. Confirm ownership/counts and standings again.
+An authenticated snapshot exposes `players[].flagAcquisitionTicks`; Bob must
+still have `{"CP1":15}`, including crashed and respawned copies:
+
+```bash
+curl -H 'X-Player-Token: BOB_TOKEN' 'http://127.0.0.1:18082/games/GAME_ID/players/BOB_PLAYER_ID'
+```
+
+Advance each active saved copy once:
+
+```bash
+curl -X POST 'http://127.0.0.1:18082/games/test-fixtures/flags/GAME_ID/ticks?count=1'
+```
+
+Only ticks 16 and 20 transfer CP1 to Carol, with counts 0/0/1 and a fresh highlight
+on both clients; tick 21 retains Bob at tick 15 with counts 0/1/0 and no transfer
+highlight. Bob receives the ordinary displacement/turn in every case: `(0,2)`
+for normal copies and `(0,3)` for respawn copies. Reload again to confirm the
+result directly, without a second highlight. Do not advance one successful
+copy to test another boundary: that would reset its acquisition clock.
+
+The default in-memory profile cannot demonstrate restart retention. These
+scenarios use newly created matches under the current rules; no acquisition
+values are invented for legacy saved matches.

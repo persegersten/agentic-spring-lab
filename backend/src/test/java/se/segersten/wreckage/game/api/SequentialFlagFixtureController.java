@@ -43,7 +43,8 @@ public class SequentialFlagFixtureController {
         var hosted = service.createHostedGame(GameConfiguration.defaults());
         UUID id = hosted.game().getId();
         var alice = service.addPlayer(id, "Alice", hosted.hostToken());
-        var carol = scenario.name().startsWith("THEFT_CHAIN_") ? service.addPlayer(id, "Carol") : null;
+        boolean threePlayers = scenario.name().startsWith("THEFT_CHAIN_") || SequentialFlagScenarios.isTheftRecovery(scenario);
+        var carol = threePlayers ? service.addPlayer(id, "Carol") : null;
         var bob = service.addPlayer(id, "Bob");
         // Commit ordinary creation/join requests before loading database-generated timestamps.
         transaction.executeWithoutResult(status -> {

@@ -75,4 +75,9 @@ state are not shared between players.
 Run `npm --prefix acceptance-tests test -- --config=sequential-flags.config.mjs laser-theft --workers=1 --reporter=line`
 from the project root for slice 1's normal, shielded, blocked, and pit-crash hits.
 Includes mixed-age transfers, exact capture expiry, and three-player reset boundaries.
+Run `npm --prefix acceptance-tests test -- --config=flag-recovery.config.mjs --reporter=line`
+for retained-database recovery, tick-16/20/21 theft boundaries after a real backend
+restart, crash/respawn copies, and finished-match reloads. This configuration owns
+ports 18082 and 5176; stop manual recovery servers first.
+
 See [manual setup and verification](../docs/dev/laser-theft-verification.md).

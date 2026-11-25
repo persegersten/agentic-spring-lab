@@ -934,9 +934,16 @@ clients highlight the changed entries in the existing ownership strip and show
 new owners together at the hit's transfer playback boundary, before displacement.
 No new sound, event feed, or flying-flag animation is introduced.
 
+Reloads, reconnects, and backend restarts restore current owners and the original
+acquisition ticks directly, without presenting saved transfer playback as a new
+theft. Crashing and respawning neither reset nor pause vulnerability: a flag
+stolen on tick 15 remains eligible only on ticks 16–20, even if its owner crashes
+and respawns during that window. Finished matches retain final ownership and
+standings on recovery.
+
 Slice 1 verifies a single eligible flag against normal, shielded, blocked, and
 pit-crash hits. Mixed-age transfers and repeated-theft boundaries are verified in
-slice 2; crash/respawn and restart recovery scenarios follow in slice 3 of
+slice 2; crash/respawn and restart recovery scenarios are verified in slice 3 of
 [the theft slice plan](plans/slices.md). Acquisition timing for matches predating
 this feature is unspecified; no timing is inferred from ownership or playback.
 See [the reproducible theft scenarios](dev/laser-theft-verification.md).

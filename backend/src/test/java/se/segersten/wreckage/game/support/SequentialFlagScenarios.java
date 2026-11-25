@@ -17,11 +17,16 @@ public final class SequentialFlagScenarios {
         FINAL_TIE, FINAL_UNEQUAL, LIMIT_TIE, LIMIT_ZERO, LIMIT_UNEQUAL, LIMIT_FINAL,
         THEFT, THEFT_SHIELD, THEFT_BLOCKED, THEFT_PIT,
         THEFT_MIXED, THEFT_CAPTURE_10, THEFT_CAPTURE_11, THEFT_CAPTURE_15, THEFT_CAPTURE_16,
-        THEFT_CHAIN_15, THEFT_CHAIN_16, THEFT_CHAIN_20, THEFT_CHAIN_21 }
+        THEFT_CHAIN_15, THEFT_CHAIN_16, THEFT_CHAIN_20, THEFT_CHAIN_21,
+        THEFT_RECOVERY_16, THEFT_RECOVERY_20, THEFT_RECOVERY_21,
+        THEFT_RESPAWN_16, THEFT_RESPAWN_20, THEFT_RESPAWN_21, THEFT_FINISHED }
 
     private SequentialFlagScenarios() {}
 
+    public static boolean isTheftRecovery(Scenario scenario) { return LaserFlagRecoveryScenarios.supports(scenario); }
+
     public static Game configure(Game original, Scenario scenario) {
+        if (LaserFlagRecoveryScenarios.supports(scenario)) return LaserFlagRecoveryScenarios.configure(original, scenario);
         if (LaserFlagBoundaryScenarios.supports(scenario)) return LaserFlagBoundaryScenarios.configure(original, scenario);
         Player alice = original.getPlayers().getFirst();
         Player bob = original.getPlayers().get(1);
