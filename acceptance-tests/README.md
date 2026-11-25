@@ -46,6 +46,17 @@ npm --prefix acceptance-tests test -- --config=sequential-flags.config.mjs --wor
 They are excluded from the default configuration. See
 [manual scenario setup and expected results](../docs/dev/sequential-flags-verification.md).
 
+Ownership recovery has its own process-restart test:
+
+```bash
+npm --prefix acceptance-tests test -- --config=flag-recovery.config.mjs --reporter=line
+```
+
+It owns disposable servers on ports 18082/5176, uses a temporary file-backed H2
+database, and restarts only its own backend process. Stop manual recovery servers
+on those ports before running it. See
+[crash, reload, reconnect, and restart verification](../docs/dev/flag-recovery-verification.md).
+
 Represent every player with a separate Playwright `BrowserContext` and create
 one page in each context. The contexts must be closed in a `finally` block. The
 `withPlayerPages` helper in `player-pages.mjs` demonstrates this pattern.

@@ -1,8 +1,8 @@
 # Sequential Flag Capture — Slice 2 Verification
 
 These scenarios verify global unlocking, exclusive ownership, and atomic movement
-entries. They do not implement slice 3 recovery or the later completion/ranking
-rules. All boards keep four flags. The fixture controller and scenario definitions
+entries. For slice 3 recovery, use [the recovery scenarios](flag-recovery-verification.md).
+Completion/ranking rules remain deferred. All boards keep four flags. The fixture controller and scenario definitions
 live under `backend/src/test/`, so they are absent from the production application.
 
 ## Automated verification

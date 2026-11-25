@@ -209,6 +209,20 @@ streams are persisted with the game. Persistence readers tolerate the previous
 serialized round layout during upgrades, discard obsolete event kinds, and always
 write the v2 layout.
 
+Flag ownership is stored on players in `visited_checkpoints`, independently of
+vehicle status, position, and crash penalties. Crash/respawn operations keep those
+player records. Rehydration restores the same ownership before API snapshots
+calculate capture counts and the globally available next flag; clients rebuild
+the strip and captured-marker visibility from those snapshots rather than replaying
+capture events into ownership.
+
+The normal in-memory H2 profile loses all matches when its process stops. The
+test-only `flag-recovery-e2e` profile uses a retained H2 file for local restart
+verification, with the same Flyway migrations and entity mappings. It does not
+change runtime/deployment profiles or introduce a schema migration. Its fixture
+code and configuration are excluded from the production artifact. See
+[the recovery verification guide](dev/flag-recovery-verification.md).
+
 ## Testing boundaries
 
 Domain and application tests exercise rules directly. Spring integration tests

@@ -897,14 +897,26 @@ Public and authenticated snapshots report each player's count of owned flags
 persistent strip names every owner, hides captured board markers, and highlights
 the first unowned flag. Map checkpoint definitions remain intact.
 
-This is slice 2. It adds no crash/reconnect/restart recovery policy or conversion
-of existing matches. Match limits, completion detection, distance tie-breaks,
+Ownership belongs to the player for the entire match. A crash, removal from the
+board, and respawn never remove captured flags or relock them. Crash penalties
+affect the internal score, not the number of owned flags. Restoring a match from
+its retained database uses the saved player ownership entries; neither positions
+nor saved playback events create new captures during recovery. Both clients
+rebuild the same ownership strip, missing captured markers, and next available
+flag from authenticated server snapshots after reconnect or reload.
+
+This is slice 3. Restart recovery requires retaining the development database;
+the default in-memory database does not survive process shutdown. A test-only
+file-backed H2 profile supplies a reproducible restart verification without
+changing normal runtime profiles or schema. Conversion of legacy matches remains
+unspecified. Match limits, completion detection, distance tie-breaks,
 and ranking code have not been replaced; those remain later slices. In
 particular, split ownership of all flags does not yet trigger the proposed new
 round-end completion rule.
 
 See [the slice plan](plans/slices.md) and
 [the reproducible sequential-capture scenarios](dev/sequential-flags-verification.md).
+See also [crash, reconnect, and restart verification](dev/flag-recovery-verification.md).
 
 ---
 

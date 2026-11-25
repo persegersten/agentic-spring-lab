@@ -13,7 +13,7 @@ import se.segersten.wreckage.game.domain.*;
 
 /** Reproducible local scenarios shared by engine tests and the test-only HTTP fixture. */
 public final class SequentialFlagScenarios {
-    public enum Scenario { STANDING, PUSH, REVERSED_PUSH, BLOCKED_PUSH, LASER, CONVEYOR }
+    public enum Scenario { STANDING, PUSH, REVERSED_PUSH, BLOCKED_PUSH, LASER, CONVEYOR, RECOVERY }
 
     private SequentialFlagScenarios() {}
 
@@ -26,9 +26,11 @@ public final class SequentialFlagScenarios {
         Position bobPosition = new Position(1, 1);
         List<Conveyor> conveyors = List.of();
         Set<Wall> walls = Set.of();
+        Set<Position> pits = Set.of();
         switch (scenario) {
             case STANDING -> bobPosition = second;
             case BLOCKED_PUSH -> walls = Set.of(new Wall(new Position(1, 1), Direction.EAST));
+            case RECOVERY -> pits = Set.of(new Position(3, 1));
             case LASER -> {
                 first = new Position(3, 1);
                 second = new Position(4, 1);
@@ -44,7 +46,7 @@ public final class SequentialFlagScenarios {
             }
             default -> { }
         }
-        Board board = new Board(10, 10, walls, Set.of(), Set.of(
+        Board board = new Board(10, 10, walls, pits, Set.of(
                 new Checkpoint("CP1", 1, first), new Checkpoint("CP2", 2, second),
                 new Checkpoint("CP3", 3, new Position(6, 5)),
                 new Checkpoint("CP4", 4, new Position(7, 5))),
