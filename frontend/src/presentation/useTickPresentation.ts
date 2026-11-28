@@ -7,6 +7,7 @@ import { gameAudio } from './audio'
 import { useReducedMotionPreference } from './useReducedMotionPreference'
 import { planEffects, planShakes } from './visualEffects'
 import { createTimeline, shouldAnimate } from './timeline'
+import { currentFlagTransfers } from './flagTransfers'
 
 export function useTickPresentation(view: PlayerGame, recoveryEpoch = 0) {
   const [timeline, setTimeline] = useState(() => ({ view, recoveryEpoch, schedule: createTimeline(view), animate: false, spinBase: {} as Record<string, number> }))
@@ -91,9 +92,9 @@ export function useTickPresentation(view: PlayerGame, recoveryEpoch = 0) {
   const players = useMemo(() => settled ? view.players : playbackPlayers(timeline.view.players,
     timeline.view.round?.state.playback ?? [], shown.filter(item => item.stream === 'playback').map(item => item.event)),
     [settled, view.players, timeline.view, shown])
-  const transferredFlagIds = useMemo(() => settled ? [] : schedule.events
-    .filter(item => item.event.type === 'FLAG_TRANSFERRED' && item.at <= elapsed && item.until > elapsed)
-    .map(item => item.event.checkpointId!).filter(Boolean), [settled, schedule, elapsed])
+  const flagTransfers = useMemo(() => settled ? [] : currentFlagTransfers(schedule, elapsed)
+    .map(item => ({ ...item, age: elapsed - item.at, motion: !reducedMotion && item.at > motionPolicy.blockedUntil })),
+    [settled, schedule, elapsed, reducedMotion, motionPolicy.blockedUntil])
   const effects = useMemo(() => settled ? [] : effectPlan.filter(item => item.at <= elapsed && item.until > elapsed && (item.kind !== 'activation' || hasAvailableFlag))
     .map(item => ({ ...item, motion: !reducedMotion && item.at > motionPolicy.blockedUntil, age: elapsed - item.at })),
     [settled, effectPlan, elapsed, reducedMotion, motionPolicy.blockedUntil, hasAvailableFlag])
@@ -106,5 +107,5 @@ export function useTickPresentation(view: PlayerGame, recoveryEpoch = 0) {
   for (const [id, count] of Object.entries(spins)) rotations[id] = (rotations[id] ?? 0) + count
   const execution = animate && elapsed < executionDuration && timeline.view.continuous?.lastExecutedCommand != null
     ? { id: schedule.key, command: timeline.view.continuous.lastExecutedCommand } : null
-  return { settled, players, transferredFlagIds, execution, shake, duration: Math.min(200, schedule.step) / 1000, board: timeline.view.board, vehicles, effects, activatingFlagId, spins, rotations, animate: animate && !settled, queueAnimate: timeline.animate && visible }
+  return { settled, players, flagTransfers, execution, shake, duration: Math.min(200, schedule.step) / 1000, board: timeline.view.board, vehicles, effects, activatingFlagId, spins, rotations, animate: animate && !settled, queueAnimate: timeline.animate && visible }
 }

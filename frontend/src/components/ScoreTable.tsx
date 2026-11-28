@@ -2,8 +2,9 @@ import { Icon } from './Icon'
 import { FlagStrip } from './FlagStrip'
 import type { VisualEffect } from '../presentation/visualEffects'
 import type { Board, Placement, Player } from '../types/game'
+import type { FlagTransfer } from '../presentation/flagTransfers'
 
-export function ScoreTable({ players, board, placements = [], compact = false, currentPlayerId, checkpointCount, captureEffects = [], transferredFlagIds = [] }: { players: Player[]; board?: Board; scores?: Record<string, number>; placements?: Placement[]; compact?: boolean; currentPlayerId?: string; checkpointCount?: number; captureEffects?: VisualEffect[]; transferredFlagIds?: string[] }) {
+export function ScoreTable({ players, board, placements = [], compact = false, currentPlayerId, checkpointCount, captureEffects = [], flagTransfers = [] }: { players: Player[]; board?: Board; scores?: Record<string, number>; placements?: Placement[]; compact?: boolean; currentPlayerId?: string; checkpointCount?: number; captureEffects?: VisualEffect[]; flagTransfers?: FlagTransfer[] }) {
   const placementByPlayer = Object.fromEntries(placements.map(result => [result.playerId, result]))
   const winnerCount = placements.filter(result => result.winner).length
   const rows = players.map((player, joinIndex) => ({ ...player, joinIndex,
@@ -17,7 +18,7 @@ export function ScoreTable({ players, board, placements = [], compact = false, c
     {ownPlayer && checkpointCount != null && <p className="checkpoint-progress" data-testid="checkpoint-progress">
       <span><Icon name="flag"/> Flaggor: {ownPlayer.flags} / {checkpointCount}</span>
     </p>}
-    {board && <FlagStrip board={board} players={players} transferredFlagIds={transferredFlagIds}/>}
+    {board && <FlagStrip board={board} players={players} flagTransfers={flagTransfers} currentPlayerId={currentPlayerId}/>}
     <ol className="compact-score-list">{rows.map(player => <li key={player.id}
       className={player.id === currentPlayerId ? 'score-own-player' : ''}
       data-testid={placements.length ? 'final-standing-row' : 'score-row'} data-player-id={player.id}

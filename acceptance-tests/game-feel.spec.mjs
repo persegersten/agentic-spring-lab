@@ -590,6 +590,88 @@ for (const reducedMotion of ['no-preference','reduce']) {
   })
 }
 
+for (const reducedMotion of ['no-preference','reduce']) {
+  test(`flag transfer colours replace older highlights without replay (${reducedMotion})`,async({page})=>{
+    await page.emulateMedia({reducedMotion})
+    await page.clock.install()
+    const checkpoints=[1,2,3].map(order=>({id:`CP${order}`,order,position:{x:order+1,y:1}}))
+    const game=await setup(page,3,[null,null,null,null,null],checkpoints)
+    game.state.players[0].visitedCheckpoints=['CP1','CP2'];game.state.players[0].capturedCheckpoints=2
+    game.state.vehicles=game.state.players.map((player,i)=>({id:`robot-${i}`,playerId:player.id,x:i+1,y:1,direction:'NORTH',status:'ACTIVE'}))
+    game.state.continuous.revision++
+    await page.reload()
+    await expect(page.getByTestId('flag-strip')).toBeVisible()
+    await page.clock.pauseAt(new Date(await page.evaluate(()=>Date.now())+1000))
+    const flag=id=>page.locator(`[data-testid="flag-status"][data-checkpoint-id="${id}"]`)
+    const highlight=id=>flag(id).getByTestId('flag-transfer')
+    async function advanceUntil(locator){
+      for(let i=0;i<100&&await locator.count()===0;i++)await page.clock.runFor(20)
+      await expect(locator).toHaveCount(1)
+    }
+    const transfer=(id,sequence,from,to)=>game.event('FLAG_TRANSFERRED',sequence,{checkpointId:id,playerId:from,sourcePlayerId:to})
+    await expect(page.getByTestId('flag-transfer')).toHaveCount(0)
+    game.state.players[0].visitedCheckpoints=[];game.state.players[0].capturedCheckpoints=0
+    game.state.players[1].visitedCheckpoints=['CP1','CP2'];game.state.players[1].capturedCheckpoints=2
+    game.next([game.event('WEAPON_HIT'),transfer('CP1',2,'local','player-1'),transfer('CP2',3,'local','player-1'),game.event('TURN',4)])
+    await advanceUntil(highlight('CP1'))
+    await expect(page.getByTestId('flag-transfer')).toHaveCount(2)
+    for(const id of ['CP1','CP2']){
+      await expect(flag(id)).toHaveAttribute('data-owner-id','player-1')
+      await expect(highlight(id)).toHaveAttribute('data-motion',reducedMotion==='reduce'?'off':'on')
+      const colours=await flag(id).evaluate(el=>{
+        const style=getComputedStyle(el)
+        return {from:style.getPropertyValue('--transfer-from').trim(),to:style.getPropertyValue('--transfer-to').trim()}
+      })
+      expect(colours).toEqual({from:'#dbb66d',to:'#afbfc4'})
+      if(reducedMotion==='reduce')await expect(highlight(id)).toHaveCSS('animation-name','none')
+      else{
+        const samples=await highlight(id).evaluate(el=>{
+          const animation=el.getAnimations()[0],time=animation.currentTime
+          const delay=parseFloat(getComputedStyle(el).animationDelay)*1000
+          animation.pause();animation.currentTime=delay
+          const from=getComputedStyle(el).backgroundColor
+          animation.currentTime=delay+390
+          const to=getComputedStyle(el).backgroundColor
+          animation.currentTime=time;animation.play()
+          return {from,to}
+        })
+        expect(samples).toEqual({from:'rgb(219, 182, 109)',to:'rgb(175, 191, 196)'})
+      }
+    }
+    const original=await highlight('CP1').elementHandle(),oldId=await highlight('CP1').getAttribute('data-event-id')
+    await acceptMockCommand(page,game)
+    await page.getByRole('button',{name:'Framåt',exact:true}).click()
+    expect(await original.evaluate(el=>el===document.querySelector('[data-checkpoint-id="CP1"] [data-testid="flag-transfer"]'))).toBe(true)
+    await page.screenshot({path:`/tmp/wreckage-flag-transfer-${reducedMotion}.png`})
+    game.state.players[1].visitedCheckpoints=['CP2'];game.state.players[1].capturedCheckpoints=1
+    game.state.players[2].visitedCheckpoints=['CP1'];game.state.players[2].capturedCheckpoints=1
+    game.next([game.event('WEAPON_HIT'),transfer('CP1',2,'player-1','player-2'),game.event('TURN',3)])
+    await advanceUntil(page.locator(`[data-testid="flag-transfer"][data-event-id*=":${game.state.continuous.tick}:playback:"]`))
+    await expect(flag('CP1')).toHaveAttribute('data-owner-id','player-2')
+    expect(await highlight('CP1').getAttribute('data-event-id')).not.toBe(oldId)
+    await expect(highlight('CP2')).toHaveCount(0)
+    if(reducedMotion==='no-preference'){
+      await page.emulateMedia({reducedMotion:'reduce'})
+      await expect(highlight('CP1')).toHaveAttribute('data-motion','off')
+      await page.emulateMedia({reducedMotion:'no-preference'})
+      await expect(highlight('CP1')).toHaveAttribute('data-motion','off')
+      await expect(highlight('CP1')).toHaveCSS('animation-name','none')
+    }
+    game.disconnect();await page.clock.runFor(500)
+    await expect.poll(()=>game.failures).toBeGreaterThan(0)
+    game.resume();await page.clock.runFor(500)
+    await expect(page.getByTestId('flag-transfer')).toHaveCount(0)
+    await page.clock.runFor(1700)
+    game.state.continuous.revision++;await page.clock.runFor(650)
+    await expect(page.getByTestId('flag-transfer')).toHaveCount(0)
+    await expect(flag('CP1')).toHaveAttribute('data-owner-id','player-2')
+    await page.reload()
+    await expect(page.getByTestId('flag-strip')).toBeVisible()
+    await expect(page.getByTestId('flag-transfer')).toHaveCount(0)
+    await expect(flag('CP1')).toHaveAttribute('data-owner-id','player-2')
+  })
+}
+
 test('M3: capture brackets and standings feedback keep checkpoint progress outside the board',async({page})=>{
   await page.clock.install()
   const game=await setup(page)

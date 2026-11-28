@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 
-for (const scenario of ['THEFT', 'THEFT_SHIELD', 'THEFT_BLOCKED', 'THEFT_PIT']) {
-  test(`slice 1: both clients play the ownership transfer before Laser displacement (${scenario})`, async ({ browser, request }) => {
+for (const [scenario,reducedMotion] of [['THEFT','no-preference'],['THEFT_SHIELD','no-preference'],['THEFT_BLOCKED','no-preference'],['THEFT_PIT','no-preference'],['THEFT','reduce']]) {
+  test(`slice 1: both clients play the ownership transfer before Laser displacement (${scenario}, ${reducedMotion})`, async ({ browser, request }) => {
     const contexts = []
     try {
       const created = await request.post(`/games/test-fixtures/flags?scenario=${scenario}`)
@@ -15,6 +15,7 @@ for (const scenario of ['THEFT', 'THEFT_SHIELD', 'THEFT_BLOCKED', 'THEFT_PIT']) 
         contexts.push(context)
         await context.addInitScript(value => localStorage.setItem(`wreckage-session:${value.gameId}`, JSON.stringify(value)), session)
         const page = await context.newPage()
+        await page.emulateMedia({reducedMotion})
         await page.clock.install()
         await page.goto(`/game/${fixture.gameId}`)
         await expect(page.getByTestId('flag-strip')).toBeVisible()
@@ -36,7 +37,7 @@ for (const scenario of ['THEFT', 'THEFT_SHIELD', 'THEFT_BLOCKED', 'THEFT_PIT']) 
         expect(result.players[1].flagAcquisitionTicks.CP1).toBe(11)
         expect(result.round.playback.map(event => event.type).slice(0, 3)).toEqual(['WEAPON_FIRED', 'WEAPON_HIT', 'FLAG_TRANSFERRED'])
       }
-      for (const page of pages) {
+      for (const [index,page] of pages.entries()) {
         // Deliver the real authoritative response without advancing presentation time.
         await Promise.all([
           page.waitForResponse(response => response.url().includes('/players/') && response.status() === 200),
@@ -47,11 +48,21 @@ for (const scenario of ['THEFT', 'THEFT_SHIELD', 'THEFT_BLOCKED', 'THEFT_PIT']) 
         await page.clock.runFor(400)
         await expect(flag(page)).toHaveAttribute('data-owner-id', shield ? alice.playerId : bob.playerId)
         await expect(flag(page)).toContainText(shield ? 'Alice' : 'Bob')
-        if (!shield) await expect(flag(page)).toHaveAttribute('data-transferred', 'true')
+        if (!shield) {
+          await expect(flag(page)).toHaveAttribute('data-transferred', 'true')
+          await expect(flag(page).getByTestId('flag-transfer')).toHaveCount(1)
+          await expect(flag(page).getByTestId('flag-transfer')).toHaveAttribute('data-motion',reducedMotion==='reduce'?'off':'on')
+          if(reducedMotion==='reduce')await expect(flag(page).getByTestId('flag-transfer')).toHaveCSS('animation-name','none')
+          const colours=await flag(page).evaluate(el=>({from:getComputedStyle(el).getPropertyValue('--transfer-from').trim(),to:getComputedStyle(el).getPropertyValue('--transfer-to').trim()}))
+          const local=fixture.sessions[index].playerId
+          expect(colours).toEqual({from:local===alice.playerId?'#dbb66d':'#afbfc4',to:local===bob.playerId?'#dbb66d':'#afbfc4'})
+          if(scenario==='THEFT')await page.screenshot({path:`/tmp/wreckage-live-flag-transfer-${local===alice.playerId?'alice':'bob'}-${reducedMotion}.png`})
+        } else await expect(page.getByTestId('flag-transfer')).toHaveCount(0)
         const aliceVehicle = page.locator(`[data-testid="player-vehicle"][data-player-id="${alice.playerId}"]`)
         if (!shield) await expect(aliceVehicle).toHaveAttribute('data-x', '2')
         await page.clock.runFor(1300)
         await expect(flag(page)).not.toHaveAttribute('data-transferred', 'true')
+        await expect(page.getByTestId('flag-transfer')).toHaveCount(0)
         await expect(page.locator('[data-testid="board-checkpoint"][data-checkpoint-id="CP1"]')).toHaveCount(0)
         await expect(page.locator('[data-testid="flag-status"][data-checkpoint-id="CP2"]')).toHaveAttribute('data-state', 'available')
         await expect(page.locator(`[data-testid="score-row"][data-player-id="${alice.playerId}"] [data-testid="player-score"]`)).toHaveText(shield ? '1' : '0')
@@ -63,6 +74,10 @@ for (const scenario of ['THEFT', 'THEFT_SHIELD', 'THEFT_BLOCKED', 'THEFT_PIT']) 
           await expect(aliceVehicle).toHaveAttribute('data-direction', target.direction)
         }
         await expect(page.getByTestId('final-standings')).toHaveCount(0)
+        await page.reload()
+        await expect(page.getByTestId('flag-strip')).toBeVisible()
+        await expect(page.getByTestId('flag-transfer')).toHaveCount(0)
+        await expect(flag(page)).toHaveAttribute('data-owner-id',shield?alice.playerId:bob.playerId)
       }
     } finally { await Promise.all(contexts.map(context => context.close())) }
   })
@@ -126,7 +141,9 @@ for (const scenario of boundaryScenarios) {
           for (const id of ['CP1', 'CP2']) {
             await expect(flag(page, id)).toHaveAttribute('data-owner-id', bob.playerId)
             await expect(flag(page, id)).toHaveAttribute('data-transferred', 'true')
+            await expect(flag(page, id).getByTestId('flag-transfer')).toHaveCount(1)
           }
+          await expect(page.getByTestId('flag-transfer')).toHaveCount(2)
           await expect(flag(page, 'CP3')).toHaveAttribute('data-owner-id', alice.playerId)
           await expect(flag(page, 'CP3')).not.toHaveAttribute('data-transferred', 'true')
           await expect(page.locator(`[data-testid="player-vehicle"][data-player-id="${alice.playerId}"]`)).toHaveAttribute('data-x', '2')

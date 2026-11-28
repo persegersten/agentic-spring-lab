@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test'
 import { createTimeline, shouldAnimate } from '../frontend/src/presentation/timeline.ts'
 import { createAudioController, cueForEvent } from '../frontend/src/presentation/audioController.ts'
+import { currentFlagTransfers } from '../frontend/src/presentation/flagTransfers.ts'
 
 const event = (type, sequence = 1, extra = {}) => ({ type, sequence, playerId:'local', sourcePlayerId:'other', vehicleId:'robot', ...extra })
 const snapshot = (tick = 1, gameId = 'game') => ({ id:gameId, continuous:{ tick, intervalMillis:2000 }, round:{ state:{
@@ -22,6 +23,22 @@ test('only visible consecutive ticks animate', () => {
   for (const [next, visible] of [[snapshot(2),true],[snapshot(4),true],[snapshot(1),true],[snapshot(3,'different'),true],[snapshot(3),false]]) {
     expect(shouldAnimate(previous,next,visible)).toBe(false)
   }
+})
+
+test('transfer highlights share their playback boundary and expire without reviving older transitions', () => {
+  const view=snapshot()
+  view.round.state.playback=[event('WEAPON_HIT'),event('FLAG_TRANSFERRED',2,{checkpointId:'CP1'}),
+    event('FLAG_TRANSFERRED',3,{checkpointId:'CP2'}),event('MOVE',4)]
+  const schedule=createTimeline(view)
+  const transfers=schedule.events.filter(item=>item.event.type==='FLAG_TRANSFERRED')
+  expect(transfers.map(item=>item.at)).toEqual([225,225])
+  expect(currentFlagTransfers(schedule,224)).toEqual([])
+  expect(currentFlagTransfers(schedule,225)).toEqual(transfers)
+  expect(currentFlagTransfers(schedule,825)).toEqual([])
+  const newer={...transfers[0],id:'newer',at:300,until:400}
+  const overlapping={...schedule,events:[...schedule.events,newer]}
+  expect(currentFlagTransfers(overlapping,350).map(item=>item.id)).toEqual(['newer',transfers[1].id])
+  expect(currentFlagTransfers(overlapping,450).map(item=>item.id)).toEqual([transfers[1].id])
 })
 
 function audioFixture() {
