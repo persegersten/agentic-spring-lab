@@ -18,8 +18,12 @@ export const BoardEffects = memo(function BoardEffects({ board, events }: { boar
           <path className="effect-scan" d="M-.32 0h.64"/>
           <circle className="effect-ring" r=".35"/>
         </> : kind === 'capture' ? <>
+          <rect className="effect-capture-flash" x="-.44" y="-.44" width=".88" height=".88" rx=".06"/>
           <path className="effect-capture-bracket" d="M-.46-.25v-.2h.2M.26-.45h.2v.2M.46.25v.2h-.2M-.26.45h-.2v-.2"/>
           <circle className="effect-ring" r=".37"/>
+        </> : kind === 'activation' ? <>
+          <rect className="effect-activation-frame" x="-.4" y="-.4" width=".8" height=".8" rx=".04"/>
+          <path className="effect-activation-rays" d="M0-.5v-.12M.5 0h.12M0 .5v.12M-.5 0h-.12"/>
         </> : kind === 'shield' ? <path className="effect-deployment" d="M0-.4 .34-.2v.34L0 .43-.34.14V-.2z"/>
           : <circle className={`effect-contact ${kind === 'blocked' ? 'effect-block' : ''}`} data-testid={effect.event.actionType === 'LASER' ? (kind === 'blocked' ? 'laser-block' : 'laser-impact') : undefined} r={kind === 'blocked' ? '.32' : '.36'}/>}
         {effect.fragments.map((fragment, index) => <g key={index} className={`effect-fragment ${fragment.plate ? 'fragment-plate' : 'fragment-spark'}`}

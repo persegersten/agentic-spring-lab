@@ -25,7 +25,7 @@
 /* Decorative effects sit below robots, names and checkpoint numbers. */
 .board-effects,.laser-effects{position:absolute;inset:0;width:100%;height:100%;z-index:3;pointer-events:none;overflow:hidden;contain:paint}
 .board-effects{color:var(--amber)}
-.board-effects path,.board-effects circle,.laser-effects path,.laser-effects circle,.laser-effects line{vector-effect:non-scaling-stroke}
+.board-effects path,.board-effects circle,.board-effects rect,.laser-effects path,.laser-effects circle,.laser-effects line{vector-effect:non-scaling-stroke}
 .visual-effect{opacity:1;animation:fx-fade var(--fx-duration) linear var(--fx-delay) both}
 .effect-beam{animation:fx-laser var(--fx-duration) ease-out var(--fx-delay) both}
 .laser-glow{stroke:#edb478;stroke-width:7px;opacity:.16;filter:none}.laser-beam{stroke:#ee9961;stroke-width:3px;filter:none}.laser-core{stroke:#fff2cd;stroke-width:1px}
@@ -38,6 +38,10 @@
 .effect-shock{fill:none;stroke:#b09c76;stroke-width:1;stroke-dasharray:2 3;animation:fx-ring var(--fx-duration) ease-out var(--fx-delay) both;transform-origin:0 0}
 .effect-respawn,.effect-shield{color:var(--protection)}.effect-capture{color:var(--capture)}
 .effect-deployment,.effect-capture-bracket{stroke:currentColor;stroke-width:2;fill:none}
+.effect-capture-flash{fill:currentColor;opacity:.35}
+.effect-activation{color:var(--amber)}
+.effect-activation-frame{stroke:currentColor;stroke-width:2;fill:#dbb66d33;animation:fx-ring var(--fx-duration) ease-out var(--fx-delay) both;transform-origin:0 0}
+.effect-activation-rays{stroke:currentColor;stroke-width:1.5;fill:none}
 .effect-ring{stroke:currentColor;stroke-width:1;fill:none;stroke-dasharray:4 3;animation:fx-ring var(--fx-duration) ease-out var(--fx-delay) both;transform-origin:0 0}
 .effect-scan{stroke:currentColor;stroke-width:1;animation:fx-scan var(--fx-duration) ease-out var(--fx-delay) both}
 .machine-track{background:repeating-linear-gradient(90deg,#101b1e 0 6px,#34413f 6px 8px);border-color:#8c978b}
@@ -83,6 +87,7 @@
 .flag-strip [data-state=locked]{color:#a6b4b5}
 .checkpoint[data-state=available]{border:2px solid #dbb66d;background:#dbb66d33;box-shadow:inset 0 0 0 1px #152222,0 0 5px #dbb66d66;animation:flag-available-pulse 1200ms ease-in-out infinite}
 .checkpoint[data-state=locked]{border-style:dashed;opacity:.65}
+.checkpoint[data-state=available][data-activating=true]{animation:none}
 @keyframes flag-available-pulse{
   0%,100%{transform:scale(.96);filter:brightness(1);box-shadow:inset 0 0 0 1px #152222,0 0 3px #dbb66d44}
   50%{transform:scale(1);filter:brightness(1.18);box-shadow:inset 0 0 0 1px #152222,0 0 8px #dbb66d88}

@@ -46,3 +46,39 @@ test('shake cues only mark fresh significant local impacts without stacking',()=
   const events=[item('RAM','remote',0,{playerId:'remote',sourcePlayerId:'local'}),item('PUSH_BLOCKED','blocked',0),item('RAM','first',0),item('CRASH','suppressed',80),item('CONVEYOR_CRASH','next',120)]
   expect(planShakes({events},'local')).toEqual([{id:'first',at:0,until:120},{id:'next',at:120,until:240}])
 })
+
+test('capture flashes retain their positions and activate historical successors independently',()=>{
+  const board={checkpoints:[
+    {id:'CP3',order:3,position:{x:7,y:4}},
+    {id:'CP1',order:1,position:{x:3,y:4}},
+    {id:'CP2',order:2,position:{x:5,y:4}},
+  ]}
+  const events=['CP1','CP2'].map((checkpointId,i)=>item('SCORE_CHANGED',`capture:${i}`,i*100,{scoreReason:'CHECKPOINT',checkpointId}))
+  const schedule={events,duration:1000}
+  const plan=planEffects(schedule,board,'local','CP3')
+  const captures=plan.filter(effect=>effect.kind==='capture'),activations=plan.filter(effect=>effect.kind==='activation')
+  expect(captures.map(effect=>[effect.checkpointId,effect.anchor,effect.at,effect.until])).toEqual([
+    ['CP1',{x:3,y:4},0,300],['CP2',{x:5,y:4},100,400],
+  ])
+  expect(activations.map(effect=>[effect.checkpointId,effect.anchor,effect.at,effect.until])).toEqual([
+    ['CP2',{x:5,y:4},300,600],['CP3',{x:7,y:4},400,700],
+  ])
+  expect(new Set(plan.map(effect=>effect.id)).size).toBe(4)
+  expect(activations[0].event).toBe(events[0].event)
+  expect(planEffects(schedule,board,'local','CP3')).toEqual(plan)
+  // CP2 may show both transient effects, without becoming available again.
+  expect(plan.filter(effect=>effect.checkpointId==='CP2'&&effect.at<=350&&effect.until>350)).toHaveLength(2)
+  expect(planEffects(schedule,board,'local',null).map(effect=>effect.kind)).toEqual(['capture','capture'])
+  const last=item('SCORE_CHANGED','final',0,{scoreReason:'CHECKPOINT',checkpointId:'CP3'})
+  expect(planEffects({events:[last],duration:1000},board,'local',null).map(effect=>effect.kind)).toEqual(['capture'])
+})
+
+test('activation fits the existing effect window without extending the tick',()=>{
+  const board={checkpoints:[{id:'a',order:1,position:{x:0,y:0}},{id:'b',order:2,position:{x:1,y:0}}]}
+  const capture=item('SCORE_CHANGED','capture',0,{scoreReason:'CHECKPOINT',checkpointId:'a'})
+  const schedule={events:[{...capture,until:450}],duration:450}
+  const effects=planEffects(schedule,board,'local','b')
+  expect(effects.map(effect=>[effect.kind,effect.at,effect.until])).toEqual([['capture',0,300],['activation',300,450]])
+  expect(schedule.duration).toBe(450)
+  expect(planEffects({events:[{...capture,until:200}],duration:200},board,'local','b').map(effect=>effect.kind)).toEqual(['capture'])
+})

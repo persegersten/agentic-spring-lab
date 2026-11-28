@@ -1,10 +1,10 @@
 import { expect, test } from '@playwright/test'
 
-async function setup(page, count = 2, queue = [null,null,null,null,null]) {
+async function setup(page, count = 2, queue = [null,null,null,null,null], checkpoints = [{id:'CP1',order:1,position:{x:2,y:1}}]) {
   const gameId='10000000-0000-0000-0000-000000000007', playerId='local'
   const vehicle = {id:'robot',playerId,x:1,y:1,direction:'NORTH',status:'ACTIVE'}
   const state={id:gameId,playerId,status:'RUNNING',players:Array.from({length:count},(_,i)=>({id:i ? `player-${i}`:playerId,name:`Robot ${i+1}`,capturedCheckpoints:0,visitedCheckpoints:[]})),
-    board:{width:10,height:10,walls:[],pits:[],obstacles:[],checkpoints:[{id:'CP1',order:1,position:{x:2,y:1}}],spawnPoints:[],conveyors:[],rotators:[],controlPoints:[]},
+    board:{width:10,height:10,walls:[],pits:[],obstacles:[],checkpoints,spawnPoints:[],conveyors:[],rotators:[],controlPoints:[]},
     vehicles:[vehicle],placements:[],round:null,shieldAvailable:true,
     continuous:{revision:1,tick:1,serverTime:new Date().toISOString(),nextTick:new Date(Date.now()+2000).toISOString(),intervalMillis:2000,queue,lastExecutedCommand:'WAIT',activeShieldPlayerIds:[],shieldTicksRemaining:0}}
   let response=state
@@ -132,12 +132,17 @@ test('hidden tabs establish a silent baseline and resume only future ticks',asyn
 })
 
 test('new ticks cancel stale effects and confirmed checkpoints have distinct feedback',async({page})=>{
+  await page.clock.install()
   const game=await setup(page)
+  await page.clock.pauseAt(new Date(await page.evaluate(()=>Date.now())+1000))
   game.next([game.event('CRASH')])
+  for(let i=0;i<100&&await page.locator('[data-effect="crash"]').count()===0;i++)await page.clock.runFor(20)
   await expect(page.locator('[data-effect="crash"]')).toBeVisible()
   game.next([game.event('SCORE_CHANGED',1,{scoreReason:'CHECKPOINT',checkpointId:'CP1'})])
+  for(let i=0;i<100&&await page.locator('[data-effect="capture"]').count()===0;i++)await page.clock.runFor(20)
   await expect(page.locator('[data-effect="capture"]')).toBeVisible()
   await expect(page.locator('[data-effect="crash"]')).toHaveCount(0)
+  await page.clock.runFor(650)
   await expect(page.getByTestId('board-effect')).toHaveCount(0)
 })
 
@@ -512,24 +517,103 @@ test('M2: a command acknowledgement that advances the tick keeps its submission 
   expect(await page.evaluate(()=>window.m2Stopped.filter(c=>c==='submit'))).toHaveLength(0)
 })
 
+for (const reducedMotion of ['no-preference','reduce']) {
+  test(`capture and successor flashes overlap without reviving captured flags (${reducedMotion})`,async({page})=>{
+    await page.emulateMedia({reducedMotion})
+    await page.clock.install()
+    const checkpoints=[1,2,3].map(order=>({id:`CP${order}`,order,position:{x:order+1,y:1}}))
+    const game=await setup(page,2,[null,null,null,null,null],checkpoints)
+    await page.clock.pauseAt(new Date(await page.evaluate(()=>Date.now())+1000))
+    const effect=(kind,id)=>page.locator(`[data-effect="${kind}"][data-checkpoint-id="${id}"]`)
+    async function advanceUntil(locator,count=1) {
+      for(let i=0;i<100&&await locator.count()!==count;i++)await page.clock.runFor(20)
+      await expect(locator).toHaveCount(count)
+    }
+    game.state.players[0].visitedCheckpoints=['CP1']
+    game.state.players[1].visitedCheckpoints=['CP2']
+    game.state.players.forEach(player=>player.capturedCheckpoints=1)
+    game.next([game.event('MOVE'),game.event('SCORE_CHANGED',2,{scoreReason:'CHECKPOINT',checkpointId:'CP1'}),
+      game.event('SCORE_CHANGED',3,{scoreReason:'CHECKPOINT',checkpointId:'CP2',playerId:'player-1'}),game.event('TURN',4)])
+    await advanceUntil(effect('capture','CP1'))
+    await expect(page.locator('[data-testid="board-checkpoint"][data-checkpoint-id="CP1"]')).toHaveCount(0)
+    await expect(effect('capture','CP1')).toHaveAttribute('transform','translate(2.5,8.5)')
+    await expect(effect('activation','CP2')).toHaveCount(0)
+    await expect(page.locator('[data-testid="board-checkpoint"][data-state=available]')).toHaveAttribute('data-checkpoint-id','CP3')
+    await expect(page.locator('[data-testid="board-checkpoint"][data-state=available]')).toHaveCSS('animation-name','none')
+    const original=await effect('capture','CP1').elementHandle()
+    await acceptMockCommand(page,game)
+    await page.getByRole('button',{name:'Framåt',exact:true}).click()
+    await expect(page.getByTestId('slot-3')).toContainText('FORWARD_1')
+    expect(await original.evaluate(el=>el===document.querySelector('[data-effect="capture"][data-checkpoint-id="CP1"]'))).toBe(true)
+    await page.screenshot({path:`/tmp/wreckage-flag-capture-${reducedMotion}.png`})
+    await advanceUntil(effect('activation','CP2'))
+    await expect(effect('capture','CP1')).toHaveCount(0)
+    await expect(effect('capture','CP2')).toHaveCount(1)
+    await expect(effect('activation','CP2')).toHaveAttribute('transform','translate(3.5,8.5)')
+    await expect(page.locator('[data-testid="board-checkpoint"][data-checkpoint-id="CP2"]')).toHaveCount(0)
+    await expect(effect('activation','CP2')).toHaveAttribute('data-motion',reducedMotion==='reduce'?'off':'on')
+    await expect(effect('activation','CP2').locator('.effect-activation-frame')).toHaveCSS('vector-effect','non-scaling-stroke')
+    if(reducedMotion==='reduce'){
+      await expect(effect('activation','CP2')).toHaveCSS('animation-name','none')
+      await expect(effect('activation','CP2').locator('.effect-activation-frame')).toHaveCSS('animation-name','none')
+    }
+    await page.screenshot({path:`/tmp/wreckage-flag-overlap-${reducedMotion}.png`})
+    await advanceUntil(effect('activation','CP3'))
+    await expect(effect('capture','CP2')).toHaveCount(0)
+    await page.screenshot({path:`/tmp/wreckage-flag-activation-${reducedMotion}.png`})
+    await page.clock.runFor(1700)
+    await expect(page.getByTestId('board-effect')).toHaveCount(0)
+    await expect(page.locator('[data-testid="board-checkpoint"][data-state=available]')).toHaveCSS('animation-name',reducedMotion==='reduce'?'none':'flag-available-pulse')
+    game.state.continuous.revision++
+    await page.clock.runFor(650)
+    await expect(page.getByTestId('board-effect')).toHaveCount(0)
+    game.disconnect()
+    await page.clock.runFor(650)
+    await expect.poll(()=>game.failures).toBeGreaterThan(0)
+    game.resume()
+    await page.clock.runFor(650)
+    await expect(page.getByTestId('board-effect')).toHaveCount(0)
+    await page.reload()
+    await expect(page.getByTestId('game-board')).toBeVisible()
+    await expect(page.getByTestId('board-effect')).toHaveCount(0)
+    game.state.players[0].visitedCheckpoints.push('CP3');game.state.players[0].capturedCheckpoints=2
+    game.next([game.event('SCORE_CHANGED',1,{scoreReason:'CHECKPOINT',checkpointId:'CP3'})])
+    await advanceUntil(effect('capture','CP3'))
+    await expect(page.getByTestId('board-checkpoint')).toHaveCount(0)
+    await expect(page.locator('[data-effect="activation"]')).toHaveCount(0)
+    await page.clock.runFor(1700)
+    await expect(page.getByTestId('board-effect')).toHaveCount(0)
+    await page.reload()
+    await expect(page.getByTestId('game-board')).toBeVisible()
+    await expect(page.getByTestId('board-effect')).toHaveCount(0)
+    await expect(page.getByTestId('board-checkpoint')).toHaveCount(0)
+  })
+}
+
 test('M3: capture brackets and standings feedback keep checkpoint progress outside the board',async({page})=>{
+  await page.clock.install()
   const game=await setup(page)
+  await page.clock.pauseAt(new Date(await page.evaluate(()=>Date.now())+1000))
   await expect(page.locator('.board-stage [data-testid="checkpoint-progress"]')).toHaveCount(0)
   await expect(page.locator('.compact-scores [data-testid="checkpoint-progress"]')).toBeVisible()
   game.next([game.event('SCORE_CHANGED',1,{scoreReason:'CHECKPOINT',checkpointId:'CP1'})])
   const capture=page.locator('[data-effect="capture"]')
+  for(let i=0;i<100&&await capture.count()===0;i++)await page.clock.runFor(20)
   await expect(capture).toBeVisible()
   await expect(capture).toHaveAttribute('transform','translate(2.5,8.5)')
   await expect(page.getByTestId('capture-highlight')).toBeVisible()
   expect(await capture.evaluate(el=>getComputedStyle(el.closest('svg')).pointerEvents)).toBe('none')
   expect(await page.getByTestId('board-checkpoint').evaluate(el=>Number(getComputedStyle(el).zIndex))).toBeGreaterThan(3)
   await page.screenshot({path:'/tmp/wreckage-m3-capture-desktop.png'})
+  await page.clock.runFor(650)
   await expect(capture).toHaveCount(0)
   await expect(page.getByTestId('capture-highlight')).toHaveCount(0)
 })
 
 test('M3: live reduced-motion changes cancel debris and shake without replaying old effects',async({page})=>{
+  await page.clock.install()
   const game=await setup(page)
+  await page.clock.pauseAt(new Date(await page.evaluate(()=>Date.now())+1000))
   await page.evaluate(()=>{
     window.shakes=[]
     const original=Element.prototype.animate
@@ -540,6 +624,7 @@ test('M3: live reduced-motion changes cancel debris and shake without replaying 
   })
   game.next([game.event('CRASH')])
   const effect=page.locator('[data-effect="crash"]')
+  for(let i=0;i<100&&await effect.count()===0;i++)await page.clock.runFor(20)
   await expect(effect).toHaveAttribute('data-motion','on')
   await page.emulateMedia({reducedMotion:'reduce'})
   await expect(effect).toHaveAttribute('data-motion','off')
@@ -550,9 +635,10 @@ test('M3: live reduced-motion changes cancel debris and shake without replaying 
   expect(shakes).toHaveLength(1)
   expect(shakes[0].options.duration).toBe(120)
   expect(shakes[0].frames.map(frame=>frame.transform)).toEqual(['none','translate(2px,-1px)','translate(-1px,1px)','none'])
+  await page.clock.runFor(650)
   await expect(effect).toHaveCount(0)
   game.state.continuous.revision++
-  await page.waitForTimeout(650)
+  await page.clock.runFor(650)
   expect(await page.evaluate(()=>window.shakes.length)).toBe(1)
 })
 

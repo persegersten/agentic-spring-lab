@@ -1,11 +1,11 @@
 import type { Board, Position } from '../types/game'
 import type { PresentedEvent, TickPresentation } from './timeline'
 
-export const effectDurations = { beam: 160, hit: 240, collision: 240, blocked: 180, crash: 450, respawn: 500, capture: 550, shield: 300 } as const
+export const effectDurations = { beam: 160, hit: 240, collision: 240, blocked: 180, crash: 450, respawn: 500, capture: 300, activation: 300, shield: 300 } as const
 export type EffectKind = keyof typeof effectDurations
 export type Fragment = { x: number; y: number; angle: number; plate: boolean }
 export type EffectDescriptor = PresentedEvent & {
-  kind: EffectKind; anchor: Position; lifetime: number; priority: number; fragments: Fragment[]
+  kind: EffectKind; anchor: Position; lifetime: number; priority: number; fragments: Fragment[]; checkpointId?: string
 }
 export type VisualEffect = EffectDescriptor & { motion: boolean; age: number }
 export type ShakeCue = { id: string; at: number; until: number }
@@ -49,14 +49,26 @@ export function describeEffect(item: PresentedEvent, board: Board, playerId: str
     return { x: Math.cos(angle) * distance, y: Math.sin(angle) * distance,
       angle: (seed + index * 73) % 180, plate: kind === 'crash' || (kind === 'collision' && index % 2 === 0) }
   })
-  return { ...item, kind, anchor: { ...anchor }, lifetime, until: item.at + lifetime, priority, fragments }
+  return { ...item, kind, anchor: { ...anchor }, lifetime, until: item.at + lifetime, priority, fragments,
+    checkpointId: kind === 'capture' ? event.checkpointId : undefined }
 }
 
 /** Admit once in authoritative order. Eviction truncates life; dropped events never backfill. */
-export function planEffects(schedule: TickPresentation, board: Board, playerId: string): EffectDescriptor[] {
+export function planEffects(schedule: TickPresentation, board: Board, playerId: string, availableFlagId: string | null = null): EffectDescriptor[] {
+  const flags = [...board.checkpoints].sort((a, b) => a.order - b.order)
   const candidates = schedule.events.flatMap(item => {
     const effect = describeEffect(item, board, playerId)
-    return effect && effect.lifetime > 0 ? [effect] : []
+    if (!effect || effect.lifetime <= 0) return []
+    if (effect.kind !== 'capture' || !availableFlagId) return [effect]
+    const next = flags[flags.findIndex(flag => flag.id === effect.checkpointId) + 1]
+    if (!next || !Number.isFinite(next.position.x) || !Number.isFinite(next.position.y)) return [effect]
+    // A historical successor may itself be captured in this tick. Only its transient
+    // flash is retained; persistent availability always comes from the snapshot.
+    const at = effect.until
+    const until = Math.min(at + effectDurations.activation, item.until, schedule.duration)
+    if (until <= at) return [effect]
+    return [effect, { ...effect, id: `${effect.id}:activation`, kind: 'activation' as const,
+      checkpointId: next.id, anchor: { ...next.position }, at, until, lifetime: until - at }]
   }).sort((a, b) => a.at - b.at || b.priority - a.priority || a.id.localeCompare(b.id))
   const admitted: EffectDescriptor[] = []
   let active: EffectDescriptor[] = []

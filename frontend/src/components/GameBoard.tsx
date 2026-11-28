@@ -59,18 +59,18 @@ const RobotVehicle = memo(function RobotVehicle({ vehicle: v, board, name, own, 
    <small>{name}</small>
  </motion.div>
 })
-const StaticBoard = memo(function StaticBoard({board, flags}: {board: Board; flags: ReturnType<typeof flagOwnership>}) {
+const StaticBoard = memo(function StaticBoard({board, flags, activatingFlagId}: {board: Board; flags: ReturnType<typeof flagOwnership>; activatingFlagId?: string}) {
  return <>
   {board.walls.map(w=><div className={`wall wall-${w.direction.toLowerCase()}`} data-testid="board-wall" data-x={w.cell.x} data-y={w.cell.y} data-direction={w.direction} key={`${w.cell.x}-${w.cell.y}-${w.direction}`} style={{left:`${w.cell.x/board.width*100}%`,top:`${(board.height-1-w.cell.y)/board.height*100}%`,width:`${100/board.width}%`,height:`${100/board.height}%`}} />)}
   {board.pits.map(p=><div className="pit" data-testid="board-pit" data-x={p.x} data-y={p.y} key={`${p.x}-${p.y}`} style={{left:`${p.x/board.width*100}%`,top:`${(board.height-1-p.y)/board.height*100}%`,width:`${100/board.width}%`,height:`${100/board.height}%`}} />)}
   {(board.obstacles??[]).map(p=><div className="obstacle" data-testid="board-obstacle" data-x={p.x} data-y={p.y} key={`${p.x}-${p.y}`} style={{left:`${p.x/board.width*100}%`,top:`${(board.height-1-p.y)/board.height*100}%`,width:`${100/board.width}%`,height:`${100/board.height}%`}} />)}
   {(board.conveyors??[]).map((c,i)=><div className="conveyor" data-testid="board-conveyor" data-x={c.position.x} data-y={c.position.y} data-direction={c.direction} key={i} style={{left:`${c.position.x/board.width*100}%`,top:`${(board.height-1-c.position.y)/board.height*100}%`,width:`${100/board.width}%`,height:`${100/board.height}%`}}><Icon name="FORWARD_1"/></div>)}
   {(board.rotators??[]).map((r,i)=><div className="rotator" data-testid="board-rotator" data-x={r.position.x} data-y={r.position.y} data-rotation={r.rotation} key={i} style={{left:`${r.position.x/board.width*100}%`,top:`${(board.height-1-r.position.y)/board.height*100}%`,width:`${100/board.width}%`,height:`${100/board.height}%`}}><Icon name={r.rotation==='CLOCKWISE'?'TURN_RIGHT':'TURN_LEFT'}/></div>)}
-  {flags.filter(c => !c.owner).map(c=><div className={`checkpoint checkpoint-${c.order}`} data-state={c.available ? 'available' : 'locked'} aria-label={`Checkpoint ${c.order}`} data-testid="board-checkpoint" data-checkpoint-id={c.id} data-checkpoint-order={c.order} data-x={c.position.x} data-y={c.position.y} key={c.id} style={{left:`${c.position.x/board.width*100}%`,top:`${(board.height-1-c.position.y)/board.height*100}%`,width:`${100/board.width}%`,height:`${100/board.height}%`}}><span>{c.order}</span></div>)}
+  {flags.filter(c => !c.owner).map(c=><div className={`checkpoint checkpoint-${c.order}`} data-state={c.available ? 'available' : 'locked'} data-activating={c.id === activatingFlagId ? 'true' : undefined} aria-label={`Checkpoint ${c.order}`} data-testid="board-checkpoint" data-checkpoint-id={c.id} data-checkpoint-order={c.order} data-x={c.position.x} data-y={c.position.y} key={c.id} style={{left:`${c.position.x/board.width*100}%`,top:`${(board.height-1-c.position.y)/board.height*100}%`,width:`${100/board.width}%`,height:`${100/board.height}%`}}><span>{c.order}</span></div>)}
   {(board.controlPoints ?? []).map(p=><div className="control-point" aria-label={`Control point at ${p.x}, ${p.y}`} data-testid="board-control-point" data-x={p.x} data-y={p.y} key={`${p.x}-${p.y}`} style={{left:`${p.x/board.width*100}%`,top:`${(board.height-1-p.y)/board.height*100}%`,width:`${100/board.width}%`,height:`${100/board.height}%`}} />)}
  </>
 })
-export const GameBoard = memo(function GameBoard({board,vehicles,players,currentPlayerId,playbackEvent,laserEvents,laserSpins={},laserRotations=laserSpins,activeShieldPlayerIds=[],effects,shake,animate=true,duration=.2}:{board:Board;vehicles:Vehicle[];players:Player[];currentPlayerId:string;playbackEvent?:RoundEvent;laserEvents?:RoundEvent[];laserSpins?:Record<string,number>;laserRotations?:Record<string,number>;activeShieldPlayerIds?:string[];effects?:VisualEffect[];shake?:ShakeCue;animate?:boolean;duration?:number}){
+export const GameBoard = memo(function GameBoard({board,vehicles,players,currentPlayerId,playbackEvent,laserEvents,laserSpins={},laserRotations=laserSpins,activeShieldPlayerIds=[],effects,activatingFlagId,shake,animate=true,duration=.2}:{board:Board;vehicles:Vehicle[];players:Player[];currentPlayerId:string;playbackEvent?:RoundEvent;laserEvents?:RoundEvent[];laserSpins?:Record<string,number>;laserRotations?:Record<string,number>;activeShieldPlayerIds?:string[];effects?:VisualEffect[];activatingFlagId?:string;shake?:ShakeCue;animate?:boolean;duration?:number}){
  const boardElement = useRef<HTMLDivElement>(null)
  const reducedMotion = useReducedMotionPreference()
  const names=Object.fromEntries(players.map(p=>[p.id,p.name]));
@@ -86,7 +86,7 @@ export const GameBoard = memo(function GameBoard({board,vehicles,players,current
   return () => animation?.cancel()
  }, [shakeId, reducedMotion])
  return <div className="board-wrap" style={{'--board-ratio':board.width/board.height} as CSSProperties}><div ref={boardElement} className="board" role="grid" aria-label="Spelplan" data-testid="game-board" data-width={board.width} data-height={board.height} style={{gridTemplateColumns:`repeat(${board.width}, 1fr)`,aspectRatio:`${board.width}/${board.height}`,backgroundSize:`${100/board.width}% ${100/board.height}%`}}>
-  <StaticBoard board={board} flags={flagOwnership(board, players)}/>
+  <StaticBoard board={board} flags={flagOwnership(board, players)} activatingFlagId={activatingFlagId}/>
   <LaserEffects board={board} events={visualEffects}/>
   <BoardEffects board={board} events={visualEffects}/>
   {vehicles.map(v=><RobotVehicle key={v.id} vehicle={v} board={board} name={names[v.playerId]} own={v.playerId===currentPlayerId}

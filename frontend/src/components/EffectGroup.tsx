@@ -7,6 +7,7 @@ export function EffectGroup({ effect, children, className = '', transform }: {
 }) {
   const [age] = useState(effect.age)
   return <g data-testid="board-effect" data-effect={effect.kind} data-event-id={effect.id}
+    data-checkpoint-id={effect.checkpointId}
     data-motion={effect.motion ? 'on' : 'off'} data-duration={effect.lifetime}
     className={`visual-effect effect-${effect.kind} ${className}`} transform={transform}
     style={{ '--fx-duration': `${effect.lifetime}ms`, '--fx-delay': `${-age}ms` } as CSSProperties}>

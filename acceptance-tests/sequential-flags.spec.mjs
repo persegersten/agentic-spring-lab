@@ -114,6 +114,62 @@ for (const reducedMotion of ['no-preference', 'reduce']) {
   })
 }
 
+for (const [variant,reducedMotion] of [['STANDING','no-preference'],['PUSH','no-preference'],['PUSH','reduce']]) {
+  test(`capture then activation feedback reaches both players (${variant}, ${reducedMotion})`, async ({ browser }) => {
+    await scenario(browser, variant, async ({ pages, tick, ownership }) => {
+      for (const page of pages) {
+        await page.emulateMedia({ reducedMotion })
+        await page.clock.install()
+        await page.clock.pauseAt(new Date(await page.evaluate(() => Date.now()) + 1000))
+      }
+      await Promise.all([
+        pages[0].waitForResponse(response => response.url().endsWith('/commands') && response.status() === 200),
+        pages[0].getByRole('button', { name: 'Framåt', exact: true }).click(),
+      ])
+      await tick(2)
+      for (const page of pages) {
+        await page.clock.runFor(500)
+        await expect(page.locator('.tick-status')).toContainText('Tick 2')
+        await page.clock.runFor(1600)
+      }
+      const captured=await tick()
+      for (const [index,page] of pages.entries()) {
+        const effect=(kind,id)=>page.locator(`[data-effect="${kind}"][data-checkpoint-id="${id}"]`)
+        async function advanceUntil(locator) {
+          for(let i=0;i<100&&await locator.count()===0;i++)await page.clock.runFor(20)
+          await expect(locator).toHaveCount(1)
+        }
+        await advanceUntil(effect('capture','CP1'))
+        await expect(marker(page,'CP1')).toHaveCount(0)
+        const checkpoint=captured.board.checkpoints.find(flag=>flag.id==='CP1')
+        await expect(effect('capture','CP1')).toHaveAttribute('transform',`translate(${checkpoint.position.x+.5},${captured.board.height-checkpoint.position.y-.5})`)
+        await expect(effect('activation','CP2')).toHaveCount(0)
+        await advanceUntil(effect('activation','CP2'))
+        await expect(effect('capture','CP1')).toHaveCount(0)
+        if(variant==='PUSH') {
+          await expect(effect('capture','CP2')).toHaveCount(1)
+          await expect(marker(page,'CP2')).toHaveCount(0)
+          await expect(marker(page,'CP3')).toHaveAttribute('data-state','available')
+        } else {
+          await expect(marker(page,'CP2')).toHaveAttribute('data-state','available')
+          await expect(marker(page,'CP2')).toHaveCSS('animation-name','none')
+        }
+        await expect(effect('activation','CP2')).toHaveAttribute('data-motion',reducedMotion==='reduce'?'off':'on')
+        if(index===0)await page.screenshot({path:`/tmp/wreckage-live-flag-${variant}-${reducedMotion}.png`})
+        await page.clock.runFor(1700)
+        await expect(page.getByTestId('board-effect')).toHaveCount(0)
+        await expect(marker(page,variant==='PUSH'?'CP3':'CP2')).toHaveCSS('animation-name',reducedMotion==='reduce'?'none':'flag-available-pulse')
+        await page.clock.runFor(650)
+        await expect(page.getByTestId('board-effect')).toHaveCount(0)
+        await page.reload()
+        await expect(page.getByTestId('game-board')).toBeVisible()
+        await expect(page.getByTestId('board-effect')).toHaveCount(0)
+      }
+      await ownership('Alice',variant==='PUSH'?'Bob':null)
+    })
+  })
+}
+
 test('standing on Flag 2 requires leaving and returning after Flag 1 unlocks it', async ({ browser }) => {
   await scenario(browser, 'STANDING', async ({ pages, command, ownership }) => {
     await command(0, 'Framåt')
