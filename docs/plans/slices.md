@@ -1,20 +1,78 @@
-# Action audio tuning — slice plan
+# Flag visual feedback — slice plan
 
-Source: [docs/dev/idea5.md](../dev/idea5.md). Its final scope decisions supersede earlier wording about priority, once-per-event playback, new assets, and layering.
+Source: [Enhanced visual feedback for flag events](../dev/idea6.md).
 
-This is one small slice, as explicitly requested. Baseline capture, tuning, and verification are work within that slice rather than separate deliverables.
+Build the three slices in the brief's priority order. Each is an independently
+observable, verifiable change small enough to revert as one commit. This plan
+does not authorize creating commits.
 
-1. **Louder action cues with the strongest celebration reserved for victory**
-   - **What changes:** Laser firing, laser impact, and flag capture sound noticeably louder; the existing victory cue delivers the strongest perceived audio impact in the existing live-game presentation.
-   - **How to verify manually:** Before changing gains, play and record a short live-game sequence containing movement, laser firing, laser impact, flag capture, and a winning finish, including overlapping action sounds. Repeat the same sequence after one focused tuning pass using the same device, browser, event timing, and master volume. Listen to both recordings: the three action cues must be noticeably louder, firing must remain distinct from impact, victory must have the strongest perceived impact, and movement/background levels must remain unchanged. Repeat the overlapping portion at maximum master volume and listen for clipping or distortion. Observe another player's browser to confirm existing recipient behavior; toggle mute, unmute, and adjust master volume to confirm settings still work without replaying consumed events. Run existing audio-policy and relevant browser audio checks plus the frontend build; inspect mixed-signal peaks for the verification sequence as supporting evidence. Record actual results and any unavailable listening checks, and update the documented gain table in docs/assets.md.
-   - **What it deliberately does not do yet:** No asset edits, layering, new dependencies, playback-policy changes, recipient changes, timing changes, backend changes, or audio-control changes; no further aesthetic tuning passes.
+## Shared constraints
+
+Use the existing live-game board, ownership strip, flag graphics, player colours
+and frontend animation infrastructure. Inspect current components, event payloads
+and relevant flag rules before implementation. No new dependencies are needed.
+Animations never delay commands or alter game timing.
+
+Transient effects describe gameplay events; continuous pulsation derives only
+from current authoritative availability. Animation completion cannot reactivate
+a captured flag. Existing ownership presentation settles to authoritative state.
+Trigger transients using stable gameplay-event identities, never ordinary renders;
+loading, reconnecting and duplicate snapshots must not replay historical effects.
+
+Respect reduced motion using a static active-flag highlight and restrained,
+non-scaling transient highlights. The suggested 1,200 ms pulse, 300 ms capture,
+300 ms activation and 600 ms transfer durations are starting values. Exact styling
+is delegated to implementation. One focused visual tuning pass is sufficient.
+
+## Ordered slices
+
+1. **Active flag pulsation**
+   - **What changes:** Only the currently available board flag pulses with subtle scaling, glow and brightness; reduced motion uses a static highlight.
+   - **How to verify manually:** Open a running local game in two separate browser sessions. Identify the pulsing flag, program movement to capture it, and confirm only the newly available flag pulses. Reload both sessions and confirm current availability appears immediately. Capture the final flag and confirm no pulse remains; also inspect a loaded all-captured state. Enable the browser's reduced-motion emulation and repeat the availability check, confirming a static highlight replaces pulsation. Confirm flag graphics, player colours and board layout remain intact. Run relevant frontend checks and the production build, recording actual results.
+   - **What it deliberately does not do yet:** No new capture, activation or ownership-transfer animations; existing feedback remains in place.
+
+2. **Capture flash followed by activation feedback**
+   - **What changes:** A capture leaves a distinct flash at its former board position, followed by a successor activation flash when applicable, while current authoritative availability determines persistent pulsation.
+   - **How to verify manually:** Capture a flag while watching both browser sessions. Confirm its flash survives removal of the board flag, then observe the successor's distinct activation flash. Exercise multiple captures within one tick, including a successor activated and captured in that tick; confirm transient effects can overlap without delaying commands or leaving a captured flag pulsing. Capture the final flag and confirm no activation or pulsation remains when no flags are available. Reload or reconnect after a capture and confirm old flashes do not replay; ordinary state refreshes must not restart them. Repeat with reduced motion. Run relevant presentation and browser checks and the frontend build, recording actual results and any scenarios that could not be exercised.
+   - **What it deliberately does not do yet:** No enhancement of ownership-transfer feedback or changes to gameplay/event contracts.
+
+   Extend the existing capture presentation rather than adding duplicate effects.
+   Retain the event's board position for its transient lifetime independently of
+   current flag rendering. Preserve the brief's permission for overlapping
+   historical activation/capture flashes, subject to its rule that no activation
+   flash is displayed when no flags remain available. Capture-to-activation
+   sequencing is local to that effect pair, never a gameplay-blocking queue.
+
+3. **Ownership transfer in the existing strip**
+   - **What changes:** Existing supported ownership transfers highlight affected strip entries using the previous and new owners' player colours; different flags animate concurrently and settle to authoritative ownership.
+   - **How to verify manually:** Use an ownership transfer supported by the current mechanics, watching both browser sessions. Confirm the affected strip entry transitions between the previous and new owners' colours and then displays the new owner normally. Transfer multiple flags in one tick and confirm concurrent feedback. Exercise repeated transfers of one flag and confirm no obsolete owner transition persists. Reload or reconnect and confirm current ownership appears without replaying old highlights. Repeat with reduced motion. Run relevant ownership/presentation and browser checks and the frontend build, recording actual results and any unavailable scenarios.
+   - **What it deliberately does not do yet:** No new or restored transfer mechanics, ownership-strip layout changes, or unrelated visual effects.
+
+   Inspect and reuse existing FLAG_TRANSFERRED presentation and strip markers
+   where supported. If the current mechanics do not support transfers, document
+   this slice as inapplicable rather than implementing mechanics or inferring
+   transfers from ordinary snapshot differences. For repeated transfers of one
+   flag, let the latest presented transfer replace an older transition; distinct
+   flags remain concurrent.
 
 ## The riskiest slice
 
-Slice 1 is the only slice and puts the risk first: stronger individual gains can produce excessive combined volume during overlaps, while perceived victory impact depends on the existing recording and listening device. Capture the baseline before editing, use conservative gains, and verify the overlap mix during the single focused tuning pass. Do not solve failures by adding ducking, limiting, interruption, or new suppression policies. Signal measurements support the listening comparison but do not establish perceived quality or absence of audible distortion by themselves.
+Slice 2 is most likely to overrun: removed flags, successive captures in one tick,
+activation flashes, existing effect lifetimes and reconnect suppression all meet
+at the same lifecycle boundary. Test those cases early within slice 2.
+
+Keep it second rather than moving it ahead of slice 1. The brief explicitly sets
+the priority order, and slice 1 provides immediate feedback while establishing
+the authoritative availability handling that slice 2 must preserve.
 
 ## What is not in any slice
 
-No accepted requirement is deferred. Earlier suggestions for new assets, layering, literal playback of every event, or new victory priorities are excluded by the final scope decisions. External sound-library searches, architecture changes, additional screens, production deployment, and subjective audio perfection are outside scope.
+No applicable brief requirement is deferred. Ownership-transfer feedback is
+conditional on mechanics already supporting it, exactly as specified in the brief.
 
-Implementation is expected to change only the four cue gains and their documentation. Existing cooldowns, voice limits, suppression, HTML5 fallback behavior, event deduplication, mute/volume handling, recipient behavior, and all other cue gains remain unchanged. Exact gains are implementation decisions.
+Excluded: changes to rules, scoring, flag mechanics, backend/API contracts, game
+tick or animation-driven gameplay timing; new screens or layout redesign; new
+sound effects; dependencies, particle systems or graphics frameworks; blocking
+animation queues; perfect separation of simultaneous effects; additional visual
+tuning passes. No deployment, implementation or commits are part of this planning
+task.

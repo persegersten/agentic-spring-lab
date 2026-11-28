@@ -50,6 +50,70 @@ async function scenario(browser, name, run) {
   }
 }
 
+for (const reducedMotion of ['no-preference', 'reduce']) {
+  test(`only the available flag pulses through captures and reloads (${reducedMotion})`, async ({ browser }) => {
+    await scenario(browser, 'STANDING', async ({ pages, command, ownership }) => {
+      async function checkAvailable(id) {
+        for (const page of pages) {
+          const available = page.locator('[data-testid="board-checkpoint"][data-state=available]')
+          await expect(available).toHaveCount(1)
+          await expect(available).toHaveAttribute('data-checkpoint-id', id)
+          const locked = page.locator('[data-testid="board-checkpoint"][data-state=locked]')
+          for (const element of await locked.all()) await expect(element).toHaveCSS('animation-name', 'none')
+          if (reducedMotion === 'reduce') {
+            await expect(available).toHaveCSS('animation-name', 'none')
+            await expect(available).toHaveCSS('transform', 'none')
+            await expect(available).toHaveCSS('filter', 'none')
+            expect(await available.evaluate(el => getComputedStyle(el).boxShadow)).not.toBe('none')
+          } else {
+            // Sample the live CSS animation at its endpoints, without relying on wall-clock timing.
+            const samples = await available.evaluate(el => {
+              const animation = el.getAnimations()[0]
+              if (!animation) return null
+              const previousTime = animation.currentTime
+              animation.pause()
+              const sample = time => {
+                animation.currentTime = time
+                const style = getComputedStyle(el)
+                return { scale: new DOMMatrixReadOnly(style.transform).a, brightness: style.filter, glow: style.boxShadow }
+              }
+              const low = sample(0), high = sample(600)
+              animation.currentTime = previousTime
+              animation.play()
+              return { low, high }
+            })
+            expect(samples).not.toBeNull()
+            expect(samples.high.scale).toBeGreaterThan(samples.low.scale)
+            expect(samples.high.brightness).not.toBe(samples.low.brightness)
+            expect(samples.high.glow).not.toBe(samples.low.glow)
+          }
+        }
+      }
+      for (const page of pages) await page.emulateMedia({ reducedMotion })
+      await checkAvailable('CP1')
+      await command(0, 'Framåt')
+      await ownership('Alice', null)
+      await checkAvailable('CP2')
+      for (const page of pages) await page.reload()
+      await checkAvailable('CP2')
+      await command(1, 'Backa')
+      await command(1, 'Framåt')
+      await ownership('Alice', 'Bob')
+      await checkAvailable('CP3')
+      if (reducedMotion === 'no-preference') {
+        await pages[0].screenshot({ path: '/tmp/wreckage-flag-pulse.png', fullPage: true })
+        // A runtime preference change must immediately replace the pulse with a static highlight.
+        for (const page of pages) {
+          await page.emulateMedia({ reducedMotion: 'reduce' })
+          await expect(marker(page, 'CP3')).toHaveCSS('animation-name', 'none')
+          await expect(marker(page, 'CP3')).toHaveCSS('transform', 'none')
+        }
+        await pages[0].screenshot({ path: '/tmp/wreckage-flag-static.png', fullPage: true })
+      }
+    })
+  })
+}
+
 test('standing on Flag 2 requires leaving and returning after Flag 1 unlocks it', async ({ browser }) => {
   await scenario(browser, 'STANDING', async ({ pages, command, ownership }) => {
     await command(0, 'Framåt')

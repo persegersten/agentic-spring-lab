@@ -81,8 +81,13 @@
 .flag-strip [data-state=available]{border-color:#dbb66d;color:#f4dfad}
 .flag-strip [data-state=owned]{border-color:#bed29c;color:#dce9c6}
 .flag-strip [data-state=locked]{color:#a6b4b5}
-.checkpoint[data-state=available]{border:2px solid #dbb66d;background:#dbb66d33;box-shadow:inset 0 0 0 1px #152222}
+.checkpoint[data-state=available]{border:2px solid #dbb66d;background:#dbb66d33;box-shadow:inset 0 0 0 1px #152222,0 0 5px #dbb66d66;animation:flag-available-pulse 1200ms ease-in-out infinite}
 .checkpoint[data-state=locked]{border-style:dashed;opacity:.65}
+@keyframes flag-available-pulse{
+  0%,100%{transform:scale(.96);filter:brightness(1);box-shadow:inset 0 0 0 1px #152222,0 0 3px #dbb66d44}
+  50%{transform:scale(1);filter:brightness(1.18);box-shadow:inset 0 0 0 1px #152222,0 0 8px #dbb66d88}
+}
+@media(prefers-reduced-motion:reduce){.checkpoint[data-state=available]{animation:none}}
 @media(max-height:600px) and (orientation:landscape){.compact-score-list li{line-height:14px}}
 
 .flag-strip [data-transferred=true]{background:#3b4930;border-color:#ffe29b;box-shadow:inset 0 0 0 1px #ffe29b;color:#fff0c9}

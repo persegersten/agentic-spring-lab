@@ -16,6 +16,8 @@ for (const scenario of ['FINAL_TIE', 'FINAL_UNEQUAL']) {
         await page.clock.install()
         await page.goto(`/game/${fixture.gameId}`)
         await expect(page.getByTestId('flag-strip')).toBeVisible()
+        await expect(page.locator('[data-testid="board-checkpoint"][data-state=available]')).toHaveAttribute('data-checkpoint-id', 'CP4')
+        await expect(page.locator('[data-testid="board-checkpoint"][data-state=available]')).toHaveCSS('animation-name', 'flag-available-pulse')
         await page.clock.pauseAt(new Date(await page.evaluate(() => Date.now()) + 1000))
         pages.push(page)
       }
@@ -87,9 +89,12 @@ for (const scenario of ['FINAL_TIE', 'FINAL_UNEQUAL']) {
       expect(later.placements).toEqual(finished.placements)
 
       // A reconnect reconstructs final standings directly without replaying the round.
-      await pages[0].reload()
-      await expect(pages[0].getByTestId('final-standings')).toBeVisible()
-      await expect(pages[0].getByTestId('player-placement')).toHaveText(tied ? ['1', '1'] : ['1', '2'])
+      for (const page of pages) {
+        await page.reload()
+        await expect(page.getByTestId('final-standings')).toBeVisible()
+        await expect(page.getByTestId('player-placement')).toHaveText(tied ? ['1', '1'] : ['1', '2'])
+        await expect(page.getByTestId('board-checkpoint')).toHaveCount(0)
+      }
     } finally { await Promise.all(contexts.map(context => context.close())) }
   })
 }
