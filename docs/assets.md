@@ -55,14 +55,50 @@ processing are reproducible from that source.
 | `turn.wav` | Short servo | 160 ms | 0.24 |
 | `impact.wav` | Metallic body impact | 240 ms | 0.65 |
 | `blocked.wav` | Restrained stop clack | 100 ms | 0.38 |
-| `laser.wav` | Short descending discharge | 180 ms | 0.48 |
-| `hit.wav` | Bright metallic impact | 200 ms | 0.58 |
+| `laser.wav` | Short descending discharge | 180 ms | 0.65 |
+| `hit.wav` | Bright metallic impact | 200 ms | 0.75 |
 | `crash.wav` | Rumble and three debris clicks | 480 ms | 0.65 |
 | `respawn.wav` | Motor restart and rising notes | 380 ms | 0.46 |
-| `capture.wav` | Three-note checkpoint confirmation | 360 ms | 0.50 |
-| `victory.wav` | Four-note finish flourish | 650 ms | 0.60 |
+| `capture.wav` | Three-note checkpoint confirmation | 360 ms | 0.70 |
+| `victory.wav` | Four-note finish flourish | 650 ms | 1.00 |
 | `complete.wav` | Neutral match-complete confirmation | 400 ms | 0.42 |
 | `shield.wav` | Brief protection hum | 280 ms | 0.40 |
+
+### Action-cue gain tuning verification
+
+Slice 1 changes only the laser, hit, capture and victory gains. Relative to the
+previous gains, these increase by 2.63, 2.23, 2.92 and 4.44 dB respectively.
+Victory has the largest gain and the highest gain-adjusted RMS of the four
+existing recordings. All source assets, durations and other cue gains are unchanged.
+
+Verification used the live React presentation and real Howler/Web Audio in
+headless Chromium, with deterministic API response fixtures rather than a running
+backend. Original gains were served through a temporary browser route for the
+baseline. Both versions received the same ordered movement/turn, firing/hit,
+checkpoint and winner-finish sequence, plus a dense 20-event tick with overlapping
+firing, hits, movement, turns and captures. Browser polling and rendering introduce
+small timing differences between captures. The same browser and master volumes
+were used; a temporary tap recorded the mixed floating-point signal before output.
+
+| Master volume | Original mixed peak | Tuned mixed peak | Samples exceeding full scale |
+| --- | --- | --- | --- |
+| 50% | 0.2203 | 0.3498 | 0 in both captures |
+| 100% | 0.4661 | 0.6996 | 0 in both captures |
+
+The frontend production build and 29 existing audio-policy/browser checks passed,
+covering settings, deduplication, cooldowns, voice limits, readiness/failures,
+winner dispatch and real HTML5 fallback. Four temporary live-capture checks and
+one finish-recipient check in isolated winner/non-winner browser contexts also
+passed. Capture WAVs are available for this workspace session as
+`/tmp/wreckage-audio-live-{before,after}-{0.5,1}.wav`; temporary verification scripts
+and configuration were not added to the project.
+
+These measurements establish headroom for the tested live sequence, not every
+possible mix. A separate synthetic stress mix that starts duplicate firing and
+hit waveforms at exactly the same sample exceeded full scale with both the old
+and new gains. No global mixing or suppression policy was changed to address that
+pre-existing limitation. Human listening, perceived victory impact, audible
+distortion and real-device speaker quality remain unverified in this environment.
 
 ## Audio behavior
 
